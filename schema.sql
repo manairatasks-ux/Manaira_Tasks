@@ -52,3 +52,38 @@ CREATE TABLE IF NOT EXISTS comentarios (
 CREATE INDEX IF NOT EXISTS idx_grupos_setor ON grupos(setor_id);
 CREATE INDEX IF NOT EXISTS idx_tarefas_grupo ON tarefas(grupo_id);
 CREATE INDEX IF NOT EXISTS idx_comentarios_tarefa ON comentarios(tarefa_id);
+
+
+-- Módulo: Ordem de Serviço Operacional
+CREATE TABLE IF NOT EXISTS ordens_servico (
+  id SERIAL PRIMARY KEY,
+  numero VARCHAR(30) UNIQUE,
+  titulo VARCHAR(200) NOT NULL,
+  descricao TEXT,
+  solicitante VARCHAR(120),
+  setor_local VARCHAR(160),
+  categoria VARCHAR(60) DEFAULT 'Outros',
+  prioridade VARCHAR(40) DEFAULT 'Média',
+  impacto VARCHAR(120),
+  status VARCHAR(60) DEFAULT 'Recebido',
+  responsavel_principal VARCHAR(120),
+  funcionarios TEXT,
+  quantidade_mao_obra INTEGER DEFAULT 1,
+  tempo_estimado_min INTEGER DEFAULT 0,
+  tempo_real_min INTEGER DEFAULT 0,
+  previsao_conclusao TIMESTAMP,
+  data_inicio TIMESTAMP,
+  data_conclusao TIMESTAMP,
+  material_necessario TEXT,
+  material_utilizado TEXT,
+  pendencias TEXT,
+  execucao TEXT,
+  observacao_conclusao TEXT,
+  criado_por INTEGER REFERENCES usuarios(id),
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_os_status ON ordens_servico(status);
+CREATE INDEX IF NOT EXISTS idx_os_prioridade ON ordens_servico(prioridade);
+CREATE INDEX IF NOT EXISTS idx_os_criado_em ON ordens_servico(criado_em);

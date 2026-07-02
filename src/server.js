@@ -1165,6 +1165,213 @@ app.get('/api/setores/:id/relatorio-pdf', authPdf, async (req, res) => {
   }
 });
 
+
+// =========================
+// Módulo Ordem de Serviço Operacional
+// =========================
+function cleanDateTime(value) {
+  return value && value !== '' ? value : null;
+}
+
+function normalizeMinutes(value) {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+async function generateOsNumber() {
+  const row = await get(`SELECT COALESCE(MAX(id), 0) + 1 AS next_id FROM ordens_servico`);
+  const year = new Date().getFullYear();
+  return `OS-${year}-${String(row?.next_id || 1).padStart(5, '0')}`;
+}
+
+function osOpenFilter(alias = 'o') {
+  return `${alias}.status NOT IN ('Concluído', 'Cancelado')`;
+}
+
+app.get('/api/os/dashboard', auth, async (req, res) => {
+  try {
+    const { busca = '', status = '', prioridade = '', responsavel = '', periodo = '30' } = req.query;
+    const params = [];
+    const filters = [];
+
+    if (busca) {
+      params.push(`%${String(busca).trim()}%`);
+      filters.push(`(o.titulo ILIKE $${params.length} OR COALESCE(o.descricao,'') ILIKE $${params.length} OR COALESCE(o.setor_local,'') ILIKE $${params.length} OR COALESCE(o.solicitante,'') ILIKE $${params.length})`);
+    }
+    if (status) { params.push(status); filters.push(`o.status = $${params.length}`); }
+    if (prioridade) { params.push(prioridade); filters.push(`o.prioridade = $${params.length}`); }
+    if (responsavel) { params.push(`%${String(responsavel).trim()}%`); filters.push(`COALESCE(o.responsavel_principal,'') ILIKE $${params.length}`); }
+
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const periodoDias = Math.max(1, Math.min(parseInt(periodo, 10) || 30, 365));
+
+    const totalizadores = await get(`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE ${osOpenFilter('o')})::int AS abertas,
+        COUNT(*) FILTER (WHERE o.status = 'Recebido')::int AS recebidas,
+        COUNT(*) FILTER (WHERE o.status = 'Em execução')::int AS em_execucao,
+        COUNT(*) FILTER (WHERE o.status IN ('Aguardando mão de obra', 'Aguardando material', 'Pausado'))::int AS pendentes,
+        COUNT(*) FILTER (WHERE o.status = 'Concluído')::int AS concluidas,
+        COUNT(*) FILTER (WHERE o.prioridade = 'Urgente' AND ${osOpenFilter('o')})::int AS urgentes,
+        ROUND(AVG(NULLIF(o.tempo_real_min, 0)))::int AS tempo_medio_min
+      FROM ordens_servico o
+      ${where}
+    `, params);
+
+    const porStatus = await all(`SELECT o.status, COUNT(*)::int AS total FROM ordens_servico o ${where} GROUP BY o.status ORDER BY total DESC`, params);
+    const porPrioridade = await all(`SELECT o.prioridade, COUNT(*)::int AS total FROM ordens_servico o ${where} GROUP BY o.prioridade ORDER BY CASE o.prioridade WHEN 'Urgente' THEN 1 WHEN 'Alta' THEN 2 WHEN 'Média' THEN 3 WHEN 'Baixa' THEN 4 ELSE 5 END`, params);
+    const porResponsavel = await all(`
+      SELECT COALESCE(NULLIF(TRIM(o.responsavel_principal), ''), 'Sem responsável') AS responsavel,
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE ${osOpenFilter('o')})::int AS abertas,
+        COUNT(*) FILTER (WHERE o.status = 'Concluído')::int AS concluidas
+      FROM ordens_servico o
+      ${where}
+      GROUP BY COALESCE(NULLIF(TRIM(o.responsavel_principal), ''), 'Sem responsável')
+      ORDER BY abertas DESC, total DESC
+      LIMIT 12
+    `, params);
+
+    const recentes = await all(`
+      SELECT * FROM ordens_servico o
+      ${where}
+      ORDER BY CASE o.prioridade WHEN 'Urgente' THEN 1 WHEN 'Alta' THEN 2 WHEN 'Média' THEN 3 WHEN 'Baixa' THEN 4 ELSE 5 END,
+        CASE o.status WHEN 'Recebido' THEN 1 WHEN 'Em análise' THEN 2 WHEN 'Em execução' THEN 3 ELSE 4 END,
+        o.criado_em DESC
+      LIMIT 80
+    `, params);
+
+    const concluidasPeriodo = await all(`
+      SELECT to_char(date_trunc('day', o.data_conclusao), 'YYYY-MM-DD') AS dia, COUNT(*)::int AS total
+      FROM ordens_servico o
+      WHERE o.status = 'Concluído' AND o.data_conclusao >= CURRENT_DATE - ($1::int * INTERVAL '1 day')
+      GROUP BY date_trunc('day', o.data_conclusao)
+      ORDER BY date_trunc('day', o.data_conclusao)
+    `, [periodoDias]);
+
+    res.json({ filtros: { busca, status, prioridade, responsavel, periodo: periodoDias }, totalizadores: totalizadores || {}, porStatus, porPrioridade, porResponsavel, recentes, concluidasPeriodo });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao carregar ordens de serviço.', details: err.message });
+  }
+});
+
+app.post('/api/os', auth, async (req, res) => {
+  try {
+    const {
+      titulo, descricao, solicitante, setor_local, categoria, prioridade, impacto, status,
+      responsavel_principal, funcionarios, quantidade_mao_obra, tempo_estimado_min,
+      previsao_conclusao, material_necessario, material_utilizado, pendencias, execucao,
+      observacao_conclusao, data_inicio, data_conclusao, tempo_real_min
+    } = req.body;
+
+    if (!titulo) return res.status(400).json({ error: 'Título da OS é obrigatório.' });
+    const numero = await generateOsNumber();
+    const os = await get(`
+      INSERT INTO ordens_servico
+      (numero, titulo, descricao, solicitante, setor_local, categoria, prioridade, impacto, status,
+       responsavel_principal, funcionarios, quantidade_mao_obra, tempo_estimado_min, tempo_real_min,
+       previsao_conclusao, data_inicio, data_conclusao, material_necessario, material_utilizado, pendencias,
+       execucao, observacao_conclusao, criado_por)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+      RETURNING *
+    `, [
+      numero, titulo, descricao || '', solicitante || '', setor_local || '', categoria || 'Outros', prioridade || 'Média', impacto || '', status || 'Recebido',
+      responsavel_principal || '', funcionarios || '', normalizeMinutes(quantidade_mao_obra) || 1, normalizeMinutes(tempo_estimado_min), normalizeMinutes(tempo_real_min),
+      cleanDateTime(previsao_conclusao), cleanDateTime(data_inicio), cleanDateTime(data_conclusao), material_necessario || '', material_utilizado || '', pendencias || '',
+      execucao || '', observacao_conclusao || '', req.user.id
+    ]);
+    res.status(201).json(os);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao criar OS.', details: err.message });
+  }
+});
+
+app.put('/api/os/:id', auth, async (req, res) => {
+  try {
+    const {
+      titulo, descricao, solicitante, setor_local, categoria, prioridade, impacto, status,
+      responsavel_principal, funcionarios, quantidade_mao_obra, tempo_estimado_min,
+      previsao_conclusao, material_necessario, material_utilizado, pendencias, execucao,
+      observacao_conclusao, data_inicio, data_conclusao, tempo_real_min
+    } = req.body;
+    if (!titulo) return res.status(400).json({ error: 'Título da OS é obrigatório.' });
+    const finalStatus = status || 'Recebido';
+    const os = await get(`
+      UPDATE ordens_servico SET
+        titulo=$1, descricao=$2, solicitante=$3, setor_local=$4, categoria=$5, prioridade=$6, impacto=$7, status=$8,
+        responsavel_principal=$9, funcionarios=$10, quantidade_mao_obra=$11, tempo_estimado_min=$12, tempo_real_min=$13,
+        previsao_conclusao=$14, data_inicio=COALESCE($15, CASE WHEN $8 = 'Em execução' AND data_inicio IS NULL THEN CURRENT_TIMESTAMP ELSE data_inicio END),
+        data_conclusao = CASE WHEN $16::timestamp IS NOT NULL THEN $16::timestamp WHEN $8 = 'Concluído' AND data_conclusao IS NULL THEN CURRENT_TIMESTAMP ELSE data_conclusao END,
+        material_necessario=$17, material_utilizado=$18, pendencias=$19, execucao=$20, observacao_conclusao=$21,
+        atualizado_em=CURRENT_TIMESTAMP
+      WHERE id=$22
+      RETURNING *
+    `, [
+      titulo, descricao || '', solicitante || '', setor_local || '', categoria || 'Outros', prioridade || 'Média', impacto || '', finalStatus,
+      responsavel_principal || '', funcionarios || '', normalizeMinutes(quantidade_mao_obra) || 1, normalizeMinutes(tempo_estimado_min), normalizeMinutes(tempo_real_min),
+      cleanDateTime(previsao_conclusao), cleanDateTime(data_inicio), cleanDateTime(data_conclusao), material_necessario || '', material_utilizado || '', pendencias || '', execucao || '', observacao_conclusao || '', req.params.id
+    ]);
+    res.json(os);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao atualizar OS.', details: err.message });
+  }
+});
+
+app.patch('/api/os/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ error: 'Status é obrigatório.' });
+    const os = await get(`
+      UPDATE ordens_servico SET
+        status = $1,
+        data_inicio = CASE WHEN $1 = 'Em execução' AND data_inicio IS NULL THEN CURRENT_TIMESTAMP ELSE data_inicio END,
+        data_conclusao = CASE WHEN $1 = 'Concluído' AND data_conclusao IS NULL THEN CURRENT_TIMESTAMP ELSE data_conclusao END,
+        atualizado_em = CURRENT_TIMESTAMP
+      WHERE id = $2 RETURNING *
+    `, [status, req.params.id]);
+    res.json(os);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao alterar status da OS.', details: err.message });
+  }
+});
+
+app.delete('/api/os/:id', auth, async (req, res) => {
+  try {
+    await query('DELETE FROM ordens_servico WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao excluir OS.', details: err.message });
+  }
+});
+
+app.get('/api/os/relatorio-pdf', authPdf, async (req, res) => {
+  try {
+    const itens = await all(`SELECT * FROM ordens_servico ORDER BY criado_em DESC LIMIT 200`);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="ordens-servico-operacional.pdf"');
+    const doc = new PDFDocument({ size: 'A4', margin: 28, bufferPages: true });
+    doc.pipe(res);
+    doc.font('Helvetica-Bold').fontSize(16).fillColor('#0b2f6b').text('Ordens de Serviço Operacionais', { align: 'center' });
+    doc.moveDown(.5).font('Helvetica').fontSize(8).fillColor('#64748b').text(`Gerado em ${brDate(new Date())} • ${req.user.nome}`, { align: 'center' });
+    doc.moveDown();
+    itens.forEach((o, i) => {
+      if (doc.y > 760) doc.addPage();
+      doc.roundedRect(28, doc.y, 539, 54, 8).strokeColor('#dbeafe').stroke();
+      const y = doc.y + 8;
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#0f172a').text(`${o.numero || o.id} - ${o.titulo}`, 38, y, { width: 330, ellipsis: true });
+      doc.font('Helvetica').fontSize(7).fillColor('#334155').text(`Local: ${o.setor_local || '-'} • Resp.: ${o.responsavel_principal || '-'} • M.O.: ${o.quantidade_mao_obra || 1}`, 38, y+16, { width: 380, ellipsis: true });
+      doc.text(`Status: ${o.status || '-'} • Prioridade: ${o.prioridade || '-'} • Criado: ${brDateTime(o.criado_em)}`, 38, y+30, { width: 420, ellipsis: true });
+      doc.y = y + 50;
+    });
+    drawFooterPages(doc, 'Relatório operacional de ordens de serviço.');
+    doc.end();
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Erro ao gerar PDF de OS.');
+  }
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });

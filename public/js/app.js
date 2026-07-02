@@ -7,6 +7,8 @@ const state = {
   view: 'dashboard',
   dashboardFilters: { periodo: '90', setor_id: '', responsavel: '' },
   dashboardData: null,
+  osData: null,
+  osFilters: { busca: '', status: '', prioridade: '', responsavel: '', periodo: '30' },
   cache: { dashboard: new Map(), quadros: new Map() },
   pending: { dashboard: null, setor: null },
   renderTimer: null
@@ -145,16 +147,20 @@ function escapeHtml(text) {
 function setView(view) {
   state.view = view;
   const isDashboard = view === 'dashboard';
+  const isBoard = view === 'board';
+  const isOS = view === 'os';
   $('dashboard').classList.toggle('hidden', !isDashboard);
-  $('board').classList.toggle('hidden', isDashboard);
+  $('board').classList.toggle('hidden', !isBoard);
+  $('osPanel')?.classList.toggle('hidden', !isOS);
   $('printFooter').classList.toggle('hidden', false);
   $('btnDashboard').classList.toggle('active', isDashboard);
-  $('btnNovoGrupo').style.display = isDashboard ? 'none' : '';
-  $('btnNovaTarefa').style.display = isDashboard ? 'none' : '';
-  $('busca').style.display = isDashboard ? 'none' : '';
-  $('filtroStatus').style.display = isDashboard ? 'none' : '';
-  $('filtroPeriodo').style.display = isDashboard ? 'none' : '';
-  $('btnPdfSetor').style.display = isDashboard ? 'none' : '';
+  $('btnOS')?.classList.toggle('active', isOS);
+  $('btnNovoGrupo').style.display = isBoard ? '' : 'none';
+  $('btnNovaTarefa').style.display = isBoard ? '' : 'none';
+  $('busca').style.display = isBoard ? '' : 'none';
+  $('filtroStatus').style.display = isBoard ? '' : 'none';
+  $('filtroPeriodo').style.display = isBoard ? '' : 'none';
+  $('btnPdfSetor').style.display = isBoard ? '' : 'none';
 }
 
 async function init() {
@@ -711,6 +717,229 @@ window.abrirListaRapida = (tipo) => {
   `);
 };
 
+
+// =========================
+// Módulo Ordem de Serviço Operacional
+// =========================
+const OS_STATUS = ['Recebido', 'Em análise', 'Aguardando mão de obra', 'Aguardando material', 'Em execução', 'Pausado', 'Concluído', 'Cancelado'];
+const OS_PRIORIDADES = ['Urgente', 'Alta', 'Média', 'Baixa'];
+const OS_CATEGORIAS = ['Elétrica', 'Hidráulica', 'Pintura', 'Estrutura', 'Equipamento', 'Limpeza/apoio', 'Outros'];
+
+function minutesLabel(min) {
+  const n = Number(min || 0);
+  if (!n) return '-';
+  const h = Math.floor(n / 60);
+  const m = n % 60;
+  return h ? `${h}h${m ? ` ${m}min` : ''}` : `${m}min`;
+}
+
+function dateTimeInputValue(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 16);
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function osStatusClass(status) {
+  return 'os-' + String(status || 'recebido').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replaceAll(' ', '-').replaceAll('/', '-');
+}
+
+async function abrirOS() {
+  setView('os');
+  state.setorAtual = null;
+  renderSetores();
+  $('setorTitulo').textContent = 'Ordem de Serviço Operacional';
+  $('setorDescricao').textContent = 'Recepção, priorização, mão de obra, execução, pendências e conclusão dos chamados rápidos.';
+  await carregarOS();
+}
+
+async function carregarOS() {
+  try {
+    setLoading('Carregando ordens de serviço...');
+    const qs = new URLSearchParams(state.osFilters).toString();
+    const data = await api(`/api/os/dashboard?${qs}`);
+    state.osData = data;
+    renderOS(data);
+  } finally {
+    clearLoading();
+  }
+}
+
+function renderOS(data) {
+  const t = data.totalizadores || {};
+  const panel = $('osPanel');
+  const statusOptions = ['<option value="">Todos os status</option>'].concat(OS_STATUS.map(s => `<option value="${s}" ${state.osFilters.status === s ? 'selected' : ''}>${s}</option>`)).join('');
+  const prioridadeOptions = ['<option value="">Todas prioridades</option>'].concat(OS_PRIORIDADES.map(p => `<option value="${p}" ${state.osFilters.prioridade === p ? 'selected' : ''}>${p}</option>`)).join('');
+
+  panel.innerHTML = `
+    <div class="os-toolbar">
+      <div>
+        <strong>Painel de chamados rápidos</strong>
+        <span>Controle operacional para manutenção, estrutura, elétrica, hidráulica e demandas urgentes.</span>
+      </div>
+      <div class="os-actions">
+        <button onclick="imprimirOSPdf()">📄 PDF</button>
+        <button class="primary" onclick="osForm()">+ Nova OS</button>
+      </div>
+    </div>
+
+    <div class="os-kpis">
+      <div><span>Abertas</span><strong>${t.abertas || 0}</strong></div>
+      <div class="danger"><span>Urgentes</span><strong>${t.urgentes || 0}</strong></div>
+      <div><span>Recebidas</span><strong>${t.recebidas || 0}</strong></div>
+      <div><span>Em execução</span><strong>${t.em_execucao || 0}</strong></div>
+      <div><span>Pendentes</span><strong>${t.pendentes || 0}</strong></div>
+      <div class="success"><span>Concluídas</span><strong>${t.concluidas || 0}</strong></div>
+    </div>
+
+    <div class="os-filters">
+      <input id="osBusca" placeholder="Buscar OS, local, solicitante..." value="${escapeHtml(state.osFilters.busca || '')}">
+      <select id="osStatus">${statusOptions}</select>
+      <select id="osPrioridade">${prioridadeOptions}</select>
+      <input id="osResponsavel" placeholder="Responsável" value="${escapeHtml(state.osFilters.responsavel || '')}">
+      <button onclick="aplicarFiltrosOS()">Aplicar</button>
+      <button onclick="limparFiltrosOS()">Limpar</button>
+    </div>
+
+    <div class="os-board">
+      ${renderOSColumn('Recebidos', (data.recentes || []).filter(o => ['Recebido', 'Em análise'].includes(o.status)))}
+      ${renderOSColumn('Em execução', (data.recentes || []).filter(o => o.status === 'Em execução'))}
+      ${renderOSColumn('Pendências', (data.recentes || []).filter(o => ['Aguardando mão de obra', 'Aguardando material', 'Pausado'].includes(o.status)))}
+      ${renderOSColumn('Concluídos/Cancelados', (data.recentes || []).filter(o => ['Concluído', 'Cancelado'].includes(o.status)))}
+    </div>
+
+    <div class="dash-grid os-bottom">
+      <section class="dash-panel"><h2>Por status</h2><div class="status-list">${(data.porStatus || []).map(s => `<div><span class="badge ${osStatusClass(s.status)}">${escapeHtml(s.status)}</span><strong>${s.total}</strong></div>`).join('') || '<p class="empty">Sem dados.</p>'}</div></section>
+      <section class="dash-panel"><h2>Por responsável</h2><div class="responsavel-list">${(data.porResponsavel || []).map(r => `<div class="resp-row"><div><strong>${escapeHtml(r.responsavel)}</strong><span>${r.total} total • ${r.abertas} abertas • ${r.concluidas} concluídas</span></div></div>`).join('') || '<p class="empty">Sem responsáveis.</p>'}</div></section>
+    </div>
+  `;
+}
+
+function renderOSColumn(title, items) {
+  return `<section class="os-column"><h3>${title} <small>${items.length}</small></h3>
+    ${items.map(renderOSCard).join('') || '<p class="empty">Nenhuma OS aqui.</p>'}
+  </section>`;
+}
+
+function renderOSCard(o) {
+  return `<article class="os-card ${o.prioridade === 'Urgente' ? 'urgent' : ''}" onclick="verOS(${o.id})">
+    <div class="os-card-head"><strong>${escapeHtml(o.numero || `OS-${o.id}`)}</strong><span class="badge ${priorityClass(o.prioridade)}">${escapeHtml(o.prioridade)}</span></div>
+    <h4>${escapeHtml(o.titulo)}</h4>
+    <p>${escapeHtml(o.setor_local || 'Local não informado')}</p>
+    <div class="os-meta"><span>Resp.: ${escapeHtml(o.responsavel_principal || 'Sem responsável')}</span><span>M.O.: ${o.quantidade_mao_obra || 1}</span></div>
+    <div class="os-meta"><span>Estimado: ${minutesLabel(o.tempo_estimado_min)}</span><span>Real: ${minutesLabel(o.tempo_real_min)}</span></div>
+    ${o.pendencias ? `<small class="os-pendency">Pendência: ${escapeHtml(o.pendencias)}</small>` : ''}
+    <div class="os-card-actions" onclick="event.stopPropagation()">
+      <select onchange="alterarStatusOS(${o.id}, this.value)">${OS_STATUS.map(s => `<option value="${s}" ${o.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+      <button onclick="editarOS(${o.id})">Editar</button>
+    </div>
+  </article>`;
+}
+
+function osForm(os = {}) {
+  const statusOptions = OS_STATUS.map(s => `<option value="${s}" ${os.status === s ? 'selected' : ''}>${s}</option>`).join('');
+  const prioridadeOptions = OS_PRIORIDADES.map(p => `<option value="${p}" ${os.prioridade === p ? 'selected' : ''}>${p}</option>`).join('');
+  const categoriaOptions = OS_CATEGORIAS.map(c => `<option value="${c}" ${os.categoria === c ? 'selected' : ''}>${c}</option>`).join('');
+  openModal(os.id ? `Editar ${escapeHtml(os.numero || 'OS')}` : 'Nova Ordem de Serviço', `
+    <form id="osForm">
+      <div class="form-grid">
+        <div class="full"><label>Título do chamado</label><input name="titulo" value="${escapeHtml(os.titulo || '')}" placeholder="Ex: Goteira na sala do CPD" required></div>
+        <div><label>Solicitante</label><input name="solicitante" value="${escapeHtml(os.solicitante || '')}"></div>
+        <div><label>Setor/local</label><input name="setor_local" value="${escapeHtml(os.setor_local || '')}" placeholder="Ex: CPD, depósito, loja"></div>
+        <div><label>Categoria</label><select name="categoria">${categoriaOptions}</select></div>
+        <div><label>Prioridade</label><select name="prioridade">${prioridadeOptions}</select></div>
+        <div><label>Status</label><select name="status">${statusOptions}</select></div>
+        <div><label>Impacto na operação</label><input name="impacto" value="${escapeHtml(os.impacto || '')}" placeholder="Ex: afeta cliente, risco, loja parada"></div>
+        <div><label>Responsável principal</label><input name="responsavel_principal" value="${escapeHtml(os.responsavel_principal || '')}"></div>
+        <div class="full"><label>Funcionários envolvidos</label><input name="funcionarios" value="${escapeHtml(os.funcionarios || '')}" placeholder="Ex: João, Pedro, Marcos"></div>
+        <div><label>Qtd. mão de obra</label><input name="quantidade_mao_obra" type="number" min="1" value="${os.quantidade_mao_obra || 1}"></div>
+        <div><label>Tempo estimado (min)</label><input name="tempo_estimado_min" type="number" min="0" value="${os.tempo_estimado_min || 0}"></div>
+        <div><label>Tempo real (min)</label><input name="tempo_real_min" type="number" min="0" value="${os.tempo_real_min || 0}"></div>
+        <div><label>Previsão de conclusão</label><input name="previsao_conclusao" type="datetime-local" value="${dateTimeInputValue(os.previsao_conclusao)}"></div>
+        <div class="full"><label>Descrição do chamado</label><textarea name="descricao">${escapeHtml(os.descricao || '')}</textarea></div>
+        <div class="full"><label>Material necessário</label><textarea name="material_necessario">${escapeHtml(os.material_necessario || '')}</textarea></div>
+        <div class="full"><label>Como está sendo executado</label><textarea name="execucao">${escapeHtml(os.execucao || '')}</textarea></div>
+        <div class="full"><label>Pendências</label><textarea name="pendencias">${escapeHtml(os.pendencias || '')}</textarea></div>
+        <div class="full"><label>Material utilizado</label><textarea name="material_utilizado">${escapeHtml(os.material_utilizado || '')}</textarea></div>
+        <div class="full"><label>Observação de conclusão</label><textarea name="observacao_conclusao">${escapeHtml(os.observacao_conclusao || '')}</textarea></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" onclick="closeModal()">Cancelar</button>
+        ${os.id ? '<button type="button" class="danger" onclick="excluirOSConfirmada('+os.id+')">Excluir</button>' : ''}
+        <button class="primary" type="submit">Salvar OS</button>
+      </div>
+    </form>
+  `);
+  $('osForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target));
+    if (os.id) await api(`/api/os/${os.id}`, { method: 'PUT', body: JSON.stringify(data) });
+    else await api('/api/os', { method: 'POST', body: JSON.stringify(data) });
+    closeModal();
+    await carregarOS();
+  };
+}
+
+window.verOS = (id) => {
+  const os = state.osData?.recentes?.find(o => o.id === id);
+  if (!os) return;
+  openModal(`${escapeHtml(os.numero || 'OS')} - Detalhes`, `
+    <div class="os-detail">
+      <h3>${escapeHtml(os.titulo)}</h3>
+      <p><strong>Status:</strong> ${escapeHtml(os.status)} | <strong>Prioridade:</strong> ${escapeHtml(os.prioridade)} | <strong>Local:</strong> ${escapeHtml(os.setor_local || '-')}</p>
+      <p><strong>Responsável:</strong> ${escapeHtml(os.responsavel_principal || '-')} | <strong>Equipe:</strong> ${escapeHtml(os.funcionarios || '-')} | <strong>M.O.:</strong> ${os.quantidade_mao_obra || 1}</p>
+      <p><strong>Tempo:</strong> estimado ${minutesLabel(os.tempo_estimado_min)} / real ${minutesLabel(os.tempo_real_min)}</p>
+      <hr>
+      <p><strong>Descrição:</strong><br>${escapeHtml(os.descricao || 'Sem descrição.')}</p>
+      <p><strong>Execução:</strong><br>${escapeHtml(os.execucao || '-')}</p>
+      <p><strong>Pendências:</strong><br>${escapeHtml(os.pendencias || '-')}</p>
+      <p><strong>Material necessário:</strong><br>${escapeHtml(os.material_necessario || '-')}</p>
+      <p><strong>Conclusão:</strong><br>${escapeHtml(os.observacao_conclusao || '-')}</p>
+      <div class="modal-actions"><button onclick="editarOS(${os.id})">Editar OS</button></div>
+    </div>
+  `);
+};
+
+window.editarOS = (id) => {
+  const os = state.osData?.recentes?.find(o => o.id === id);
+  if (os) osForm(os);
+};
+
+window.alterarStatusOS = async (id, status) => {
+  await api(`/api/os/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  await carregarOS();
+};
+
+window.excluirOSConfirmada = async (id) => {
+  if (!confirm('Excluir esta Ordem de Serviço?')) return;
+  await api(`/api/os/${id}`, { method: 'DELETE' });
+  closeModal();
+  await carregarOS();
+};
+
+window.aplicarFiltrosOS = async () => {
+  state.osFilters = {
+    busca: $('osBusca')?.value || '',
+    status: $('osStatus')?.value || '',
+    prioridade: $('osPrioridade')?.value || '',
+    responsavel: $('osResponsavel')?.value || '',
+    periodo: '30'
+  };
+  await carregarOS();
+};
+
+window.limparFiltrosOS = async () => {
+  state.osFilters = { busca: '', status: '', prioridade: '', responsavel: '', periodo: '30' };
+  await carregarOS();
+};
+
+window.imprimirOSPdf = () => {
+  if (!state.token) return alert('Sessão expirada. Faça login novamente.');
+  window.open(`/api/os/relatorio-pdf?token=${state.token}`, '_blank');
+};
+
 $('loginForm').onsubmit = async (e) => {
   e.preventDefault();
   $('loginMsg').textContent = '';
@@ -725,6 +954,7 @@ $('loginForm').onsubmit = async (e) => {
 };
 $('btnSair').onclick = () => { localStorage.removeItem('mb_token'); location.reload(); };
 $('btnDashboard').onclick = abrirDashboard;
+$('btnOS').onclick = abrirOS;
 $('btnNovoSetor').onclick = () => setorForm();
 $('btnNovoGrupo').onclick = () => grupoForm();
 $('btnNovaTarefa').onclick = () => tarefaForm({}, state.quadro?.grupos?.[0]?.id);
