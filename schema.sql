@@ -1,0 +1,54 @@
+CREATE TABLE IF NOT EXISTS usuarios (
+  id SERIAL PRIMARY KEY,
+  nome VARCHAR(120) NOT NULL,
+  email VARCHAR(120) UNIQUE NOT NULL,
+  senha_hash VARCHAR(255) NOT NULL,
+  perfil VARCHAR(30) DEFAULT 'gerente',
+  ativo BOOLEAN DEFAULT TRUE,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS setores (
+  id SERIAL PRIMARY KEY,
+  nome VARCHAR(120) NOT NULL,
+  descricao TEXT,
+  cor VARCHAR(20) DEFAULT '#2563eb',
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS grupos (
+  id SERIAL PRIMARY KEY,
+  setor_id INTEGER NOT NULL REFERENCES setores(id) ON DELETE CASCADE,
+  nome VARCHAR(120) NOT NULL,
+  cor VARCHAR(20) DEFAULT '#2563eb',
+  ordem INTEGER DEFAULT 0,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tarefas (
+  id SERIAL PRIMARY KEY,
+  grupo_id INTEGER NOT NULL REFERENCES grupos(id) ON DELETE CASCADE,
+  titulo VARCHAR(200) NOT NULL,
+  responsavel VARCHAR(120),
+  status VARCHAR(40) DEFAULT 'Não iniciado',
+  prioridade VARCHAR(40) DEFAULT 'Média',
+  prazo DATE,
+  cronograma_inicio DATE,
+  cronograma_fim DATE,
+  observacoes TEXT,
+  ordem INTEGER DEFAULT 0,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS comentarios (
+  id SERIAL PRIMARY KEY,
+  tarefa_id INTEGER NOT NULL REFERENCES tarefas(id) ON DELETE CASCADE,
+  usuario_id INTEGER REFERENCES usuarios(id),
+  comentario TEXT NOT NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_grupos_setor ON grupos(setor_id);
+CREATE INDEX IF NOT EXISTS idx_tarefas_grupo ON tarefas(grupo_id);
+CREATE INDEX IF NOT EXISTS idx_comentarios_tarefa ON comentarios(tarefa_id);
