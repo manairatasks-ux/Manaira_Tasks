@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solicitar OS - Manaíra Board</title>
+  <link rel="stylesheet" href="/css/portal-os.css" />
+</head>
+<body>
+  <main class="portal-shell">
+    <section class="portal-card" id="acessoCard">
+      <div class="brand-row">
+        <div class="brand-logo">M</div>
+        <div>
+          <strong>Supermercado Manaíra</strong>
+          <span>Portal de Solicitação de OS</span>
+        </div>
+      </div>
+
+      <h1>Acesso protegido</h1>
+      <p>Digite a senha interna para abrir uma solicitação de Ordem de Serviço.</p>
+
+      <form id="senhaForm">
+        <label>Senha de acesso</label>
+        <input id="senhaPortal" type="password" autocomplete="current-password" placeholder="Digite a senha" required />
+        <button type="submit">Entrar</button>
+      </form>
+
+      <small id="senhaMsg"></small>
+    </section>
+
+    <section class="portal-card hidden" id="formCard">
+      <div class="brand-row">
+        <div class="brand-logo">M</div>
+        <div>
+          <strong>Supermercado Manaíra</strong>
+          <span>Solicitação de Ordem de Serviço</span>
+        </div>
+      </div>
+
+      <h1>Solicitar manutenção</h1>
+      <p>Preencha com clareza. A solicitação será enviada para o painel de OS como <strong>Recebido</strong>.</p>
+
+      <form id="osPublicForm">
+        <div class="form-grid">
+          <div>
+            <label>Nome do solicitante</label>
+            <input name="solicitante" placeholder="Ex: João" required />
+          </div>
+
+          <div>
+            <label>Setor</label>
+            <select name="setor_local" required>
+              <option value="">Selecione</option>
+              <option>Loja</option>
+              <option>Frente de Loja</option>
+              <option>Açougue</option>
+              <option>Padaria</option>
+              <option>Frios</option>
+              <option>Hortifruti</option>
+              <option>Depósito</option>
+              <option>Recebimento</option>
+              <option>CPD</option>
+              <option>Financeiro</option>
+              <option>RH</option>
+              <option>Marketing</option>
+              <option>E-commerce</option>
+              <option>PitStop</option>
+              <option>Outro</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Categoria</label>
+            <select name="categoria" required>
+              <option>Elétrica</option>
+              <option>Hidráulica</option>
+              <option>Pintura</option>
+              <option>Estrutura</option>
+              <option>Equipamento</option>
+              <option>Limpeza/apoio</option>
+              <option>Outros</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Local exato</label>
+            <input name="local_exato" placeholder="Ex: corredor 3, câmara fria, sala do CPD" />
+          </div>
+
+          <div class="full">
+            <label>Título do problema</label>
+            <input name="titulo" placeholder="Ex: Goteira próxima ao depósito" required />
+          </div>
+
+          <div class="full">
+            <label>Descrição do serviço/problema</label>
+            <textarea name="descricao" placeholder="Explique o que está acontecendo e o que precisa ser resolvido." required></textarea>
+          </div>
+
+          <div class="full">
+            <label>Impacto na operação</label>
+            <select name="impacto">
+              <option>Não impede o funcionamento</option>
+              <option>Sim, está prejudicando o funcionamento</option>
+              <option>Risco para cliente ou colaborador</option>
+              <option>Urgente</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="secondary" id="btnLimpar">Limpar</button>
+          <button type="submit" id="btnEnviar">Enviar solicitação</button>
+        </div>
+      </form>
+
+      <small id="formMsg"></small>
+    </section>
+
+    <section class="portal-card success-card hidden" id="sucessoCard">
+      <div class="success-icon">✓</div>
+      <h1>Solicitação enviada</h1>
+      <p>Sua Ordem de Serviço foi criada com sucesso.</p>
+      <div class="os-number" id="numeroOS">OS-0000</div>
+      <button id="btnNovaSolicitacao">Enviar outra solicitação</button>
+    </section>
+  </main>
+
+  <script src="/js/solicitar-os.js"></script>
+</body>
+</html>

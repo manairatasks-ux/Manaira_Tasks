@@ -14,6 +14,7 @@ const app = express();
 
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret';
+const OS_PORTAL_PASSWORD = process.env.OS_PORTAL_PASSWORD || 'manairaos';
 
 app.use(cors());
 app.use(express.json());
@@ -1726,6 +1727,108 @@ app.get('/api/os/relatorio-pdf', authPdf, async (req, res) => {
 });
 
 
+
+
+// =========================
+// Portal público protegido - Solicitação de OS
+// =========================
+function checkPortalPassword(password) {
+  return String(password || '') === String(OS_PORTAL_PASSWORD || '');
+}
+
+app.post('/api/public/os/validar-senha', async (req, res) => {
+  try {
+    const { senha } = req.body || {};
+
+    if (!checkPortalPassword(senha)) {
+      return res.status(401).json({ error: 'Senha de acesso inválida.' });
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erro ao validar acesso.', details: err.message });
+  }
+});
+
+app.post('/api/public/os', async (req, res) => {
+  try {
+    const {
+      senha_portal,
+      solicitante,
+      setor_local,
+      local_exato,
+      categoria,
+      titulo,
+      descricao,
+      impacto
+    } = req.body || {};
+
+    if (!checkPortalPassword(senha_portal)) {
+      return res.status(401).json({ error: 'Senha de acesso inválida.' });
+    }
+
+    if (!titulo || !String(titulo).trim()) {
+      return res.status(400).json({ error: 'Informe o título do problema.' });
+    }
+
+    if (!descricao || !String(descricao).trim()) {
+      return res.status(400).json({ error: 'Descreva o que está acontecendo.' });
+    }
+
+    const numero = await generateOsNumber();
+    const descricaoCompleta = [
+      String(descricao || '').trim(),
+      local_exato ? `\n\nLocal exato informado: ${String(local_exato).trim()}` : '',
+      impacto ? `\nImpacto informado: ${String(impacto).trim()}` : ''
+    ].join('').trim();
+
+    const prioridadeInicial = String(impacto || '').toLowerCase().includes('sim') ? 'Alta' : 'Média';
+
+    const os = await get(`
+      INSERT INTO ordens_servico
+      (numero, titulo, descricao, solicitante, setor_local, categoria, prioridade, impacto, status,
+       responsavel_principal, funcionarios, quantidade_mao_obra, tempo_estimado_min, tempo_real_min,
+       previsao_conclusao, data_inicio, data_conclusao, material_necessario, material_utilizado, pendencias,
+       execucao, observacao_conclusao, criado_por)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+      RETURNING *
+    `, [
+      numero,
+      String(titulo).trim(),
+      descricaoCompleta,
+      solicitante || '',
+      setor_local || '',
+      categoria || 'Outros',
+      prioridadeInicial,
+      impacto || '',
+      'Recebido',
+      '',
+      '',
+      1,
+      0,
+      0,
+      null,
+      null,
+      null,
+      '',
+      '',
+      '',
+      '',
+      '',
+      null
+    ]);
+
+    return res.status(201).json({
+      ok: true,
+      numero: os.numero,
+      os
+    });
+  } catch (err) {
+    console.error('ERRO AO CRIAR OS PELO PORTAL:');
+    console.error(err);
+    return res.status(500).json({ error: 'Erro ao enviar solicitação.', details: err.message });
+  }
+});
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));

@@ -17,11 +17,10 @@
 
       <form id="loginForm">
         <label>Email</label>
-        <input id="email" type="email" value="admin@manaira.com" required />
+        <input id="email" type="email" required />
 
         <label>Senha</label>
-        <input id="senha" type="password" value="admin123" required />
-
+        <input id="senha" type="password" required />
         <button type="submit">Entrar</button>
       </form>
 
@@ -41,6 +40,8 @@
 
       <button class="nav-main active" id="btnDashboard">🏠 Dashboard</button>
       <button class="nav-main" id="btnOS">🛠️ Ordem de Serviço</button>
+      <button class="nav-main" type="button" onclick="window.open('/solicitar-os.html', '_blank')">📲 Solicitar
+        OS</button>
       <button class="new-sector" id="btnNovoSetor">+ Novo setor</button>
 
       <nav id="setoresList"></nav>
