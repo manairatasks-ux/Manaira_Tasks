@@ -1454,18 +1454,65 @@ app.put('/api/os/:id', auth, async (req, res) => {
 app.patch('/api/os/:id/status', auth, async (req, res) => {
   try {
     const { status } = req.body;
-    if (!status) return res.status(400).json({ error: 'Status é obrigatório.' });
-    const os = await get(`
+
+    if (!status) {
+      return res.status(400).json({
+        error: 'Status é obrigatório.'
+      });
+    }
+
+    const osExistente = await get(
+      'SELECT * FROM ordens_servico WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (!osExistente) {
+      return res.status(404).json({
+        error: 'Ordem de serviço não encontrada.'
+      });
+    }
+
+    let dataInicioFinal = osExistente.data_inicio;
+    let dataConclusaoFinal = osExistente.data_conclusao;
+
+    // Registra automaticamente quando a OS entra em execução
+    if (status === 'Em execução' && !dataInicioFinal) {
+      dataInicioFinal = new Date();
+    }
+
+    // Registra automaticamente quando a OS é concluída
+    if (status === 'Concluído' && !dataConclusaoFinal) {
+      dataConclusaoFinal = new Date();
+    }
+
+    const osAtualizada = await get(
+      `
       UPDATE ordens_servico SET
         status = $1,
-        data_inicio = CASE WHEN $1 = 'Em execução' AND data_inicio IS NULL THEN CURRENT_TIMESTAMP ELSE data_inicio END,
-        data_conclusao = CASE WHEN $1 = 'Concluído' AND data_conclusao IS NULL THEN CURRENT_TIMESTAMP ELSE data_conclusao END,
+        data_inicio = $2,
+        data_conclusao = $3,
         atualizado_em = CURRENT_TIMESTAMP
-      WHERE id = $2 RETURNING *
-    `, [status, req.params.id]);
-    res.json(os);
+      WHERE id = $4
+      RETURNING *
+      `,
+      [
+        status,
+        dataInicioFinal,
+        dataConclusaoFinal,
+        req.params.id
+      ]
+    );
+
+    return res.json(osAtualizada);
+
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao alterar status da OS.', details: err.message });
+    console.error('ERRO AO ALTERAR STATUS DA OS:');
+    console.error(err);
+
+    return res.status(500).json({
+      error: 'Erro ao alterar status da OS.',
+      details: err.message
+    });
   }
 });
 

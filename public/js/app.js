@@ -305,7 +305,7 @@ function renderDashboard(data) {
         <select id="dashSetor">${setorOptions}</select>
         <input id="dashResponsavel" placeholder="Filtrar responsável" value="${escapeHtml(state.dashboardFilters.responsavel || '')}">
         <select id="dashPeriodo">
-          ${[['30','30 dias'], ['90','90 dias'], ['180','180 dias'], ['365','12 meses']].map(([v,l]) => `<option value="${v}" ${String(state.dashboardFilters.periodo) === v ? 'selected' : ''}>${l}</option>`).join('')}
+          ${[['30', '30 dias'], ['90', '90 dias'], ['180', '180 dias'], ['365', '12 meses']].map(([v, l]) => `<option value="${v}" ${String(state.dashboardFilters.periodo) === v ? 'selected' : ''}>${l}</option>`).join('')}
         </select>
         <button onclick="aplicarFiltrosDashboard()">Aplicar</button>
         <button onclick="limparFiltrosDashboard()">Limpar</button>
@@ -333,14 +333,14 @@ function renderDashboard(data) {
         <div class="panel-head"><h2>Tarefas por mês</h2><button onclick="window.print()">🖨️ Imprimir</button></div>
         <div class="month-chart">
           ${(data.tarefasPorMes || []).map(m => {
-            const h = Math.max(8, Math.round((Number(m.criadas || 0) / maxMes) * 100));
-            const doneH = Math.max(4, Math.round((Number(m.concluidas || 0) / maxMes) * 100));
-            const label = String(m.mes || '').split('-').reverse().join('/');
-            return `<div class="month-col" title="${label}: ${m.criadas} criadas, ${m.concluidas} concluídas">
+    const h = Math.max(8, Math.round((Number(m.criadas || 0) / maxMes) * 100));
+    const doneH = Math.max(4, Math.round((Number(m.concluidas || 0) / maxMes) * 100));
+    const label = String(m.mes || '').split('-').reverse().join('/');
+    return `<div class="month-col" title="${label}: ${m.criadas} criadas, ${m.concluidas} concluídas">
               <div class="month-bars"><span style="height:${h}%"></span><i style="height:${doneH}%"></i></div>
               <small>${label}</small>
             </div>`;
-          }).join('') || '<p class="empty">Sem dados no período selecionado.</p>'}
+  }).join('') || '<p class="empty">Sem dados no período selecionado.</p>'}
         </div>
         <div class="chart-legend"><span>Criadas</span><span>Concluídas</span></div>
       </section>
@@ -349,12 +349,12 @@ function renderDashboard(data) {
         <h2>Produtividade por setor</h2>
         <div class="bar-list">
           ${(data.porSetor || []).map(s => {
-            const p = Number(s.taxa_conclusao || percent(s.concluidas, s.total));
-            return `<div class="bar-row" onclick="abrirSetor(${s.id})">
+    const p = Number(s.taxa_conclusao || percent(s.concluidas, s.total));
+    return `<div class="bar-row" onclick="abrirSetor(${s.id})">
               <div class="bar-info"><strong>${escapeHtml(s.nome)}</strong><span>${s.total || 0} total • ${s.abertas || 0} abertas • ${s.atrasadas || 0} atrasadas • ${p}% concluído</span></div>
               <div class="bar-track"><div style="width:${p}%; background:${s.cor || '#2563eb'}"></div></div>
             </div>`;
-          }).join('') || '<p class="empty">Nenhum setor com tarefas ainda.</p>'}
+  }).join('') || '<p class="empty">Nenhum setor com tarefas ainda.</p>'}
         </div>
       </section>
 
@@ -369,13 +369,13 @@ function renderDashboard(data) {
         <h2>Produtividade por responsável</h2>
         <div class="responsavel-list">
           ${(data.porResponsavel || []).map(r => {
-            const p = Number(r.taxa_conclusao || 0);
-            return `<div class="resp-row">
+    const p = Number(r.taxa_conclusao || 0);
+    return `<div class="resp-row">
               <div><strong>${escapeHtml(r.responsavel)}</strong><span>${r.total} total • ${r.abertas} abertas • ${r.atrasadas} atrasadas</span></div>
               <b>${p}%</b>
               <div class="mini-track"><i style="width:${p}%"></i></div>
             </div>`;
-          }).join('') || '<p class="empty">Sem responsáveis informados.</p>'}
+  }).join('') || '<p class="empty">Sem responsáveis informados.</p>'}
         </div>
       </section>
 
@@ -872,7 +872,7 @@ function renderOSCard(o) {
     <div class="os-meta"><span>Estimado: ${minutesLabel(o.tempo_estimado_min)}</span><span>Real: ${minutesLabel(o.tempo_real_min)}</span></div>
     ${o.pendencias ? `<small class="os-pendency">Pendência: ${escapeHtml(o.pendencias)}</small>` : ''}
     <div class="os-card-actions" onclick="event.stopPropagation()">
-      <select onchange="alterarStatusOS(${o.id}, this.value)">${OS_STATUS.map(s => `<option value="${s}" ${o.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+      <select onchange="alterarStatusOS(${o.id}, this)">${OS_STATUS.map(s => `<option value="${s}" ${o.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
       <button onclick="editarOS(${o.id})">Editar</button>
     </div>
   </article>`;
@@ -977,9 +977,51 @@ window.editarOS = (id) => {
   if (os) osForm(os);
 };
 
-window.alterarStatusOS = async (id, status) => {
-  await api(`/api/os/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
-  await carregarOS();
+window.alterarStatusOS = async (id, select) => {
+
+    const status = select.value;
+
+    select.disabled = true;
+
+    const corOriginal = select.style.background;
+    const textoOriginal = select.value;
+
+    try {
+
+        select.style.background = "#fff7ed";
+
+        await api(`/api/os/${id}/status`, {
+            method: "PATCH",
+            body: JSON.stringify({
+                status
+            })
+        });
+
+        select.style.background = "#dcfce7";
+
+        setTimeout(() => {
+            carregarOS();
+        }, 250);
+
+    } catch (err) {
+
+        alert(err.message);
+
+        select.value = textoOriginal;
+        select.style.background = "#fee2e2";
+
+        setTimeout(() => {
+            select.style.background = corOriginal;
+        }, 1000);
+
+    } finally {
+
+        setTimeout(() => {
+            select.disabled = false;
+        }, 250);
+
+    }
+
 };
 
 window.excluirOSConfirmada = async (id) => {

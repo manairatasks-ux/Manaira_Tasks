@@ -14,13 +14,17 @@
       <div class="brand-mark">M</div>
       <h1>Manaíra Board</h1>
       <p>Gestão visual de setores e tarefas.</p>
+
       <form id="loginForm">
         <label>Email</label>
         <input id="email" type="email" value="admin@manaira.com" required />
+
         <label>Senha</label>
         <input id="senha" type="password" value="admin123" required />
+
         <button type="submit">Entrar</button>
       </form>
+
       <small id="loginMsg"></small>
     </div>
   </div>
@@ -34,10 +38,13 @@
           <span>Gestão interna</span>
         </div>
       </div>
+
       <button class="nav-main active" id="btnDashboard">🏠 Dashboard</button>
       <button class="nav-main" id="btnOS">🛠️ Ordem de Serviço</button>
       <button class="new-sector" id="btnNovoSetor">+ Novo setor</button>
+
       <nav id="setoresList"></nav>
+
       <div class="sidebar-footer">
         <span id="userName"></span>
         <button id="btnSair">Sair</button>
@@ -46,10 +53,11 @@
 
     <main class="main">
       <header class="topbar">
-        <div>
+        <div class="topbar-copy">
           <h1 id="setorTitulo">Selecione um setor</h1>
           <p id="setorDescricao">Crie setores e gerencie tarefas por grupos.</p>
         </div>
+
         <div class="actions">
           <button id="btnExcluirSetor" class="danger hidden">🗑️ Excluir setor</button>
           <button id="btnNovoGrupo">+ Grupo</button>
@@ -58,34 +66,38 @@
       </header>
 
       <section class="filters">
+        <input id="busca" placeholder="Pesquisar tarefa..." />
 
-        <section class="filters">
-          <input id="busca" placeholder="Pesquisar tarefa..." />
-          <select id="filtroStatus">
-            <option value="">Todos os status</option>
-            <option>Não iniciado</option>
-            <option>Em andamento</option>
-            <option>Parado</option>
-            <option>Feito</option>
-          </select>
-          <select id="filtroPeriodo">
-            <option value="todos">Todos os prazos</option>
-            <option value="hoje">Hoje</option>
-            <option value="semana">Semana atual</option>
-            <option value="mes">Mês atual</option>
-          </select>
-          <button id="btnPdfSetor" class="pdf-sector-btn">📄 PDF do setor</button>
-        </section>
+        <select id="filtroStatus">
+          <option value="">Todos os status</option>
+          <option>Não iniciado</option>
+          <option>Em andamento</option>
+          <option>Parado</option>
+          <option>Feito</option>
+        </select>
 
-        <div id="pageLoading" class="page-loading hidden">
-          <div class="spinner"></div><span>Carregando...</span>
-        </div>
-        <section id="dashboard" class="dashboard"></section>
-        <section id="board" class="board hidden"></section>
-        <section id="osPanel" class="os-panel hidden"></section>
-        <section id="printFooter" class="print-footer hidden">
-          <button onclick="window.print()">🖨️ Imprimir visão atual</button>
-        </section>
+        <select id="filtroPeriodo">
+          <option value="todos">Todos os prazos</option>
+          <option value="hoje">Hoje</option>
+          <option value="semana">Semana atual</option>
+          <option value="mes">Mês atual</option>
+        </select>
+
+        <button id="btnPdfSetor" class="pdf-sector-btn">📄 PDF do setor</button>
+      </section>
+
+      <div id="pageLoading" class="page-loading hidden">
+        <div class="spinner"></div>
+        <span>Carregando...</span>
+      </div>
+
+      <section id="dashboard" class="dashboard"></section>
+      <section id="board" class="board hidden"></section>
+      <section id="osPanel" class="os-panel hidden"></section>
+
+      <section id="printFooter" class="print-footer hidden">
+        <button onclick="window.print()">🖨️ Imprimir visão atual</button>
+      </section>
     </main>
   </div>
 
