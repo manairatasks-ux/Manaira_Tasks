@@ -726,16 +726,16 @@ function drawTaskTableRow(doc, t, x, y, widths, rowH, index, fontSize = 7) {
   const late = t.atrasada || taskIsLate(t);
   const priority = priorityColor(t.prioridade);
   const status = statusColor(t.status);
-  doc.rect(x, y, widths.reduce((a,b)=>a+b,0), rowH).fill(index % 2 ? '#ffffff' : '#f8fafc').strokeColor('#e2e8f0').stroke();
+  doc.rect(x, y, widths.reduce((a, b) => a + b, 0), rowH).fill(index % 2 ? '#ffffff' : '#f8fafc').strokeColor('#e2e8f0').stroke();
   doc.fillColor(late ? '#dc2626' : '#0f172a').font('Helvetica-Bold').fontSize(fontSize)
-    .text(String(t.titulo || '-'), x + 6, y + 6, { width: widths[0]-12, height: rowH-10, ellipsis: true });
+    .text(String(t.titulo || '-'), x + 6, y + 6, { width: widths[0] - 12, height: rowH - 10, ellipsis: true });
   doc.fillColor('#334155').font('Helvetica').fontSize(fontSize)
-    .text(String(t.responsavel || '-'), x + widths[0] + 6, y + 6, { width: widths[1]-12, ellipsis: true })
-    .text(brDate(t.prazo), x + widths[0]+widths[1] + 6, y + 6, { width: widths[2]-12, align: 'center' });
-  drawPillSmart(doc, x + widths[0]+widths[1]+widths[2] + 8, y + 5, t.status || '-', status[0], status[1], widths[3]-16, 6.2);
-  drawPillSmart(doc, x + widths[0]+widths[1]+widths[2]+widths[3] + 8, y + 5, t.prioridade || '-', priority[0], priority[1], widths[4]-16, 6.2);
+    .text(String(t.responsavel || '-'), x + widths[0] + 6, y + 6, { width: widths[1] - 12, ellipsis: true })
+    .text(brDate(t.prazo), x + widths[0] + widths[1] + 6, y + 6, { width: widths[2] - 12, align: 'center' });
+  drawPillSmart(doc, x + widths[0] + widths[1] + widths[2] + 8, y + 5, t.status || '-', status[0], status[1], widths[3] - 16, 6.2);
+  drawPillSmart(doc, x + widths[0] + widths[1] + widths[2] + widths[3] + 8, y + 5, t.prioridade || '-', priority[0], priority[1], widths[4] - 16, 6.2);
   doc.fillColor('#334155').font('Helvetica').fontSize(fontSize - .2)
-    .text(String(t.observacoes || ''), x + widths.slice(0,5).reduce((a,b)=>a+b,0) + 6, y + 6, { width: widths[5]-12, height: rowH-10, ellipsis: true });
+    .text(String(t.observacoes || ''), x + widths.slice(0, 5).reduce((a, b) => a + b, 0) + 6, y + 6, { width: widths[5] - 12, height: rowH - 10, ellipsis: true });
 }
 
 function addSmartPage(doc, pageW, pageH, title, subtitle, userName) {
@@ -815,7 +815,7 @@ function renderGroupPdf(doc, grupo, tarefas, req, options = {}) {
     const x = 34;
     const rowH = 28;
     const header = () => {
-      doc.rect(x, y, widths.reduce((a,b)=>a+b,0), 24).fill(blue);
+      doc.rect(x, y, widths.reduce((a, b) => a + b, 0), 24).fill(blue);
       const heads = ['Tarefa', 'Responsável', 'Prazo', 'Status', 'Prior.', 'Observações'];
       let cx = x;
       heads.forEach((h, i) => {
@@ -945,7 +945,7 @@ function drawPrintTaskCard(doc, t, x, y, w, index, mode, accent) {
 }
 
 function drawPrintTableHeader(doc, x, y, widths, titleColor = PDF_PRINT.blue) {
-  const totalW = widths.reduce((a,b)=>a+b,0);
+  const totalW = widths.reduce((a, b) => a + b, 0);
   doc.roundedRect(x, y, totalW, 22, 7).fill(titleColor);
   const heads = ['Tarefa', 'Resp.', 'Prazo', 'Status', 'Prior.', 'Obs.'];
   let cx = x;
@@ -961,7 +961,7 @@ function drawPrintTaskRow(doc, t, x, y, widths, rowH, idx) {
   const status = statusColor(t.status);
   const pri = priorityColor(t.prioridade);
   const late = t.atrasada || taskIsLate(t);
-  const totalW = widths.reduce((a,b)=>a+b,0);
+  const totalW = widths.reduce((a, b) => a + b, 0);
   doc.rect(x, y, totalW, rowH).fill(idx % 2 ? '#ffffff' : '#f8fafc').strokeColor('#e2e8f0').lineWidth(.6).stroke();
   doc.fillColor(late ? '#b91c1c' : '#0f172a').font('Helvetica-Bold').fontSize(6.35)
     .text(truncateText(t.titulo || '-', 58), x + 4, y + 6, { width: widths[0] - 8, height: rowH - 8, ellipsis: true });
@@ -1527,30 +1527,205 @@ app.delete('/api/os/:id', auth, async (req, res) => {
 
 app.get('/api/os/relatorio-pdf', authPdf, async (req, res) => {
   try {
-    const itens = await all(`SELECT * FROM ordens_servico ORDER BY criado_em DESC LIMIT 200`);
+    const itens = await all(`
+      SELECT *
+      FROM ordens_servico
+      ORDER BY
+        CASE prioridade
+          WHEN 'Urgente' THEN 1
+          WHEN 'Alta' THEN 2
+          WHEN 'Média' THEN 3
+          WHEN 'Baixa' THEN 4
+          ELSE 5
+        END,
+        criado_em DESC
+      LIMIT 200
+    `);
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="ordens-servico-operacional.pdf"');
+
     const doc = new PDFDocument({ size: 'A4', margin: 28, bufferPages: true });
     doc.pipe(res);
-    doc.font('Helvetica-Bold').fontSize(16).fillColor('#0b2f6b').text('Ordens de Serviço Operacionais', { align: 'center' });
-    doc.moveDown(.5).font('Helvetica').fontSize(8).fillColor('#64748b').text(`Gerado em ${brDate(new Date())} • ${req.user.nome}`, { align: 'center' });
-    doc.moveDown();
-    itens.forEach((o, i) => {
-      if (doc.y > 760) doc.addPage();
-      doc.roundedRect(28, doc.y, 539, 54, 8).strokeColor('#dbeafe').stroke();
-      const y = doc.y + 8;
-      doc.font('Helvetica-Bold').fontSize(9).fillColor('#0f172a').text(`${o.numero || o.id} - ${o.titulo}`, 38, y, { width: 330, ellipsis: true });
-      doc.font('Helvetica').fontSize(7).fillColor('#334155').text(`Local: ${o.setor_local || '-'} • Resp.: ${o.responsavel_principal || '-'} • M.O.: ${o.quantidade_mao_obra || 1}`, 38, y+16, { width: 380, ellipsis: true });
-      doc.text(`Status: ${o.status || '-'} • Prioridade: ${o.prioridade || '-'} • Criado: ${brDateTime(o.criado_em)}`, 38, y+30, { width: 420, ellipsis: true });
-      doc.y = y + 50;
+
+    function texto(valor) {
+      return valor && String(valor).trim() ? String(valor).trim() : '-';
+    }
+
+    function tempo(min) {
+      const n = Number(min || 0);
+      if (!n) return '-';
+      if (n < 60) return `${n} min`;
+      const h = Math.floor(n / 60);
+      const m = n % 60;
+      return m ? `${h}h ${m}min` : `${h}h`;
+    }
+
+    function pageBreakIfNeeded(height = 210) {
+      if (doc.y + height > 770) doc.addPage();
+    }
+
+    function sectionTitle(title, x, y, width) {
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(8)
+        .fillColor('#0b2f6b')
+        .text(title, x, y, { width });
+    }
+
+    function line(label, value, x, y, width) {
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(7)
+        .fillColor('#475569')
+        .text(`${label}: `, x, y, { continued: true });
+
+      doc
+        .font('Helvetica')
+        .fontSize(7)
+        .fillColor('#0f172a')
+        .text(texto(value), { width });
+    }
+
+    function boxText(title, value, x, y, width, height) {
+      doc
+        .roundedRect(x, y, width, height, 8)
+        .strokeColor('#dbeafe')
+        .lineWidth(1)
+        .stroke();
+
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(7.5)
+        .fillColor('#0b2f6b')
+        .text(title, x + 8, y + 7, { width: width - 16 });
+
+      doc
+        .font('Helvetica')
+        .fontSize(7)
+        .fillColor('#334155')
+        .text(texto(value), x + 8, y + 21, {
+          width: width - 16,
+          height: height - 28,
+          ellipsis: true,
+          lineGap: 2
+        });
+    }
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(18)
+      .fillColor('#0b2f6b')
+      .text('Ordens de Serviço Operacionais', { align: 'center' });
+
+    doc.moveDown(0.4);
+
+    doc
+      .font('Helvetica')
+      .fontSize(8)
+      .fillColor('#64748b')
+      .text(`Gerado em ${brDateTime(new Date())} • ${req.user.nome}`, { align: 'center' });
+
+    doc.moveDown(1.3);
+
+    itens.forEach((o) => {
+      pageBreakIfNeeded(260);
+
+      const startY = doc.y;
+      const leftX = 46;
+      const rightX = 300;
+      const leftW = 220;
+      const rightW = 260;
+
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(11)
+        .fillColor('#0f172a')
+        .text(`${o.numero || `OS-${o.id}`} - ${texto(o.titulo)}`, leftX, startY, {
+          width: 520
+        });
+
+      let yLeft = startY + 22;
+      let yRight = startY + 22;
+
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(7.5)
+        .fillColor('#0b2f6b')
+        .text(`STATUS: ${texto(o.status)}     |     PRIORIDADE: ${texto(o.prioridade)}`, leftX, yLeft, {
+          width: leftW
+        });
+
+      yLeft += 20;
+
+      sectionTitle('DADOS GERAIS', leftX, yLeft, leftW);
+      yLeft += 14;
+
+      line('Local/Setor', o.setor_local, leftX, yLeft, leftW);
+      yLeft += 13;
+      line('Categoria', o.categoria, leftX, yLeft, leftW);
+      yLeft += 13;
+      line('Solicitante', o.solicitante, leftX, yLeft, leftW);
+      yLeft += 18;
+
+      sectionTitle('RESPONSÁVEIS E EQUIPE', leftX, yLeft, leftW);
+      yLeft += 14;
+
+      line('Responsável', o.responsavel_principal, leftX, yLeft, leftW);
+      yLeft += 13;
+      line('Funcionários', o.funcionarios, leftX, yLeft, leftW);
+      yLeft += 13;
+      line('Mão de obra', o.quantidade_mao_obra || 1, leftX, yLeft, leftW);
+      yLeft += 18;
+
+      sectionTitle('PRAZOS E TEMPOS', leftX, yLeft, leftW);
+      yLeft += 14;
+
+      line('Tempo estimado', tempo(o.tempo_estimado_min), leftX, yLeft, leftW);
+      yLeft += 13;
+      line('Tempo real', tempo(o.tempo_real_min), leftX, yLeft, leftW);
+      yLeft += 13;
+      line('Previsão', o.previsao_conclusao ? brDateTime(o.previsao_conclusao) : '-', leftX, yLeft, leftW);
+      yLeft += 18;
+
+      line('Criada em', brDateTime(o.criado_em), leftX, yLeft, leftW);
+      yLeft += 13;
+      line('Atualizada em', brDateTime(o.atualizado_em), leftX, yLeft, leftW);
+
+      boxText(
+        'DESCRIÇÃO DO SERVIÇO',
+        o.descricao,
+        rightX,
+        yRight,
+        rightW,
+        180
+      );
+
+      yRight += 188;
+
+      doc.y = Math.max(yLeft, yRight) + 16;
+
+      doc
+        .moveTo(46, doc.y)
+        .lineTo(560, doc.y)
+        .strokeColor('#dbeafe')
+        .lineWidth(1)
+        .stroke();
+
+      doc.moveDown(1.2);
     });
+
     drawFooterPages(doc, 'Relatório operacional de ordens de serviço.');
     doc.end();
+
   } catch (err) {
+    console.error('ERRO AO GERAR PDF DE OS:');
     console.error(err);
     res.status(500).send('Erro ao gerar PDF de OS.');
   }
 });
+
+
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
