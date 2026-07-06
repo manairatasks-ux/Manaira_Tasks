@@ -155,6 +155,7 @@ function setView(view) {
   $('printFooter').classList.toggle('hidden', false);
   $('btnDashboard').classList.toggle('active', isDashboard);
   $('btnOS')?.classList.toggle('active', isOS);
+  $('btnExcluirSetor').classList.toggle('hidden', !isBoard);
   $('btnNovoGrupo').style.display = isBoard ? '' : 'none';
   $('btnNovaTarefa').style.display = isBoard ? '' : 'none';
   $('busca').style.display = isBoard ? '' : 'none';
@@ -627,6 +628,45 @@ function tarefaForm(tarefa = {}, grupoId = null) {
   };
 }
 
+window.excluirSetorAtual = async () => {
+  if (!state.setorAtual) {
+    return alert('Nenhum setor selecionado.');
+  }
+
+  const setor = state.setorAtual;
+
+  const confirmar = confirm(
+    `Deseja realmente excluir o setor "${setor.nome}"?\n\n` +
+    `ATENÇÃO: todos os grupos e tarefas deste setor também serão excluídos.\n\n` +
+    `Esta ação não poderá ser desfeita.`
+  );
+
+  if (!confirmar) return;
+
+  try {
+    setLoading('Excluindo setor...');
+
+    await api(`/api/setores/${setor.id}`, {
+      method: 'DELETE'
+    });
+
+    state.cache.quadros.delete(String(setor.id));
+
+    state.setorAtual = null;
+    state.quadro = null;
+
+    invalidateDashboard();
+
+    await carregarSetores(false);
+    await abrirDashboard(true);
+
+  } catch (err) {
+    alert(`Erro ao excluir setor: ${err.message}`);
+  } finally {
+    clearLoading();
+  }
+};
+
 window.abrirSetor = abrirSetor;
 window.imprimirGrupoPdf = (id) => {
   if (!state.token) return alert('Sessão expirada. Faça login novamente.');
@@ -842,18 +882,19 @@ function osForm(os = {}) {
   const statusOptions = OS_STATUS.map(s => `<option value="${s}" ${os.status === s ? 'selected' : ''}>${s}</option>`).join('');
   const prioridadeOptions = OS_PRIORIDADES.map(p => `<option value="${p}" ${os.prioridade === p ? 'selected' : ''}>${p}</option>`).join('');
   const categoriaOptions = OS_CATEGORIAS.map(c => `<option value="${c}" ${os.categoria === c ? 'selected' : ''}>${c}</option>`).join('');
+
   openModal(os.id ? `Editar ${escapeHtml(os.numero || 'OS')}` : 'Nova Ordem de Serviço', `
     <form id="osForm">
       <div class="form-grid">
-        <div class="full"><label>Título do chamado</label><input name="titulo" value="${escapeHtml(os.titulo || '')}" placeholder="Ex: Goteira na sala do CPD" required></div>
+        <div class="full"><label>Título do chamado</label><input name="titulo" value="${escapeHtml(os.titulo || '')}" required></div>
         <div><label>Solicitante</label><input name="solicitante" value="${escapeHtml(os.solicitante || '')}"></div>
-        <div><label>Setor/local</label><input name="setor_local" value="${escapeHtml(os.setor_local || '')}" placeholder="Ex: CPD, depósito, loja"></div>
+        <div><label>Setor/local</label><input name="setor_local" value="${escapeHtml(os.setor_local || '')}"></div>
         <div><label>Categoria</label><select name="categoria">${categoriaOptions}</select></div>
         <div><label>Prioridade</label><select name="prioridade">${prioridadeOptions}</select></div>
         <div><label>Status</label><select name="status">${statusOptions}</select></div>
-        <div><label>Impacto na operação</label><input name="impacto" value="${escapeHtml(os.impacto || '')}" placeholder="Ex: afeta cliente, risco, loja parada"></div>
+        <div><label>Impacto na operação</label><input name="impacto" value="${escapeHtml(os.impacto || '')}"></div>
         <div><label>Responsável principal</label><input name="responsavel_principal" value="${escapeHtml(os.responsavel_principal || '')}"></div>
-        <div class="full"><label>Funcionários envolvidos</label><input name="funcionarios" value="${escapeHtml(os.funcionarios || '')}" placeholder="Ex: João, Pedro, Marcos"></div>
+        <div class="full"><label>Funcionários envolvidos</label><input name="funcionarios" value="${escapeHtml(os.funcionarios || '')}"></div>
         <div><label>Qtd. mão de obra</label><input name="quantidade_mao_obra" type="number" min="1" value="${os.quantidade_mao_obra || 1}"></div>
         <div><label>Tempo estimado (min)</label><input name="tempo_estimado_min" type="number" min="0" value="${os.tempo_estimado_min || 0}"></div>
         <div><label>Tempo real (min)</label><input name="tempo_real_min" type="number" min="0" value="${os.tempo_real_min || 0}"></div>
@@ -867,18 +908,47 @@ function osForm(os = {}) {
       </div>
       <div class="modal-actions">
         <button type="button" onclick="closeModal()">Cancelar</button>
-        ${os.id ? '<button type="button" class="danger" onclick="excluirOSConfirmada('+os.id+')">Excluir</button>' : ''}
+        ${os.id ? `<button type="button" class="danger" onclick="excluirOSConfirmada(${os.id})">Excluir</button>` : ''}
         <button class="primary" type="submit">Salvar OS</button>
       </div>
     </form>
   `);
+
   $('osForm').onsubmit = async (e) => {
     e.preventDefault();
-    const data = Object.fromEntries(new FormData(e.target));
-    if (os.id) await api(`/api/os/${os.id}`, { method: 'PUT', body: JSON.stringify(data) });
-    else await api('/api/os', { method: 'POST', body: JSON.stringify(data) });
-    closeModal();
-    await carregarOS();
+
+    const btn = e.target.querySelector('button[type="submit"]');
+
+    try {
+      const data = Object.fromEntries(new FormData(e.target));
+
+      data.quantidade_mao_obra = data.quantidade_mao_obra ? Number(data.quantidade_mao_obra) : 1;
+      data.tempo_estimado_min = data.tempo_estimado_min ? Number(data.tempo_estimado_min) : 0;
+      data.tempo_real_min = data.tempo_real_min ? Number(data.tempo_real_min) : 0;
+      data.previsao_conclusao = data.previsao_conclusao || null;
+
+      btn.disabled = true;
+      btn.textContent = 'Salvando...';
+
+      if (os.id) {
+        await api(`/api/os/${os.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(data)
+        });
+      } else {
+        await api('/api/os', {
+          method: 'POST',
+          body: JSON.stringify(data)
+        });
+      }
+
+      closeModal();
+      await carregarOS();
+    } catch (err) {
+      alert(`Erro ao salvar OS: ${err.message}`);
+      btn.disabled = false;
+      btn.textContent = 'Salvar OS';
+    }
   };
 }
 
@@ -956,6 +1026,7 @@ $('btnSair').onclick = () => { localStorage.removeItem('mb_token'); location.rel
 $('btnDashboard').onclick = abrirDashboard;
 $('btnOS').onclick = abrirOS;
 $('btnNovoSetor').onclick = () => setorForm();
+$('btnExcluirSetor').onclick = () => window.excluirSetorAtual();
 $('btnNovoGrupo').onclick = () => grupoForm();
 $('btnNovaTarefa').onclick = () => tarefaForm({}, state.quadro?.grupos?.[0]?.id);
 $('modalClose').onclick = closeModal;

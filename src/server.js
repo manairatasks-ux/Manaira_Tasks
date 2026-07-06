@@ -1287,36 +1287,169 @@ app.post('/api/os', auth, async (req, res) => {
   }
 });
 
+
 app.put('/api/os/:id', auth, async (req, res) => {
   try {
     const {
-      titulo, descricao, solicitante, setor_local, categoria, prioridade, impacto, status,
-      responsavel_principal, funcionarios, quantidade_mao_obra, tempo_estimado_min,
-      previsao_conclusao, material_necessario, material_utilizado, pendencias, execucao,
-      observacao_conclusao, data_inicio, data_conclusao, tempo_real_min
+      titulo,
+      descricao,
+      solicitante,
+      setor_local,
+      categoria,
+      prioridade,
+      impacto,
+      status,
+      responsavel_principal,
+      funcionarios,
+      quantidade_mao_obra,
+      tempo_estimado_min,
+      previsao_conclusao,
+      material_necessario,
+      material_utilizado,
+      pendencias,
+      execucao,
+      observacao_conclusao,
+      data_inicio,
+      data_conclusao,
+      tempo_real_min
     } = req.body;
-    if (!titulo) return res.status(400).json({ error: 'Título da OS é obrigatório.' });
+
+    if (!titulo || !String(titulo).trim()) {
+      return res.status(400).json({
+        error: 'Título da OS é obrigatório.'
+      });
+    }
+
     const finalStatus = status || 'Recebido';
-    const os = await get(`
+
+    const osExistente = await get(
+      'SELECT * FROM ordens_servico WHERE id = $1',
+      [req.params.id]
+    );
+
+    if (!osExistente) {
+      return res.status(404).json({
+        error: 'Ordem de serviço não encontrada.'
+      });
+    }
+
+    let dataInicioFinal = cleanDateTime(data_inicio);
+    let dataConclusaoFinal = cleanDateTime(data_conclusao);
+
+    // Se entrar em execução pela primeira vez,
+    // registra automaticamente a data de início.
+    if (
+      finalStatus === 'Em execução' &&
+      !dataInicioFinal &&
+      !osExistente.data_inicio
+    ) {
+      dataInicioFinal = new Date();
+    }
+
+    // Mantém a data de início existente.
+    if (!dataInicioFinal && osExistente.data_inicio) {
+      dataInicioFinal = osExistente.data_inicio;
+    }
+
+    // Se for concluída pela primeira vez,
+    // registra automaticamente a conclusão.
+    if (
+      finalStatus === 'Concluído' &&
+      !dataConclusaoFinal &&
+      !osExistente.data_conclusao
+    ) {
+      dataConclusaoFinal = new Date();
+    }
+
+    // Mantém a data de conclusão existente.
+    if (!dataConclusaoFinal && osExistente.data_conclusao) {
+      dataConclusaoFinal = osExistente.data_conclusao;
+    }
+
+    const os = await get(
+      `
       UPDATE ordens_servico SET
-        titulo=$1, descricao=$2, solicitante=$3, setor_local=$4, categoria=$5, prioridade=$6, impacto=$7, status=$8,
-        responsavel_principal=$9, funcionarios=$10, quantidade_mao_obra=$11, tempo_estimado_min=$12, tempo_real_min=$13,
-        previsao_conclusao=$14, data_inicio=COALESCE($15, CASE WHEN $8 = 'Em execução' AND data_inicio IS NULL THEN CURRENT_TIMESTAMP ELSE data_inicio END),
-        data_conclusao = CASE WHEN $16::timestamp IS NOT NULL THEN $16::timestamp WHEN $8 = 'Concluído' AND data_conclusao IS NULL THEN CURRENT_TIMESTAMP ELSE data_conclusao END,
-        material_necessario=$17, material_utilizado=$18, pendencias=$19, execucao=$20, observacao_conclusao=$21,
-        atualizado_em=CURRENT_TIMESTAMP
-      WHERE id=$22
+
+        titulo = $1,
+        descricao = $2,
+        solicitante = $3,
+        setor_local = $4,
+        categoria = $5,
+        prioridade = $6,
+        impacto = $7,
+        status = $8,
+
+        responsavel_principal = $9,
+        funcionarios = $10,
+
+        quantidade_mao_obra = $11,
+        tempo_estimado_min = $12,
+        tempo_real_min = $13,
+
+        previsao_conclusao = $14,
+        data_inicio = $15,
+        data_conclusao = $16,
+
+        material_necessario = $17,
+        material_utilizado = $18,
+        pendencias = $19,
+        execucao = $20,
+        observacao_conclusao = $21,
+
+        atualizado_em = CURRENT_TIMESTAMP
+
+      WHERE id = $22
+
       RETURNING *
-    `, [
-      titulo, descricao || '', solicitante || '', setor_local || '', categoria || 'Outros', prioridade || 'Média', impacto || '', finalStatus,
-      responsavel_principal || '', funcionarios || '', normalizeMinutes(quantidade_mao_obra) || 1, normalizeMinutes(tempo_estimado_min), normalizeMinutes(tempo_real_min),
-      cleanDateTime(previsao_conclusao), cleanDateTime(data_inicio), cleanDateTime(data_conclusao), material_necessario || '', material_utilizado || '', pendencias || '', execucao || '', observacao_conclusao || '', req.params.id
-    ]);
-    res.json(os);
+      `,
+      [
+        String(titulo).trim(),
+        descricao || '',
+        solicitante || '',
+        setor_local || '',
+        categoria || 'Outros',
+        prioridade || 'Média',
+        impacto || '',
+        finalStatus,
+
+        responsavel_principal || '',
+        funcionarios || '',
+
+        normalizeMinutes(quantidade_mao_obra) || 1,
+        normalizeMinutes(tempo_estimado_min),
+        normalizeMinutes(tempo_real_min),
+
+        cleanDateTime(previsao_conclusao),
+        dataInicioFinal,
+        dataConclusaoFinal,
+
+        material_necessario || '',
+        material_utilizado || '',
+        pendencias || '',
+        execucao || '',
+        observacao_conclusao || '',
+
+        req.params.id
+      ]
+    );
+
+    return res.json(os);
+
   } catch (err) {
-    res.status(500).json({ error: 'Erro ao atualizar OS.', details: err.message });
+
+    console.error('ERRO AO ATUALIZAR OS:');
+    console.error(err);
+
+    return res.status(500).json({
+      error: 'Erro ao atualizar OS.',
+      details: err.message
+    });
   }
 });
+
+
+
+
 
 app.patch('/api/os/:id/status', auth, async (req, res) => {
   try {

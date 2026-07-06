@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Manaíra Board</title>
   <link rel="stylesheet" href="/css/style.css" />
 </head>
+
 <body>
   <div id="loginScreen" class="login-screen">
     <div class="login-card">
@@ -49,36 +51,41 @@
           <p id="setorDescricao">Crie setores e gerencie tarefas por grupos.</p>
         </div>
         <div class="actions">
+          <button id="btnExcluirSetor" class="danger hidden">🗑️ Excluir setor</button>
           <button id="btnNovoGrupo">+ Grupo</button>
           <button class="primary" id="btnNovaTarefa">+ Criar tarefa</button>
         </div>
       </header>
 
       <section class="filters">
-        <input id="busca" placeholder="Pesquisar tarefa..." />
-        <select id="filtroStatus">
-          <option value="">Todos os status</option>
-          <option>Não iniciado</option>
-          <option>Em andamento</option>
-          <option>Parado</option>
-          <option>Feito</option>
-        </select>
-        <select id="filtroPeriodo">
-          <option value="todos">Todos os prazos</option>
-          <option value="hoje">Hoje</option>
-          <option value="semana">Semana atual</option>
-          <option value="mes">Mês atual</option>
-        </select>
-        <button id="btnPdfSetor" class="pdf-sector-btn">📄 PDF do setor</button>
-      </section>
 
-      <div id="pageLoading" class="page-loading hidden"><div class="spinner"></div><span>Carregando...</span></div>
-      <section id="dashboard" class="dashboard"></section>
-      <section id="board" class="board hidden"></section>
-      <section id="osPanel" class="os-panel hidden"></section>
-      <section id="printFooter" class="print-footer hidden">
-        <button onclick="window.print()">🖨️ Imprimir visão atual</button>
-      </section>
+        <section class="filters">
+          <input id="busca" placeholder="Pesquisar tarefa..." />
+          <select id="filtroStatus">
+            <option value="">Todos os status</option>
+            <option>Não iniciado</option>
+            <option>Em andamento</option>
+            <option>Parado</option>
+            <option>Feito</option>
+          </select>
+          <select id="filtroPeriodo">
+            <option value="todos">Todos os prazos</option>
+            <option value="hoje">Hoje</option>
+            <option value="semana">Semana atual</option>
+            <option value="mes">Mês atual</option>
+          </select>
+          <button id="btnPdfSetor" class="pdf-sector-btn">📄 PDF do setor</button>
+        </section>
+
+        <div id="pageLoading" class="page-loading hidden">
+          <div class="spinner"></div><span>Carregando...</span>
+        </div>
+        <section id="dashboard" class="dashboard"></section>
+        <section id="board" class="board hidden"></section>
+        <section id="osPanel" class="os-panel hidden"></section>
+        <section id="printFooter" class="print-footer hidden">
+          <button onclick="window.print()">🖨️ Imprimir visão atual</button>
+        </section>
     </main>
   </div>
 
@@ -92,4 +99,5 @@
 
   <script src="/js/app.js"></script>
 </body>
+
 </html>

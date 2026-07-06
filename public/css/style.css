@@ -535,3 +535,15 @@ td:last-child {
   .os-board, .os-kpis { grid-template-columns: 1fr; }
   .os-toolbar { align-items:flex-start; flex-direction:column; }
 }
+
+.actions .danger {
+  background: #fff;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.actions .danger:hover {
+  background: #fef2f2;
+  border-color: #f87171;
+  color: #b91c1c;
+}
