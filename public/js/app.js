@@ -8,6 +8,12 @@ const state = {
   dashboardFilters: { periodo: '90', setor_id: '', responsavel: '' },
   dashboardData: null,
   osData: null,
+  osPages: {
+    recebidos: 1,
+    execucao: 1,
+    pendencias: 1,
+    concluidos: 1
+  },
   osFilters: { busca: '', status: '', prioridade: '', responsavel: '', periodo: '30' },
   cache: { dashboard: new Map(), quadros: new Map() },
   pending: { dashboard: null, setor: null },
@@ -857,11 +863,51 @@ function renderOS(data) {
   `;
 }
 
-function renderOSColumn(title, items) {
-  return `<section class="os-column"><h3>${title} <small>${items.length}</small></h3>
-    ${items.map(renderOSCard).join('') || '<p class="empty">Nenhuma OS aqui.</p>'}
-  </section>`;
+const OS_PAGE_SIZE = 5;
+
+function getOSPageKey(title) {
+  const t = String(title || '').toLowerCase();
+
+  if (t.includes('receb')) return 'recebidos';
+  if (t.includes('exec')) return 'execucao';
+  if (t.includes('pend')) return 'pendencias';
+  if (t.includes('concl')) return 'concluidos';
+
+  return 'recebidos';
 }
+
+function renderOSColumn(title, items) {
+  const pageKey = getOSPageKey(title);
+  const currentPage = state.osPages?.[pageKey] || 1;
+  const totalPages = Math.max(1, Math.ceil(items.length / OS_PAGE_SIZE));
+
+  const safePage = Math.min(currentPage, totalPages);
+  state.osPages[pageKey] = safePage;
+
+  const start = (safePage - 1) * OS_PAGE_SIZE;
+  const pageItems = items.slice(start, start + OS_PAGE_SIZE);
+
+  return `
+    <section class="os-column">
+      <h3>${title} <small>${items.length}</small></h3>
+
+      ${pageItems.map(renderOSCard).join('') || '<p class="empty">Nenhuma OS aqui.</p>'}
+
+      ${items.length > OS_PAGE_SIZE ? `
+        <div class="os-pagination">
+          <button onclick="mudarPaginaOS('${pageKey}', -1)" ${safePage <= 1 ? 'disabled' : ''}>‹</button>
+          <span>${safePage} / ${totalPages}</span>
+          <button onclick="mudarPaginaOS('${pageKey}', 1)" ${safePage >= totalPages ? 'disabled' : ''}>›</button>
+        </div>
+      ` : ''}
+    </section>
+  `;
+}
+
+window.mudarPaginaOS = (pageKey, direction) => {
+  state.osPages[pageKey] = Math.max(1, (state.osPages[pageKey] || 1) + direction);
+  renderOS(state.osData);
+};
 
 function renderOSCard(o) {
   return `<article class="os-card ${o.prioridade === 'Urgente' ? 'urgent' : ''}" onclick="verOS(${o.id})">
@@ -952,6 +998,44 @@ function osForm(os = {}) {
   };
 }
 
+
+function renderDescricaoOS(descricao = '') {
+  const texto = String(descricao || '').trim();
+
+  if (!texto) {
+    return '<p><strong>Descrição:</strong><br>Sem descrição.</p>';
+  }
+
+  const textoFormatado = escapeHtml(texto)
+    .replace(
+      /\s*Serviço solicitado:/gi,
+      '<br><br><strong>Serviço solicitado:</strong><br>'
+    )
+    .replace(
+      /\s*Material\/observação:/gi,
+      '<br><br><strong>Material/observação:</strong><br>'
+    )
+    .replace(
+      /\s*Local exato informado:/gi,
+      '<br><br><strong>Local exato:</strong><br>'
+    )
+    .replace(
+      /\s*Impacto informado:/gi,
+      '<br><br><strong>Impacto:</strong><br>'
+    );
+
+  return `
+    <div class="os-desc-box">
+      <p>
+        <strong>Descrição:</strong><br>
+        ${textoFormatado}
+      </p>
+    </div>
+  `;
+}
+
+
+
 window.verOS = (id) => {
   const os = state.osData?.recentes?.find(o => o.id === id);
   if (!os) return;
@@ -962,7 +1046,7 @@ window.verOS = (id) => {
       <p><strong>Responsável:</strong> ${escapeHtml(os.responsavel_principal || '-')} | <strong>Equipe:</strong> ${escapeHtml(os.funcionarios || '-')} | <strong>M.O.:</strong> ${os.quantidade_mao_obra || 1}</p>
       <p><strong>Tempo:</strong> estimado ${minutesLabel(os.tempo_estimado_min)} / real ${minutesLabel(os.tempo_real_min)}</p>
       <hr>
-      <p><strong>Descrição:</strong><br>${escapeHtml(os.descricao || 'Sem descrição.')}</p>
+      ${renderDescricaoOS(os.descricao)}
       <p><strong>Execução:</strong><br>${escapeHtml(os.execucao || '-')}</p>
       <p><strong>Pendências:</strong><br>${escapeHtml(os.pendencias || '-')}</p>
       <p><strong>Material necessário:</strong><br>${escapeHtml(os.material_necessario || '-')}</p>
@@ -979,48 +1063,48 @@ window.editarOS = (id) => {
 
 window.alterarStatusOS = async (id, select) => {
 
-    const status = select.value;
+  const status = select.value;
 
-    select.disabled = true;
+  select.disabled = true;
 
-    const corOriginal = select.style.background;
-    const textoOriginal = select.value;
+  const corOriginal = select.style.background;
+  const textoOriginal = select.value;
 
-    try {
+  try {
 
-        select.style.background = "#fff7ed";
+    select.style.background = "#fff7ed";
 
-        await api(`/api/os/${id}/status`, {
-            method: "PATCH",
-            body: JSON.stringify({
-                status
-            })
-        });
+    await api(`/api/os/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status
+      })
+    });
 
-        select.style.background = "#dcfce7";
+    select.style.background = "#dcfce7";
 
-        setTimeout(() => {
-            carregarOS();
-        }, 250);
+    setTimeout(() => {
+      carregarOS();
+    }, 250);
 
-    } catch (err) {
+  } catch (err) {
 
-        alert(err.message);
+    alert(err.message);
 
-        select.value = textoOriginal;
-        select.style.background = "#fee2e2";
+    select.value = textoOriginal;
+    select.style.background = "#fee2e2";
 
-        setTimeout(() => {
-            select.style.background = corOriginal;
-        }, 1000);
+    setTimeout(() => {
+      select.style.background = corOriginal;
+    }, 1000);
 
-    } finally {
+  } finally {
 
-        setTimeout(() => {
-            select.disabled = false;
-        }, 250);
+    setTimeout(() => {
+      select.disabled = false;
+    }, 250);
 
-    }
+  }
 
 };
 
@@ -1039,11 +1123,31 @@ window.aplicarFiltrosOS = async () => {
     responsavel: $('osResponsavel')?.value || '',
     periodo: '30'
   };
+  state.osPages = {
+    recebidos: 1,
+    execucao: 1,
+    pendencias: 1,
+    concluidos: 1
+  };
   await carregarOS();
 };
 
 window.limparFiltrosOS = async () => {
-  state.osFilters = { busca: '', status: '', prioridade: '', responsavel: '', periodo: '30' };
+  state.osFilters = {
+    busca: '',
+    status: '',
+    prioridade: '',
+    responsavel: '',
+    periodo: '30'
+  };
+
+  state.osPages = {
+    recebidos: 1,
+    execucao: 1,
+    pendencias: 1,
+    concluidos: 1
+  };
+
   await carregarOS();
 };
 
