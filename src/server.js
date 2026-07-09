@@ -1731,6 +1731,414 @@ app.delete('/api/os/:id', auth, async (req, res) => {
   }
 });
 
+
+app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
+  try {
+    const { range = 'all', busca = '', prioridade = '', responsavel = '' } = req.query;
+
+    const params = [];
+    const filters = [
+      `(o.status = 'Em execução' OR o.status IN ('Aguardando mão de obra', 'Aguardando material', 'Pausado'))`
+    ];
+
+    if (busca) {
+      params.push(`%${String(busca).trim()}%`);
+      filters.push(`(o.numero ILIKE $${params.length} OR o.titulo ILIKE $${params.length} OR COALESCE(o.descricao,'') ILIKE $${params.length} OR COALESCE(o.setor_local,'') ILIKE $${params.length} OR COALESCE(o.solicitante,'') ILIKE $${params.length})`);
+    }
+
+    if (prioridade) {
+      params.push(String(prioridade).trim());
+      filters.push(`o.prioridade = $${params.length}`);
+    }
+
+    if (responsavel) {
+      params.push(`%${String(responsavel).trim()}%`);
+      filters.push(`(COALESCE(u.nome, '') ILIKE $${params.length} OR COALESCE(o.responsavel_principal, '') ILIKE $${params.length})`);
+    }
+
+    if (range === 'hoje') {
+      filters.push(`o.previsao_conclusao::date = CURRENT_DATE`);
+    } else if (range === '7') {
+      filters.push(`o.previsao_conclusao::date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'`);
+    }
+
+    const where = `WHERE ${filters.join(' AND ')}`;
+
+    const itens = await all(`
+      SELECT o.*, u.nome AS responsavel_nome
+      FROM ordens_servico o
+      LEFT JOIN usuarios u ON u.id = o.responsavel_principal_id
+      ${where}
+      ORDER BY
+        CASE
+          WHEN o.status = 'Em execução' THEN 1
+          ELSE 2
+        END,
+        CASE o.prioridade
+          WHEN 'Urgente' THEN 1
+          WHEN 'Alta' THEN 2
+          WHEN 'Média' THEN 3
+          WHEN 'Baixa' THEN 4
+          ELSE 5
+        END,
+        COALESCE(o.previsao_conclusao, o.criado_em) ASC,
+        o.id DESC
+      LIMIT 200
+    `, params);
+
+    const rangeLabel = {
+      hoje: 'com previsão para hoje',
+      7: 'com previsão para os próximos 7 dias',
+      all: 'todas em execução e pendências'
+    }[String(range)] || 'em andamento';
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="os-andamento-${safeFileName(rangeLabel)}.pdf"`);
+
+    const doc = new PDFDocument({ size: 'A4', margin: 28, bufferPages: true });
+    doc.pipe(res);
+
+    const page = {
+      left: 28,
+      right: 567,
+      top: 28,
+      bottom: 784,
+      cardGap: 7,
+      cardH: 108
+    };
+    page.cardW = (page.right - page.left - (page.cardGap * 2)) / 3;
+
+    function txt(value) {
+      return value && String(value).trim() ? String(value).trim() : '-';
+    }
+
+    function short(value, max) {
+      return truncateText(txt(value), max);
+    }
+
+    function sectionName(status) {
+      return status === 'Em execução' ? 'Em execução' : 'Pendências';
+    }
+
+    function drawHeader() {
+      doc.rect(0, 0, doc.page.width, doc.page.height).fill('#f8fafc');
+      doc.roundedRect(28, 20, 34, 24, 7).fill('#0b2f6b');
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10).text('OS', 28, 27, { width: 34, align: 'center' });
+
+      doc.fillColor('#0b2f6b').font('Helvetica-Bold').fontSize(13)
+        .text('Relatório compacto de OS', 72, 20, { width: 330 });
+      doc.fillColor('#64748b').font('Helvetica').fontSize(7)
+        .text(`Em execução e Pendências • ${rangeLabel}`, 72, 36, { width: 360 });
+
+      doc.fillColor('#334155').font('Helvetica-Bold').fontSize(6.2)
+        .text(`Gerado em ${brDateTime(new Date())}`, 414, 22, { width: 150, align: 'right' })
+        .text(`Usuário: ${req.user.nome || '-'}`, 414, 34, { width: 150, align: 'right' });
+
+      const execCount = itens.filter(i => i.status === 'Em execução').length;
+      const pendCount = itens.length - execCount;
+      const metricsY = 54;
+      const metricW = 124;
+      [
+        ['Total', itens.length, '#0b2f6b'],
+        ['Em execução', execCount, '#f97316'],
+        ['Pendências', pendCount, '#b91c1c'],
+        ['Alta/Urgente', itens.filter(i => ['Alta', 'Urgente'].includes(i.prioridade)).length, '#7f1d1d']
+      ].forEach((m, idx) => {
+        const x = 28 + idx * (metricW + 10);
+        doc.roundedRect(x, metricsY, metricW, 28, 8).fill('#ffffff').strokeColor('#dbeafe').lineWidth(0.6).stroke();
+        doc.fillColor('#64748b').font('Helvetica-Bold').fontSize(5.8).text(m[0], x + 8, metricsY + 5, { width: metricW - 16 });
+        doc.fillColor(m[2]).font('Helvetica-Bold').fontSize(12).text(String(m[1]), x + 8, metricsY + 15, { width: metricW - 16 });
+      });
+
+      return 92;
+    }
+
+    function ensurePage(y, height) {
+      if (y + height <= page.bottom) return y;
+      doc.addPage();
+      return drawHeader();
+    }
+
+    function drawSectionTitle(title, count, y) {
+      y = ensurePage(y, 22);
+      const color = title === 'Em execução' ? '#f97316' : '#b91c1c';
+      doc.roundedRect(page.left, y, page.right - page.left, 16, 6).fill(color);
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(8).text(`${title} (${count})`, page.left + 9, y + 4.5, { width: 360 });
+      return y + 23;
+    }
+
+    function pill(x, y, text, bg, fg, w) {
+      doc.roundedRect(x, y, w, 11, 5.5).fill(bg);
+      doc.fillColor(fg).font('Helvetica-Bold').fontSize(4.3)
+        .text(String(text || '-'), x + 2, y + 3.4, {
+          width: w - 4,
+          align: 'center',
+          ellipsis: true
+        });
+    }
+
+    function drawInfo(label, value, x, y, w) {
+      doc
+        .fillColor('#64748b')
+        .font('Helvetica-Bold')
+        .fontSize(5.5)
+        .text(
+          String(label).toUpperCase(),
+          x,
+          y,
+          { width: w }
+        );
+
+      doc
+        .fillColor('#0f172a')
+        .font('Helvetica')
+        .fontSize(6.4)
+        .text(
+          txt(value),
+          x,
+          y + 7,
+          {
+            width: w,
+            height: 14,
+            ellipsis: true
+          }
+        );
+    }
+
+    function drawCard(o, x, y) {
+      const w = page.cardW;
+      const h = page.cardH;
+
+      const pri = priorityColor(o.prioridade);
+      const stat = statusColor(o.status);
+
+      const accent =
+        o.status === 'Em execução'
+          ? '#f97316'
+          : '#b91c1c';
+
+      // CARD
+      doc
+        .roundedRect(x, y, w, h, 9)
+        .fill('#ffffff')
+        .strokeColor('#cfe0f8')
+        .lineWidth(0.7)
+        .stroke();
+
+      // BARRA LATERAL
+      doc
+        .roundedRect(x, y, 5, h, 3)
+        .fill(accent);
+
+
+      // =========================
+      // CABEÇALHO
+      // =========================
+
+      doc
+        .fillColor('#0b2f6b')
+        .font('Helvetica-Bold')
+        .fontSize(6.5)
+        .text(
+          txt(o.numero || `OS-${o.id}`),
+          x + 9,
+          y + 7,
+          {
+            width: 62,
+            ellipsis: true
+          }
+        );
+
+      pill(
+        x + w - 92,
+        y + 5,
+        o.status,
+        stat[0],
+        stat[1],
+        62
+      );
+
+      pill(
+        x + w - 27,
+        y + 5,
+        o.prioridade,
+        pri[0],
+        pri[1],
+        24
+      );
+
+
+      // =========================
+      // TÍTULO
+      // =========================
+
+      doc
+        .fillColor('#0f172a')
+        .font('Helvetica-Bold')
+        .fontSize(7.5)
+        .text(
+          short(o.titulo, 58),
+          x + 9,
+          y + 21,
+          {
+            width: w - 18,
+            height: 14,
+            ellipsis: true
+          }
+        );
+
+
+      // =========================
+      // INFORMAÇÕES PRINCIPAIS
+      // =========================
+
+      const infoY = y + 38;
+
+      const colGap = 5;
+
+      const colW =
+        (w - 18 - (colGap * 2)) / 3;
+
+      drawInfo(
+        'Resp.',
+        o.responsavel_nome ||
+        o.responsavel_principal ||
+        'Sem responsável',
+        x + 9,
+        infoY,
+        colW
+      );
+
+      drawInfo(
+        'Local exato',
+        o.setor_local || '-',
+        x + 9 + colW + colGap,
+        infoY,
+        colW
+      );
+
+      drawInfo(
+        'Previsão',
+        o.previsao_conclusao
+          ? brDateTime(o.previsao_conclusao)
+          : '-',
+        x + 9 + (colW + colGap) * 2,
+        infoY,
+        colW
+      );
+
+
+      // =========================
+      // DESCRIÇÃO
+      // =========================
+
+      doc
+        .fillColor('#64748b')
+        .font('Helvetica-Bold')
+        .fontSize(5.8)
+        .text(
+          'DESC.',
+          x + 9,
+          y + 61,
+          {
+            width: 29
+          }
+        );
+
+      doc
+        .fillColor('#334155')
+        .font('Helvetica')
+        .fontSize(6.5)
+        .text(
+          short(o.descricao, 300),
+          x + 38,
+          y + 61,
+          {
+            width: w - 47,
+            height: 30,
+            ellipsis: true,
+            lineGap: 1
+          }
+        );
+
+
+      // =========================
+      // PENDÊNCIAS
+      // =========================
+
+      if (o.pendencias) {
+
+        doc
+          .fillColor('#b91c1c')
+          .font('Helvetica-Bold')
+          .fontSize(5.8)
+          .text(
+            'PEND.',
+            x + 9,
+            y + 88,
+            {
+              width: 29
+            }
+          );
+
+        doc
+          .fillColor('#7f1d1d')
+          .font('Helvetica')
+          .fontSize(6.5)
+          .text(
+            short(o.pendencias, 230),
+            x + 38,
+            y + 88,
+            {
+              width: w - 47,
+              height: 23,
+              ellipsis: true,
+              lineGap: 1
+            }
+          );
+      }
+    }
+
+    let y = drawHeader();
+
+    if (!itens.length) {
+      doc.roundedRect(60, y + 50, 475, 90, 16).fill('#ffffff').strokeColor('#dbeafe').stroke();
+      doc.fillColor('#0b2f6b').font('Helvetica-Bold').fontSize(13).text('Nenhuma OS encontrada', 60, y + 78, { width: 475, align: 'center' });
+      doc.fillColor('#64748b').font('Helvetica').fontSize(8).text('Não existem chamados em execução ou pendências para os filtros selecionados.', 80, y + 102, { width: 435, align: 'center' });
+    } else {
+      const sections = [
+        ['Em execução', itens.filter(o => o.status === 'Em execução')],
+        ['Pendências', itens.filter(o => o.status !== 'Em execução')]
+      ];
+
+      for (const [title, list] of sections) {
+        if (!list.length) continue;
+        y = drawSectionTitle(title, list.length, y);
+        let col = 0;
+        for (const os of list) {
+          if (col === 0) y = ensurePage(y, page.cardH + 10);
+          const x = page.left + col * (page.cardW + page.cardGap);
+          drawCard(os, x, y);
+          col += 1;
+          if (col >= 3) {
+            col = 0;
+            y += page.cardH + 7;
+          }
+        }
+        if (col !== 0) y += page.cardH + 7;
+        y += 4;
+      }
+    }
+
+    drawFooterPages(doc, 'Relatório A4 para comunicação visual das OS em execução e pendências.');
+    doc.end();
+  } catch (err) {
+    console.error('ERRO AO GERAR PDF DE OS EM ANDAMENTO:');
+    console.error(err);
+    res.status(500).send('Erro ao gerar PDF de OS em andamento.');
+  }
+});
+
 app.get('/api/os/relatorio-pdf', authPdf, async (req, res) => {
   try {
     const itens = await all(`

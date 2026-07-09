@@ -1,0 +1,12 @@
+Manaíra Board - V10
+
+Ajustes incluídos:
+- Relatório PDF de OS em andamento.
+- Botões: PDF andamento, Hoje e Todas.
+- PDF separado por Em execução e Pendências.
+- Layout do PDF compactado em 3 colunas para caber mais OS por folha A4.
+- Cards do PDF com: número da OS, título, status, prioridade, responsável, previsão de conclusão, local exato, descrição e pendência.
+- Botão Todas gera relatório com todas as OS em execução e pendências, sem limitar aos próximos 7 dias.
+
+Observação:
+- O filtro Hoje usa o campo Previsão de conclusão da OS.

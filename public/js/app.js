@@ -888,7 +888,9 @@ function renderOS(data) {
         <span>Controle operacional para manutenção, estrutura, elétrica, hidráulica e demandas urgentes.</span>
       </div>
       <div class="os-actions">
-        <button onclick="imprimirOSPdf()">📄 PDF</button>
+        <button onclick="imprimirOSAndamentoPdf('all')">📄 PDF andamento</button>
+        <button onclick="imprimirOSAndamentoPdf('hoje')">📅 Hoje</button>
+        <button onclick="imprimirOSAndamentoPdf('all')">📌 Todas</button>
         <button class="primary" onclick="osForm()">+ Nova OS</button>
       </div>
     </div>
@@ -1217,6 +1219,24 @@ window.limparFiltrosOS = async () => {
 window.imprimirOSPdf = () => {
   if (!state.token) return alert('Sessão expirada. Faça login novamente.');
   window.open(`/api/os/relatorio-pdf?token=${state.token}`, '_blank');
+};
+
+window.imprimirOSAndamentoPdf = (range = 'all') => {
+  if (!state.token) return alert('Sessão expirada. Faça login novamente.');
+
+  const params = new URLSearchParams();
+  params.set('token', state.token);
+  params.set('range', range);
+
+  const busca = $('osBusca')?.value?.trim() || state.osFilters.busca || '';
+  const prioridade = $('osPrioridade')?.value || state.osFilters.prioridade || '';
+  const responsavel = $('osResponsavel')?.value?.trim() || state.osFilters.responsavel || '';
+
+  if (busca) params.set('busca', busca);
+  if (prioridade) params.set('prioridade', prioridade);
+  if (responsavel) params.set('responsavel', responsavel);
+
+  window.open(`/api/os/relatorio-andamento-pdf?${params.toString()}`, '_blank');
 };
 
 
