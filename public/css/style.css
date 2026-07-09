@@ -1637,3 +1637,70 @@ td:last-child {
 .os-desc-box p:last-child {
   margin-bottom: 0;
 }
+
+/* V9 - Minhas tarefas/OS e Configurações */
+.mine-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mine-card {
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.mine-card strong {
+  display: block;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.mine-card span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.mine-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.mine-actions {
+  margin-top: 12px;
+  max-width: 260px;
+}
+
+.dash-table td .task-actions {
+  justify-content: flex-start;
+}
+
+.form-grid input[type="checkbox"] {
+  width: auto;
+  margin-right: 8px;
+}
+
+@media (max-width: 720px) {
+  .mine-actions {
+    max-width: none;
+  }
+
+  .mine-meta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dash-table {
+    min-width: 760px;
+  }
+
+  .dash-panel.wide {
+    overflow-x: auto;
+  }
+}

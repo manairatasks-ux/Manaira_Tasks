@@ -68,6 +68,31 @@ function authPdf(req, res, next) {
   }
 }
 
+
+function canManage(req) {
+  return ['admin', 'gerente'].includes(String(req.user?.perfil || '').toLowerCase());
+}
+
+function requireManager(req, res, next) {
+  if (!canManage(req)) {
+    return res.status(403).json({ error: 'Acesso restrito ao administrador/gerente.' });
+  }
+  next();
+}
+
+function cleanId(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+async function getUserNameById(id) {
+  const userId = cleanId(id);
+  if (!userId) return '';
+  const usuario = await get('SELECT nome FROM usuarios WHERE id = $1 AND ativo = TRUE', [userId]);
+  return usuario?.nome || '';
+}
+
 app.get('/api/health', async (req, res) => {
   try {
     await query('SELECT 1');
@@ -130,13 +155,245 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/me', auth, async (req, res) => {
   try {
     const usuario = await get(
-      'SELECT id, nome, email, perfil FROM usuarios WHERE id = $1',
+      'SELECT id, nome, email, perfil, setor_id, pode_receber_tarefas, pode_receber_os FROM usuarios WHERE id = $1',
       [req.user.id]
     );
 
     res.json(usuario);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao buscar usuário.', details: err.message });
+  }
+});
+
+
+app.get('/api/usuarios', auth, async (req, res) => {
+  try {
+    const { tipo = '', ativos = 'true' } = req.query;
+    const params = [];
+    const filters = [];
+
+    if (ativos !== 'false') filters.push('u.ativo = TRUE');
+    if (tipo === 'tarefas') filters.push('u.pode_receber_tarefas = TRUE');
+    if (tipo === 'os') filters.push('u.pode_receber_os = TRUE');
+
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+
+    const usuarios = await all(`
+      SELECT
+        u.id, u.nome, u.email, u.perfil, u.setor_id,
+        s.nome AS setor_nome,
+        u.pode_receber_tarefas,
+        u.pode_receber_os,
+        u.ativo,
+        u.criado_em
+      FROM usuarios u
+      LEFT JOIN setores s ON s.id = u.setor_id
+      ${where}
+      ORDER BY u.ativo DESC, u.nome
+    `, params);
+
+    res.json(usuarios);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao listar usuários.', details: err.message });
+  }
+});
+
+app.post('/api/usuarios', auth, requireManager, async (req, res) => {
+  try {
+    const {
+      nome, email, senha, perfil = 'colaborador', setor_id,
+      pode_receber_tarefas = true,
+      pode_receber_os = false,
+      ativo = true
+    } = req.body;
+
+    if (!nome || !email || !senha) {
+      return res.status(400).json({ error: 'Nome, email e senha são obrigatórios.' });
+    }
+
+    const senhaHash = await bcrypt.hash(String(senha), 10);
+
+    const usuario = await get(`
+      INSERT INTO usuarios
+        (nome, email, senha_hash, perfil, setor_id, pode_receber_tarefas, pode_receber_os, ativo)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      RETURNING id, nome, email, perfil, setor_id, pode_receber_tarefas, pode_receber_os, ativo, criado_em
+    `, [
+      String(nome).trim(),
+      String(email).trim().toLowerCase(),
+      senhaHash,
+      perfil || 'colaborador',
+      cleanId(setor_id),
+      !!pode_receber_tarefas,
+      !!pode_receber_os,
+      ativo !== false
+    ]);
+
+    res.status(201).json(usuario);
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Já existe um usuário com este email.' });
+    }
+    res.status(500).json({ error: 'Erro ao criar usuário.', details: err.message });
+  }
+});
+
+app.put('/api/usuarios/:id', auth, requireManager, async (req, res) => {
+  try {
+    const {
+      nome, email, senha, perfil = 'colaborador', setor_id,
+      pode_receber_tarefas = true,
+      pode_receber_os = false,
+      ativo = true
+    } = req.body;
+
+    if (!nome || !email) {
+      return res.status(400).json({ error: 'Nome e email são obrigatórios.' });
+    }
+
+    let usuario;
+    if (senha && String(senha).trim()) {
+      const senhaHash = await bcrypt.hash(String(senha), 10);
+      usuario = await get(`
+        UPDATE usuarios SET
+          nome = $1,
+          email = $2,
+          senha_hash = $3,
+          perfil = $4,
+          setor_id = $5,
+          pode_receber_tarefas = $6,
+          pode_receber_os = $7,
+          ativo = $8
+        WHERE id = $9
+        RETURNING id, nome, email, perfil, setor_id, pode_receber_tarefas, pode_receber_os, ativo, criado_em
+      `, [String(nome).trim(), String(email).trim().toLowerCase(), senhaHash, perfil, cleanId(setor_id), !!pode_receber_tarefas, !!pode_receber_os, ativo !== false, req.params.id]);
+    } else {
+      usuario = await get(`
+        UPDATE usuarios SET
+          nome = $1,
+          email = $2,
+          perfil = $3,
+          setor_id = $4,
+          pode_receber_tarefas = $5,
+          pode_receber_os = $6,
+          ativo = $7
+        WHERE id = $8
+        RETURNING id, nome, email, perfil, setor_id, pode_receber_tarefas, pode_receber_os, ativo, criado_em
+      `, [String(nome).trim(), String(email).trim().toLowerCase(), perfil, cleanId(setor_id), !!pode_receber_tarefas, !!pode_receber_os, ativo !== false, req.params.id]);
+    }
+
+    if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    res.json(usuario);
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Já existe um usuário com este email.' });
+    }
+    res.status(500).json({ error: 'Erro ao atualizar usuário.', details: err.message });
+  }
+});
+
+app.delete('/api/usuarios/:id', auth, requireManager, async (req, res) => {
+  try {
+    if (String(req.params.id) === String(req.user.id)) {
+      return res.status(400).json({ error: 'Você não pode desativar o próprio usuário.' });
+    }
+
+    await query('UPDATE usuarios SET ativo = FALSE WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao desativar usuário.', details: err.message });
+  }
+});
+
+app.get('/api/minhas-tarefas', auth, async (req, res) => {
+  try {
+    const tarefas = await all(`
+      SELECT
+        t.*,
+        COALESCE(u.nome, NULLIF(TRIM(t.responsavel), ''), 'Sem responsável') AS responsavel_nome,
+        g.nome AS grupo_nome,
+        s.nome AS setor_nome,
+        s.cor AS setor_cor
+      FROM tarefas t
+      JOIN grupos g ON g.id = t.grupo_id
+      JOIN setores s ON s.id = g.setor_id
+      LEFT JOIN usuarios u ON u.id = t.responsavel_id
+      WHERE t.responsavel_id = $1
+      ORDER BY
+        CASE t.status WHEN 'Em andamento' THEN 1 WHEN 'Não iniciado' THEN 2 WHEN 'Parado' THEN 3 WHEN 'Feito' THEN 4 ELSE 5 END,
+        t.prazo ASC NULLS LAST,
+        t.id DESC
+    `, [req.user.id]);
+
+    res.json(tarefas);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao listar suas tarefas.', details: err.message });
+  }
+});
+
+app.patch('/api/minhas-tarefas/:id', auth, async (req, res) => {
+  try {
+    const { status, observacoes } = req.body;
+    const tarefa = await get(`
+      UPDATE tarefas SET
+        status = COALESCE($1, status),
+        observacoes = COALESCE($2, observacoes),
+        atualizado_em = CURRENT_TIMESTAMP
+      WHERE id = $3 AND responsavel_id = $4
+      RETURNING *
+    `, [status || null, observacoes ?? null, req.params.id, req.user.id]);
+
+    if (!tarefa) return res.status(404).json({ error: 'Tarefa não encontrada para este usuário.' });
+    res.json(tarefa);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao atualizar sua tarefa.', details: err.message });
+  }
+});
+
+app.get('/api/minhas-os', auth, async (req, res) => {
+  try {
+    const itens = await all(`
+      SELECT o.*, u.nome AS responsavel_nome
+      FROM ordens_servico o
+      LEFT JOIN usuarios u ON u.id = o.responsavel_principal_id
+      WHERE o.responsavel_principal_id = $1
+      ORDER BY
+        CASE o.status WHEN 'Recebido' THEN 1 WHEN 'Em análise' THEN 2 WHEN 'Em execução' THEN 3 WHEN 'Aguardando material' THEN 4 WHEN 'Aguardando mão de obra' THEN 5 WHEN 'Pausado' THEN 6 WHEN 'Concluído' THEN 7 ELSE 8 END,
+        o.criado_em DESC
+    `, [req.user.id]);
+
+    res.json(itens);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao listar suas OS.', details: err.message });
+  }
+});
+
+app.patch('/api/minhas-os/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ error: 'Status é obrigatório.' });
+
+    const existente = await get('SELECT * FROM ordens_servico WHERE id = $1 AND responsavel_principal_id = $2', [req.params.id, req.user.id]);
+    if (!existente) return res.status(404).json({ error: 'OS não encontrada para este usuário.' });
+
+    let dataInicioFinal = existente.data_inicio;
+    let dataConclusaoFinal = existente.data_conclusao;
+    if (status === 'Em execução' && !dataInicioFinal) dataInicioFinal = new Date();
+    if (status === 'Concluído' && !dataConclusaoFinal) dataConclusaoFinal = new Date();
+
+    const os = await get(`
+      UPDATE ordens_servico SET
+        status = $1,
+        data_inicio = $2,
+        data_conclusao = $3,
+        atualizado_em = CURRENT_TIMESTAMP
+      WHERE id = $4 AND responsavel_principal_id = $5
+      RETURNING *
+    `, [status, dataInicioFinal, dataConclusaoFinal, req.params.id, req.user.id]);
+
+    res.json(os);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao atualizar sua OS.', details: err.message });
   }
 });
 
@@ -298,6 +555,7 @@ async function getQuickDashboardLists(setorId = null) {
     SELECT t.id, t.titulo, t.responsavel, t.status, t.prioridade, t.prazo, s.nome AS setor, g.nome AS grupo
     FROM tarefas t
     JOIN grupos g ON g.id = t.grupo_id
+    LEFT JOIN usuarios u ON u.id = t.responsavel_id
     JOIN setores s ON s.id = g.setor_id
     WHERE t.status <> 'Feito' ${setorFilter}
   `;
@@ -385,7 +643,11 @@ app.get('/api/setores/:id/quadro', auth, async (req, res) => {
 
     for (const grupo of grupos) {
       grupo.tarefas = await all(
-        'SELECT * FROM tarefas WHERE grupo_id = $1 ORDER BY ordem, id',
+        `SELECT t.*, COALESCE(u.nome, NULLIF(TRIM(t.responsavel), ''), 'Sem responsável') AS responsavel_nome
+         FROM tarefas t
+         LEFT JOIN usuarios u ON u.id = t.responsavel_id
+         WHERE t.grupo_id = $1
+         ORDER BY t.ordem, t.id`,
         [grupo.id]
       );
     }
@@ -446,6 +708,7 @@ app.post('/api/tarefas', auth, async (req, res) => {
     const {
       grupo_id,
       titulo,
+      responsavel_id,
       responsavel,
       status,
       prioridade,
@@ -459,6 +722,8 @@ app.post('/api/tarefas', auth, async (req, res) => {
       return res.status(400).json({ error: 'Grupo e título são obrigatórios.' });
     }
 
+    const respId = cleanId(responsavel_id);
+    const respNome = respId ? await getUserNameById(respId) : (responsavel || '');
     const ordem = await getNextOrder('tarefas', 'grupo_id', grupo_id);
 
     const tarefa = await get(
@@ -467,6 +732,7 @@ app.post('/api/tarefas', auth, async (req, res) => {
         grupo_id,
         titulo,
         responsavel,
+        responsavel_id,
         status,
         prioridade,
         prazo,
@@ -475,12 +741,13 @@ app.post('/api/tarefas', auth, async (req, res) => {
         observacoes,
         ordem
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *`,
       [
         grupo_id,
         titulo,
-        responsavel || '',
+        respNome || '',
+        respId,
         status || 'Não iniciado',
         prioridade || 'Média',
         cleanDate(prazo),
@@ -502,6 +769,7 @@ app.put('/api/tarefas/:id', auth, async (req, res) => {
     const {
       grupo_id,
       titulo,
+      responsavel_id,
       responsavel,
       status,
       prioridade,
@@ -511,24 +779,29 @@ app.put('/api/tarefas/:id', auth, async (req, res) => {
       observacoes
     } = req.body;
 
+    const respId = cleanId(responsavel_id);
+    const respNome = respId ? await getUserNameById(respId) : (responsavel || '');
+
     const tarefa = await get(
       `UPDATE tarefas SET
         grupo_id = $1,
         titulo = $2,
         responsavel = $3,
-        status = $4,
-        prioridade = $5,
-        prazo = $6,
-        cronograma_inicio = $7,
-        cronograma_fim = $8,
-        observacoes = $9,
+        responsavel_id = $4,
+        status = $5,
+        prioridade = $6,
+        prazo = $7,
+        cronograma_inicio = $8,
+        cronograma_fim = $9,
+        observacoes = $10,
         atualizado_em = CURRENT_TIMESTAMP
-      WHERE id = $10
+      WHERE id = $11
       RETURNING *`,
       [
         grupo_id,
         titulo,
-        responsavel || '',
+        respNome || '',
+        respId,
         status || 'Não iniciado',
         prioridade || 'Média',
         cleanDate(prazo),
@@ -712,7 +985,7 @@ function drawTaskVisual(doc, t, index, x, y, w, mode = 'executivo') {
   doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(compact ? 8.4 : 9.2)
     .text(`${index}. ${t.titulo || '-'}`, x + 13, y + 8, { width: w - 24, height: compact ? 12 : 22, ellipsis: true });
   doc.fillColor('#475569').font('Helvetica').fontSize(compact ? 6.8 : 7.5)
-    .text(`Resp.: ${t.responsavel || 'Sem responsável'}`, x + 13, y + (compact ? 23 : 31), { width: 138, ellipsis: true })
+    .text(`Resp.: ${t.responsavel_nome || t.responsavel || 'Sem responsável'}`, x + 13, y + (compact ? 23 : 31), { width: 138, ellipsis: true })
     .text(`Prazo: ${brDate(t.prazo)}`, x + 154, y + (compact ? 23 : 31), { width: 78 });
   drawPillSmart(doc, x + w - 148, y + (compact ? 20 : 27), t.status || '-', status[0], status[1], 76, 6.6);
   drawPillSmart(doc, x + w - 66, y + (compact ? 20 : 27), t.prioridade || '-', priority[0], priority[1], 54, 6.6);
@@ -731,7 +1004,7 @@ function drawTaskTableRow(doc, t, x, y, widths, rowH, index, fontSize = 7) {
   doc.fillColor(late ? '#dc2626' : '#0f172a').font('Helvetica-Bold').fontSize(fontSize)
     .text(String(t.titulo || '-'), x + 6, y + 6, { width: widths[0] - 12, height: rowH - 10, ellipsis: true });
   doc.fillColor('#334155').font('Helvetica').fontSize(fontSize)
-    .text(String(t.responsavel || '-'), x + widths[0] + 6, y + 6, { width: widths[1] - 12, ellipsis: true })
+    .text(String(t.responsavel_nome || t.responsavel || '-'), x + widths[0] + 6, y + 6, { width: widths[1] - 12, ellipsis: true })
     .text(brDate(t.prazo), x + widths[0] + widths[1] + 6, y + 6, { width: widths[2] - 12, align: 'center' });
   drawPillSmart(doc, x + widths[0] + widths[1] + widths[2] + 8, y + 5, t.status || '-', status[0], status[1], widths[3] - 16, 6.2);
   drawPillSmart(doc, x + widths[0] + widths[1] + widths[2] + widths[3] + 8, y + 5, t.prioridade || '-', priority[0], priority[1], widths[4] - 16, 6.2);
@@ -843,10 +1116,11 @@ async function getGroupTasks(grupoId, periodo = 'todos', status = '', busca = ''
   const period = periodSql('t', periodo).replace(/^AND /, '');
   if (period) filters.push(period);
   return all(`
-    SELECT t.*, g.cor AS grupo_cor,
+    SELECT t.*, COALESCE(u.nome, NULLIF(TRIM(t.responsavel), ''), 'Sem responsável') AS responsavel_nome, g.cor AS grupo_cor,
       CASE WHEN t.status <> 'Feito' AND t.prazo IS NOT NULL AND t.prazo < CURRENT_DATE THEN TRUE ELSE FALSE END AS atrasada
     FROM tarefas t
     JOIN grupos g ON g.id = t.grupo_id
+    LEFT JOIN usuarios u ON u.id = t.responsavel_id
     WHERE ${filters.join(' AND ')}
     ORDER BY CASE t.prioridade WHEN 'Alta' THEN 1 WHEN 'Média' THEN 2 WHEN 'Baixa' THEN 3 ELSE 4 END,
       t.prazo ASC NULLS LAST, t.ordem ASC, t.id ASC
@@ -934,7 +1208,7 @@ function drawPrintTaskCard(doc, t, x, y, w, index, mode, accent) {
   doc.fillColor(late ? '#b91c1c' : '#0f172a').font('Helvetica-Bold').fontSize(compact ? 7.6 : 8.7)
     .text(`${index}. ${truncateText(t.titulo || '-', compact ? 70 : 105)}`, x + 12, y + 8, { width: w - 24, height: compact ? 11 : 22, ellipsis: true });
   doc.fillColor('#334155').font('Helvetica').fontSize(compact ? 6.3 : 7)
-    .text(`Responsável: ${truncateText(t.responsavel || 'Sem responsável', 34)}`, x + 12, y + (compact ? 23 : 31), { width: 190, ellipsis: true })
+    .text(`Responsável: ${truncateText(t.responsavel_nome || t.responsavel || 'Sem responsável', 34)}`, x + 12, y + (compact ? 23 : 31), { width: 190, ellipsis: true })
     .text(`Prazo: ${brDate(t.prazo)}`, x + 210, y + (compact ? 23 : 31), { width: 78 });
   drawPrintPill(doc, x + w - 132, y + (compact ? 21 : 29), t.status || '-', status[0], status[1], 72);
   drawPrintPill(doc, x + w - 55, y + (compact ? 21 : 29), t.prioridade || '-', pri[0], pri[1], 46);
@@ -968,7 +1242,7 @@ function drawPrintTaskRow(doc, t, x, y, widths, rowH, idx) {
     .text(truncateText(t.titulo || '-', 58), x + 4, y + 6, { width: widths[0] - 8, height: rowH - 8, ellipsis: true });
   let cx = x + widths[0];
   doc.fillColor('#334155').font('Helvetica').fontSize(6.2)
-    .text(truncateText(t.responsavel || '-', 18), cx + 4, y + 6, { width: widths[1] - 8, ellipsis: true });
+    .text(truncateText(t.responsavel_nome || t.responsavel || '-', 18), cx + 4, y + 6, { width: widths[1] - 8, ellipsis: true });
   cx += widths[1];
   doc.text(brDate(t.prazo), cx + 3, y + 6, { width: widths[2] - 6, align: 'center' });
   cx += widths[2];
@@ -1201,7 +1475,7 @@ app.get('/api/os/dashboard', auth, async (req, res) => {
     }
     if (status) { params.push(status); filters.push(`o.status = $${params.length}`); }
     if (prioridade) { params.push(prioridade); filters.push(`o.prioridade = $${params.length}`); }
-    if (responsavel) { params.push(`%${String(responsavel).trim()}%`); filters.push(`COALESCE(o.responsavel_principal,'') ILIKE $${params.length}`); }
+    if (responsavel) { params.push(`%${String(responsavel).trim()}%`); filters.push(`COALESCE(u_resp.nome, o.responsavel_principal, '') ILIKE $${params.length}`); }
 
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const periodoDias = Math.max(1, Math.min(parseInt(periodo, 10) || 30, 365));
@@ -1217,25 +1491,28 @@ app.get('/api/os/dashboard', auth, async (req, res) => {
         COUNT(*) FILTER (WHERE o.prioridade = 'Urgente' AND ${osOpenFilter('o')})::int AS urgentes,
         ROUND(AVG(NULLIF(o.tempo_real_min, 0)))::int AS tempo_medio_min
       FROM ordens_servico o
+      LEFT JOIN usuarios u_resp ON u_resp.id = o.responsavel_principal_id
       ${where}
     `, params);
 
-    const porStatus = await all(`SELECT o.status, COUNT(*)::int AS total FROM ordens_servico o ${where} GROUP BY o.status ORDER BY total DESC`, params);
-    const porPrioridade = await all(`SELECT o.prioridade, COUNT(*)::int AS total FROM ordens_servico o ${where} GROUP BY o.prioridade ORDER BY CASE o.prioridade WHEN 'Urgente' THEN 1 WHEN 'Alta' THEN 2 WHEN 'Média' THEN 3 WHEN 'Baixa' THEN 4 ELSE 5 END`, params);
+    const porStatus = await all(`SELECT o.status, COUNT(*)::int AS total FROM ordens_servico o LEFT JOIN usuarios u_resp ON u_resp.id = o.responsavel_principal_id ${where} GROUP BY o.status ORDER BY total DESC`, params);
+    const porPrioridade = await all(`SELECT o.prioridade, COUNT(*)::int AS total FROM ordens_servico o LEFT JOIN usuarios u_resp ON u_resp.id = o.responsavel_principal_id ${where} GROUP BY o.prioridade ORDER BY CASE o.prioridade WHEN 'Urgente' THEN 1 WHEN 'Alta' THEN 2 WHEN 'Média' THEN 3 WHEN 'Baixa' THEN 4 ELSE 5 END`, params);
     const porResponsavel = await all(`
-      SELECT COALESCE(NULLIF(TRIM(o.responsavel_principal), ''), 'Sem responsável') AS responsavel,
+      SELECT COALESCE(u_resp.nome, NULLIF(TRIM(o.responsavel_principal), ''), 'Sem responsável') AS responsavel,
         COUNT(*)::int AS total,
         COUNT(*) FILTER (WHERE ${osOpenFilter('o')})::int AS abertas,
         COUNT(*) FILTER (WHERE o.status = 'Concluído')::int AS concluidas
       FROM ordens_servico o
+      LEFT JOIN usuarios u_resp ON u_resp.id = o.responsavel_principal_id
       ${where}
-      GROUP BY COALESCE(NULLIF(TRIM(o.responsavel_principal), ''), 'Sem responsável')
+      GROUP BY COALESCE(u_resp.nome, NULLIF(TRIM(o.responsavel_principal), ''), 'Sem responsável')
       ORDER BY abertas DESC, total DESC
       LIMIT 12
     `, params);
 
     const recentes = await all(`
-      SELECT * FROM ordens_servico o
+      SELECT o.*, u_resp.nome AS responsavel_nome FROM ordens_servico o
+      LEFT JOIN usuarios u_resp ON u_resp.id = o.responsavel_principal_id
       ${where}
       ORDER BY CASE o.prioridade WHEN 'Urgente' THEN 1 WHEN 'Alta' THEN 2 WHEN 'Média' THEN 3 WHEN 'Baixa' THEN 4 ELSE 5 END,
         CASE o.status WHEN 'Recebido' THEN 1 WHEN 'Em análise' THEN 2 WHEN 'Em execução' THEN 3 ELSE 4 END,
@@ -1261,24 +1538,28 @@ app.post('/api/os', auth, async (req, res) => {
   try {
     const {
       titulo, descricao, solicitante, setor_local, categoria, prioridade, impacto, status,
-      responsavel_principal, funcionarios, quantidade_mao_obra, tempo_estimado_min,
+      responsavel_principal_id, responsavel_principal, funcionarios, quantidade_mao_obra, tempo_estimado_min,
       previsao_conclusao, material_necessario, material_utilizado, pendencias, execucao,
       observacao_conclusao, data_inicio, data_conclusao, tempo_real_min
     } = req.body;
 
     if (!titulo) return res.status(400).json({ error: 'Título da OS é obrigatório.' });
+
+    const respId = cleanId(responsavel_principal_id);
+    const respNome = respId ? await getUserNameById(respId) : (responsavel_principal || '');
     const numero = await generateOsNumber();
+
     const os = await get(`
       INSERT INTO ordens_servico
       (numero, titulo, descricao, solicitante, setor_local, categoria, prioridade, impacto, status,
-       responsavel_principal, funcionarios, quantidade_mao_obra, tempo_estimado_min, tempo_real_min,
+       responsavel_principal, responsavel_principal_id, funcionarios, quantidade_mao_obra, tempo_estimado_min, tempo_real_min,
        previsao_conclusao, data_inicio, data_conclusao, material_necessario, material_utilizado, pendencias,
        execucao, observacao_conclusao, criado_por)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
       RETURNING *
     `, [
       numero, titulo, descricao || '', solicitante || '', setor_local || '', categoria || 'Outros', prioridade || 'Média', impacto || '', status || 'Recebido',
-      responsavel_principal || '', funcionarios || '', normalizeMinutes(quantidade_mao_obra) || 1, normalizeMinutes(tempo_estimado_min), normalizeMinutes(tempo_real_min),
+      respNome || '', respId, funcionarios || '', normalizeMinutes(quantidade_mao_obra) || 1, normalizeMinutes(tempo_estimado_min), normalizeMinutes(tempo_real_min),
       cleanDateTime(previsao_conclusao), cleanDateTime(data_inicio), cleanDateTime(data_conclusao), material_necessario || '', material_utilizado || '', pendencias || '',
       execucao || '', observacao_conclusao || '', req.user.id
     ]);
@@ -1300,6 +1581,7 @@ app.put('/api/os/:id', auth, async (req, res) => {
       prioridade,
       impacto,
       status,
+      responsavel_principal_id,
       responsavel_principal,
       funcionarios,
       quantidade_mao_obra,
@@ -1316,61 +1598,25 @@ app.put('/api/os/:id', auth, async (req, res) => {
     } = req.body;
 
     if (!titulo || !String(titulo).trim()) {
-      return res.status(400).json({
-        error: 'Título da OS é obrigatório.'
-      });
+      return res.status(400).json({ error: 'Título da OS é obrigatório.' });
     }
+
+    const osExistente = await get('SELECT * FROM ordens_servico WHERE id = $1', [req.params.id]);
+    if (!osExistente) return res.status(404).json({ error: 'Ordem de serviço não encontrada.' });
 
     const finalStatus = status || 'Recebido';
-
-    const osExistente = await get(
-      'SELECT * FROM ordens_servico WHERE id = $1',
-      [req.params.id]
-    );
-
-    if (!osExistente) {
-      return res.status(404).json({
-        error: 'Ordem de serviço não encontrada.'
-      });
-    }
+    const respId = cleanId(responsavel_principal_id);
+    const respNome = respId ? await getUserNameById(respId) : (responsavel_principal || '');
 
     let dataInicioFinal = cleanDateTime(data_inicio);
     let dataConclusaoFinal = cleanDateTime(data_conclusao);
+    if (finalStatus === 'Em execução' && !dataInicioFinal && !osExistente.data_inicio) dataInicioFinal = new Date();
+    if (!dataInicioFinal && osExistente.data_inicio) dataInicioFinal = osExistente.data_inicio;
+    if (finalStatus === 'Concluído' && !dataConclusaoFinal && !osExistente.data_conclusao) dataConclusaoFinal = new Date();
+    if (!dataConclusaoFinal && osExistente.data_conclusao) dataConclusaoFinal = osExistente.data_conclusao;
 
-    // Se entrar em execução pela primeira vez,
-    // registra automaticamente a data de início.
-    if (
-      finalStatus === 'Em execução' &&
-      !dataInicioFinal &&
-      !osExistente.data_inicio
-    ) {
-      dataInicioFinal = new Date();
-    }
-
-    // Mantém a data de início existente.
-    if (!dataInicioFinal && osExistente.data_inicio) {
-      dataInicioFinal = osExistente.data_inicio;
-    }
-
-    // Se for concluída pela primeira vez,
-    // registra automaticamente a conclusão.
-    if (
-      finalStatus === 'Concluído' &&
-      !dataConclusaoFinal &&
-      !osExistente.data_conclusao
-    ) {
-      dataConclusaoFinal = new Date();
-    }
-
-    // Mantém a data de conclusão existente.
-    if (!dataConclusaoFinal && osExistente.data_conclusao) {
-      dataConclusaoFinal = osExistente.data_conclusao;
-    }
-
-    const os = await get(
-      `
+    const os = await get(`
       UPDATE ordens_servico SET
-
         titulo = $1,
         descricao = $2,
         solicitante = $3,
@@ -1379,77 +1625,36 @@ app.put('/api/os/:id', auth, async (req, res) => {
         prioridade = $6,
         impacto = $7,
         status = $8,
-
         responsavel_principal = $9,
-        funcionarios = $10,
-
-        quantidade_mao_obra = $11,
-        tempo_estimado_min = $12,
-        tempo_real_min = $13,
-
-        previsao_conclusao = $14,
-        data_inicio = $15,
-        data_conclusao = $16,
-
-        material_necessario = $17,
-        material_utilizado = $18,
-        pendencias = $19,
-        execucao = $20,
-        observacao_conclusao = $21,
-
+        responsavel_principal_id = $10,
+        funcionarios = $11,
+        quantidade_mao_obra = $12,
+        tempo_estimado_min = $13,
+        tempo_real_min = $14,
+        previsao_conclusao = $15,
+        data_inicio = $16,
+        data_conclusao = $17,
+        material_necessario = $18,
+        material_utilizado = $19,
+        pendencias = $20,
+        execucao = $21,
+        observacao_conclusao = $22,
         atualizado_em = CURRENT_TIMESTAMP
-
-      WHERE id = $22
-
+      WHERE id = $23
       RETURNING *
-      `,
-      [
-        String(titulo).trim(),
-        descricao || '',
-        solicitante || '',
-        setor_local || '',
-        categoria || 'Outros',
-        prioridade || 'Média',
-        impacto || '',
-        finalStatus,
-
-        responsavel_principal || '',
-        funcionarios || '',
-
-        normalizeMinutes(quantidade_mao_obra) || 1,
-        normalizeMinutes(tempo_estimado_min),
-        normalizeMinutes(tempo_real_min),
-
-        cleanDateTime(previsao_conclusao),
-        dataInicioFinal,
-        dataConclusaoFinal,
-
-        material_necessario || '',
-        material_utilizado || '',
-        pendencias || '',
-        execucao || '',
-        observacao_conclusao || '',
-
-        req.params.id
-      ]
-    );
+    `, [
+      String(titulo).trim(), descricao || '', solicitante || '', setor_local || '', categoria || 'Outros', prioridade || 'Média', impacto || '', finalStatus,
+      respNome || '', respId, funcionarios || '', normalizeMinutes(quantidade_mao_obra) || 1, normalizeMinutes(tempo_estimado_min), normalizeMinutes(tempo_real_min),
+      cleanDateTime(previsao_conclusao), dataInicioFinal, dataConclusaoFinal, material_necessario || '', material_utilizado || '', pendencias || '', execucao || '', observacao_conclusao || '', req.params.id
+    ]);
 
     return res.json(os);
-
   } catch (err) {
-
     console.error('ERRO AO ATUALIZAR OS:');
     console.error(err);
-
-    return res.status(500).json({
-      error: 'Erro ao atualizar OS.',
-      details: err.message
-    });
+    return res.status(500).json({ error: 'Erro ao atualizar OS.', details: err.message });
   }
 });
-
-
-
 
 
 app.patch('/api/os/:id/status', auth, async (req, res) => {
@@ -1529,8 +1734,9 @@ app.delete('/api/os/:id', auth, async (req, res) => {
 app.get('/api/os/relatorio-pdf', authPdf, async (req, res) => {
   try {
     const itens = await all(`
-      SELECT *
-      FROM ordens_servico
+      SELECT o.*, u.nome AS responsavel_nome
+      FROM ordens_servico o
+      LEFT JOIN usuarios u ON u.id = o.responsavel_principal_id
       ORDER BY
         CASE prioridade
           WHEN 'Urgente' THEN 1
@@ -1672,7 +1878,7 @@ app.get('/api/os/relatorio-pdf', authPdf, async (req, res) => {
       sectionTitle('RESPONSÁVEIS E EQUIPE', leftX, yLeft, leftW);
       yLeft += 14;
 
-      line('Responsável', o.responsavel_principal, leftX, yLeft, leftW);
+      line('Responsável', o.responsavel_nome || o.responsavel_principal, leftX, yLeft, leftW);
       yLeft += 13;
       line('Funcionários', o.funcionarios, leftX, yLeft, leftW);
       yLeft += 13;

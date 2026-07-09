@@ -4,6 +4,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
   email VARCHAR(120) UNIQUE NOT NULL,
   senha_hash VARCHAR(255) NOT NULL,
   perfil VARCHAR(30) DEFAULT 'gerente',
+  setor_id INTEGER,
+  pode_receber_tarefas BOOLEAN DEFAULT TRUE,
+  pode_receber_os BOOLEAN DEFAULT FALSE,
   ativo BOOLEAN DEFAULT TRUE,
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -30,6 +33,7 @@ CREATE TABLE IF NOT EXISTS tarefas (
   grupo_id INTEGER NOT NULL REFERENCES grupos(id) ON DELETE CASCADE,
   titulo VARCHAR(200) NOT NULL,
   responsavel VARCHAR(120),
+  responsavel_id INTEGER REFERENCES usuarios(id),
   status VARCHAR(40) DEFAULT 'Não iniciado',
   prioridade VARCHAR(40) DEFAULT 'Média',
   prazo DATE,
@@ -67,6 +71,7 @@ CREATE TABLE IF NOT EXISTS ordens_servico (
   impacto VARCHAR(120),
   status VARCHAR(60) DEFAULT 'Recebido',
   responsavel_principal VARCHAR(120),
+  responsavel_principal_id INTEGER REFERENCES usuarios(id),
   funcionarios TEXT,
   quantidade_mao_obra INTEGER DEFAULT 1,
   tempo_estimado_min INTEGER DEFAULT 0,
@@ -87,3 +92,14 @@ CREATE TABLE IF NOT EXISTS ordens_servico (
 CREATE INDEX IF NOT EXISTS idx_os_status ON ordens_servico(status);
 CREATE INDEX IF NOT EXISTS idx_os_prioridade ON ordens_servico(prioridade);
 CREATE INDEX IF NOT EXISTS idx_os_criado_em ON ordens_servico(criado_em);
+
+
+-- Migrações V9 - usuários, permissões e responsáveis vinculados
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS setor_id INTEGER REFERENCES setores(id) ON DELETE SET NULL;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_receber_tarefas BOOLEAN DEFAULT TRUE;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_receber_os BOOLEAN DEFAULT FALSE;
+ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS responsavel_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+ALTER TABLE ordens_servico ADD COLUMN IF NOT EXISTS responsavel_principal_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_usuarios_setor ON usuarios(setor_id);
+CREATE INDEX IF NOT EXISTS idx_tarefas_responsavel_id ON tarefas(responsavel_id);
+CREATE INDEX IF NOT EXISTS idx_os_responsavel_principal_id ON ordens_servico(responsavel_principal_id);

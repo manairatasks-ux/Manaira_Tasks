@@ -41,8 +41,9 @@
 
       <button class="nav-main active" id="btnDashboard">🏠 Dashboard</button>
       <button class="nav-main" id="btnOS">🛠️ Ordem de Serviço</button>
-      <button class="nav-main" type="button" onclick="window.open('/solicitar-os.html', '_blank')">📲 Solicitar
-        OS</button>
+      <button class="nav-main" id="btnMinhas">✅ Minhas tarefas/OS</button>
+      <button class="nav-main" id="btnConfig">⚙️ Configurações</button>
+      <button class="nav-main" id="btnSolicitarOS" type="button">📲 Solicitar OS</button>
       <button class="new-sector" id="btnNovoSetor">+ Novo setor</button>
 
       <nav id="setoresList"></nav>
@@ -96,6 +97,8 @@
       <section id="dashboard" class="dashboard"></section>
       <section id="board" class="board hidden"></section>
       <section id="osPanel" class="os-panel hidden"></section>
+      <section id="minhasPanel" class="dashboard hidden"></section>
+      <section id="configPanel" class="dashboard hidden"></section>
 
       <section id="printFooter" class="print-footer hidden">
         <button onclick="window.print()">🖨️ Imprimir visão atual</button>

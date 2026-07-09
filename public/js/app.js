@@ -8,6 +8,8 @@ const state = {
   dashboardFilters: { periodo: '90', setor_id: '', responsavel: '' },
   dashboardData: null,
   osData: null,
+  usuarios: [],
+  minhasData: { tarefas: [], os: [] },
   osPages: {
     recebidos: 1,
     execucao: 1,
@@ -90,6 +92,22 @@ function showLogin() {
   $('loginScreen').classList.remove('hidden');
 }
 
+
+function configurarMenuPorPerfil() {
+  const perfil = String(state.usuario?.perfil || '').toLowerCase();
+  const isManager = ['admin', 'gerente'].includes(perfil);
+  const isWorker = ['colaborador', 'encarregado'].includes(perfil);
+
+  $('btnDashboard')?.classList.toggle('hidden', !isManager);
+  $('btnOS')?.classList.toggle('hidden', !isManager);
+  $('btnConfig')?.classList.toggle('hidden', !isManager);
+  $('btnNovoSetor')?.classList.toggle('hidden', !isManager);
+  $('setoresList')?.classList.toggle('hidden', !isManager);
+
+  // Colaborador e encarregado começam na própria área.
+  // Gerente/admin continuam na visão executiva.
+}
+
 function statusClass(status) {
   return 'status-' + (status || 'Não iniciado').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replaceAll(' ', '-');
 }
@@ -155,12 +173,18 @@ function setView(view) {
   const isDashboard = view === 'dashboard';
   const isBoard = view === 'board';
   const isOS = view === 'os';
+  const isMinhas = view === 'minhas';
+  const isConfig = view === 'config';
   $('dashboard').classList.toggle('hidden', !isDashboard);
   $('board').classList.toggle('hidden', !isBoard);
   $('osPanel')?.classList.toggle('hidden', !isOS);
+  $('minhasPanel')?.classList.toggle('hidden', !isMinhas);
+  $('configPanel')?.classList.toggle('hidden', !isConfig);
   $('printFooter').classList.toggle('hidden', false);
   $('btnDashboard').classList.toggle('active', isDashboard);
   $('btnOS')?.classList.toggle('active', isOS);
+  $('btnMinhas')?.classList.toggle('active', isMinhas);
+  $('btnConfig')?.classList.toggle('active', isConfig);
   $('btnExcluirSetor').classList.toggle('hidden', !isBoard);
   $('btnNovoGrupo').style.display = isBoard ? '' : 'none';
   $('btnNovaTarefa').style.display = isBoard ? '' : 'none';
@@ -176,10 +200,19 @@ async function init() {
     state.usuario = await api('/api/me');
     $('userName').textContent = state.usuario.nome;
     showApp();
+    configurarMenuPorPerfil();
     invalidateDashboard();
     state.cache.quadros.clear();
     await carregarSetores(false);
-    await abrirDashboard(true);
+    const perfilAtual = String(state.usuario?.perfil || '').toLowerCase();
+    if (['admin', 'gerente'].includes(perfilAtual)) {
+      state.usuarios = await carregarUsuarios();
+    }
+    if (['colaborador', 'encarregado'].includes(perfilAtual)) {
+      await abrirMinhas();
+    } else {
+      await abrirDashboard(true);
+    }
   } catch {
     localStorage.removeItem('mb_token');
     state.token = null;
@@ -195,6 +228,34 @@ async function carregarSetores(openFirst = true) {
   } else if (openFirst && state.setorAtual) {
     await abrirSetor(state.setorAtual.id);
   }
+}
+
+
+async function carregarUsuarios(tipo = '') {
+  const qs = tipo ? `?tipo=${encodeURIComponent(tipo)}` : '';
+  return api(`/api/usuarios${qs}`);
+}
+
+function usuarioOptions(tipo = 'tarefas', selectedId = '') {
+  const users = (state.usuarios || []).filter(u => {
+    if (!u.ativo) return false;
+    if (tipo === 'tarefas') return u.pode_receber_tarefas;
+    if (tipo === 'os') return u.pode_receber_os;
+    return true;
+  });
+
+  return ['<option value="">Selecione um responsável</option>']
+    .concat(users.map(u => `<option value="${u.id}" ${String(selectedId || '') === String(u.id) ? 'selected' : ''}>${escapeHtml(u.nome)}${u.setor_nome ? ' • ' + escapeHtml(u.setor_nome) : ''}</option>`))
+    .join('');
+}
+
+function perfilLabel(perfil) {
+  return {
+    admin: 'Administrador',
+    gerente: 'Gerente',
+    encarregado: 'Encarregado',
+    colaborador: 'Colaborador'
+  }[perfil] || perfil || '-';
 }
 
 function renderSetores() {
@@ -513,7 +574,7 @@ function renderBoard() {
           ${tarefas.length ? tarefas.map(t => `
             <tr>
               <td><span class="task-title" onclick="verTarefa(${t.id})">${escapeHtml(t.titulo)}</span></td>
-              <td>${escapeHtml(t.responsavel || '-')}</td>
+              <td>${escapeHtml(t.responsavel_nome || t.responsavel || '-')}</td>
               <td><span class="badge ${statusClass(t.status)}">${escapeHtml(t.status)}</span></td>
               <td><span class="badge ${priorityClass(t.prioridade)}">${escapeHtml(t.prioridade)}</span></td>
               <td>${fmtDate(t.prazo)}</td>
@@ -601,6 +662,7 @@ function grupoForm(grupo = {}) {
 function tarefaForm(tarefa = {}, grupoId = null) {
   if (!state.quadro) return alert('Selecione um setor primeiro.');
   const gruposOptions = state.quadro.grupos.map(g => `<option value="${g.id}" ${(tarefa.grupo_id || grupoId) == g.id ? 'selected' : ''}>${escapeHtml(g.nome)}</option>`).join('');
+  const responsavelOptions = usuarioOptions('tarefas', tarefa.responsavel_id || '');
   openModal(tarefa.id ? 'Editar tarefa' : 'Nova tarefa', `
     <form id="tarefaForm">
       <div class="form-grid">
@@ -609,7 +671,7 @@ function tarefaForm(tarefa = {}, grupoId = null) {
           <input name="titulo" value="${escapeHtml(tarefa.titulo || '')}" required>
         </div>
         <div><label>Grupo</label><select name="grupo_id">${gruposOptions}</select></div>
-        <div><label>Responsável</label><input name="responsavel" value="${escapeHtml(tarefa.responsavel || '')}" placeholder="Ex: João / Encarregado"></div>
+        <div><label>Responsável</label><select name="responsavel_id" required>${responsavelOptions}</select></div>
         <div><label>Status</label><select name="status">${['Não iniciado', 'Em andamento', 'Parado', 'Feito'].map(s => `<option ${tarefa.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
         <div><label>Prioridade</label><select name="prioridade">${['Baixa', 'Média', 'Alta'].map(p => `<option ${tarefa.prioridade === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>
         <div><label>Prazo</label><input name="prazo" type="date" value="${tarefa.prazo || ''}"></div>
@@ -914,7 +976,7 @@ function renderOSCard(o) {
     <div class="os-card-head"><strong>${escapeHtml(o.numero || `OS-${o.id}`)}</strong><span class="badge ${priorityClass(o.prioridade)}">${escapeHtml(o.prioridade)}</span></div>
     <h4>${escapeHtml(o.titulo)}</h4>
     <p>${escapeHtml(o.setor_local || 'Local não informado')}</p>
-    <div class="os-meta"><span>Resp.: ${escapeHtml(o.responsavel_principal || 'Sem responsável')}</span><span>M.O.: ${o.quantidade_mao_obra || 1}</span></div>
+    <div class="os-meta"><span>Resp.: ${escapeHtml(o.responsavel_nome || o.responsavel_principal || 'Sem responsável')}</span><span>M.O.: ${o.quantidade_mao_obra || 1}</span></div>
     <div class="os-meta"><span>Estimado: ${minutesLabel(o.tempo_estimado_min)}</span><span>Real: ${minutesLabel(o.tempo_real_min)}</span></div>
     ${o.pendencias ? `<small class="os-pendency">Pendência: ${escapeHtml(o.pendencias)}</small>` : ''}
     <div class="os-card-actions" onclick="event.stopPropagation()">
@@ -928,6 +990,7 @@ function osForm(os = {}) {
   const statusOptions = OS_STATUS.map(s => `<option value="${s}" ${os.status === s ? 'selected' : ''}>${s}</option>`).join('');
   const prioridadeOptions = OS_PRIORIDADES.map(p => `<option value="${p}" ${os.prioridade === p ? 'selected' : ''}>${p}</option>`).join('');
   const categoriaOptions = OS_CATEGORIAS.map(c => `<option value="${c}" ${os.categoria === c ? 'selected' : ''}>${c}</option>`).join('');
+  const responsavelOsOptions = usuarioOptions('os', os.responsavel_principal_id || '');
 
   openModal(os.id ? `Editar ${escapeHtml(os.numero || 'OS')}` : 'Nova Ordem de Serviço', `
     <form id="osForm">
@@ -939,7 +1002,7 @@ function osForm(os = {}) {
         <div><label>Prioridade</label><select name="prioridade">${prioridadeOptions}</select></div>
         <div><label>Status</label><select name="status">${statusOptions}</select></div>
         <div><label>Impacto na operação</label><input name="impacto" value="${escapeHtml(os.impacto || '')}"></div>
-        <div><label>Responsável principal</label><input name="responsavel_principal" value="${escapeHtml(os.responsavel_principal || '')}"></div>
+        <div><label>Responsável principal</label><select name="responsavel_principal_id">${responsavelOsOptions}</select></div>
         <div class="full"><label>Funcionários envolvidos</label><input name="funcionarios" value="${escapeHtml(os.funcionarios || '')}"></div>
         <div><label>Qtd. mão de obra</label><input name="quantidade_mao_obra" type="number" min="1" value="${os.quantidade_mao_obra || 1}"></div>
         <div><label>Tempo estimado (min)</label><input name="tempo_estimado_min" type="number" min="0" value="${os.tempo_estimado_min || 0}"></div>
@@ -1043,7 +1106,7 @@ window.verOS = (id) => {
     <div class="os-detail">
       <h3>${escapeHtml(os.titulo)}</h3>
       <p><strong>Status:</strong> ${escapeHtml(os.status)} | <strong>Prioridade:</strong> ${escapeHtml(os.prioridade)} | <strong>Local:</strong> ${escapeHtml(os.setor_local || '-')}</p>
-      <p><strong>Responsável:</strong> ${escapeHtml(os.responsavel_principal || '-')} | <strong>Equipe:</strong> ${escapeHtml(os.funcionarios || '-')} | <strong>M.O.:</strong> ${os.quantidade_mao_obra || 1}</p>
+      <p><strong>Responsável:</strong> ${escapeHtml(os.responsavel_nome || os.responsavel_principal || '-')} | <strong>Equipe:</strong> ${escapeHtml(os.funcionarios || '-')} | <strong>M.O.:</strong> ${os.quantidade_mao_obra || 1}</p>
       <p><strong>Tempo:</strong> estimado ${minutesLabel(os.tempo_estimado_min)} / real ${minutesLabel(os.tempo_real_min)}</p>
       <hr>
       ${renderDescricaoOS(os.descricao)}
@@ -1156,6 +1219,178 @@ window.imprimirOSPdf = () => {
   window.open(`/api/os/relatorio-pdf?token=${state.token}`, '_blank');
 };
 
+
+async function abrirMinhas() {
+  setView('minhas');
+  state.setorAtual = null;
+  renderSetores();
+  $('setorTitulo').textContent = 'Minhas tarefas e OS';
+  $('setorDescricao').textContent = 'Acompanhamento individual do colaborador logado.';
+
+  const [tarefas, os] = await Promise.all([
+    api('/api/minhas-tarefas'),
+    api('/api/minhas-os')
+  ]);
+
+  state.minhasData = { tarefas, os };
+  renderMinhas();
+}
+
+function renderMinhas() {
+  const panel = $('minhasPanel');
+  const tarefas = state.minhasData?.tarefas || [];
+  const ordens = state.minhasData?.os || [];
+
+  panel.innerHTML = `
+    <div class="dashboard-toolbar">
+      <div>
+        <strong>Minha área</strong>
+        <span>Você vê apenas as tarefas e OS vinculadas ao seu usuário.</span>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+      <section class="dash-panel wide">
+        <h2>Minhas tarefas (${tarefas.length})</h2>
+        <div class="mine-list">
+          ${tarefas.map(t => `
+            <article class="mine-card">
+              <div><strong>${escapeHtml(t.titulo)}</strong><span>${escapeHtml(t.setor_nome || '-')} • ${escapeHtml(t.grupo_nome || '-')}</span></div>
+              <div class="mine-meta"><span class="badge ${statusClass(t.status)}">${escapeHtml(t.status)}</span><span class="badge ${priorityClass(t.prioridade)}">${escapeHtml(t.prioridade)}</span><span>Prazo: ${fmtDate(t.prazo)}</span></div>
+              <div class="mine-actions">
+                <select onchange="alterarMinhaTarefa(${t.id}, this.value)">
+                  ${['Não iniciado', 'Em andamento', 'Parado', 'Feito'].map(s => `<option value="${s}" ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                </select>
+              </div>
+            </article>
+          `).join('') || '<p class="empty">Nenhuma tarefa vinculada ao seu usuário.</p>'}
+        </div>
+      </section>
+
+      <section class="dash-panel wide">
+        <h2>Minhas OS (${ordens.length})</h2>
+        <div class="mine-list">
+          ${ordens.map(o => `
+            <article class="mine-card">
+              <div><strong>${escapeHtml(o.numero || 'OS')} - ${escapeHtml(o.titulo)}</strong><span>${escapeHtml(o.setor_local || '-')} • ${escapeHtml(o.categoria || '-')}</span></div>
+              <div class="mine-meta"><span class="badge ${osStatusClass(o.status)}">${escapeHtml(o.status)}</span><span class="badge ${priorityClass(o.prioridade)}">${escapeHtml(o.prioridade)}</span><span>Criada: ${fmtDateTime(o.criado_em)}</span></div>
+              <div class="mine-actions">
+                <select onchange="alterarMinhaOS(${o.id}, this.value)">
+                  ${OS_STATUS.map(s => `<option value="${s}" ${o.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+                </select>
+              </div>
+            </article>
+          `).join('') || '<p class="empty">Nenhuma OS vinculada ao seu usuário.</p>'}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+window.alterarMinhaTarefa = async (id, status) => {
+  await api(`/api/minhas-tarefas/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  await abrirMinhas();
+};
+
+window.alterarMinhaOS = async (id, status) => {
+  await api(`/api/minhas-os/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  await abrirMinhas();
+};
+
+async function abrirConfig() {
+  setView('config');
+  state.setorAtual = null;
+  renderSetores();
+  $('setorTitulo').textContent = 'Configurações';
+  $('setorDescricao').textContent = 'Cadastre usuários, permissões e responsáveis de tarefas/OS.';
+  state.usuarios = await carregarUsuarios('');
+  renderConfig();
+}
+
+function renderConfig() {
+  const panel = $('configPanel');
+  const setorOptions = ['<option value="">Sem setor</option>'].concat(state.setores.map(s => `<option value="${s.id}">${escapeHtml(s.nome)}</option>`)).join('');
+
+  panel.innerHTML = `
+    <div class="dashboard-toolbar">
+      <div>
+        <strong>Usuários cadastrados</strong>
+        <span>Somente usuários ativos e habilitados aparecem como responsáveis em tarefas e OS.</span>
+      </div>
+      <button class="primary" onclick="usuarioForm()">+ Novo usuário</button>
+    </div>
+
+    <section class="dash-panel wide">
+      <table class="dash-table">
+        <thead><tr><th>Nome</th><th>Email/Login</th><th>Perfil</th><th>Setor</th><th>Tarefas</th><th>OS</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody>
+          ${(state.usuarios || []).map(u => `
+            <tr>
+              <td>${escapeHtml(u.nome)}</td>
+              <td>${escapeHtml(u.email)}</td>
+              <td>${escapeHtml(perfilLabel(u.perfil))}</td>
+              <td>${escapeHtml(u.setor_nome || '-')}</td>
+              <td>${u.pode_receber_tarefas ? 'Sim' : 'Não'}</td>
+              <td>${u.pode_receber_os ? 'Sim' : 'Não'}</td>
+              <td>${u.ativo ? 'Ativo' : 'Inativo'}</td>
+              <td><div class="task-actions"><button onclick="usuarioForm(${u.id})">✏️</button><button class="danger" onclick="desativarUsuario(${u.id})">🚫</button></div></td>
+            </tr>
+          `).join('') || '<tr><td colspan="8" class="empty">Nenhum usuário cadastrado.</td></tr>'}
+        </tbody>
+      </table>
+    </section>
+  `;
+}
+
+window.usuarioForm = (id = null) => {
+  const usuario = id ? state.usuarios.find(u => u.id === id) : {};
+  const setorOptions = ['<option value="">Sem setor</option>']
+    .concat(state.setores.map(s => `<option value="${s.id}" ${String(usuario?.setor_id || '') === String(s.id) ? 'selected' : ''}>${escapeHtml(s.nome)}</option>`))
+    .join('');
+
+  openModal(id ? 'Editar usuário' : 'Novo usuário', `
+    <form id="usuarioForm">
+      <div class="form-grid">
+        <div><label>Nome</label><input name="nome" value="${escapeHtml(usuario?.nome || '')}" required></div>
+        <div><label>Email/Login</label><input name="email" type="email" value="${escapeHtml(usuario?.email || '')}" required></div>
+        <div><label>Senha ${id ? '(preencha apenas para alterar)' : ''}</label><input name="senha" type="password" ${id ? '' : 'required'}></div>
+        <div><label>Perfil</label><select name="perfil">
+          ${['admin', 'gerente', 'encarregado', 'colaborador'].map(p => `<option value="${p}" ${usuario?.perfil === p ? 'selected' : ''}>${perfilLabel(p)}</option>`).join('')}
+        </select></div>
+        <div><label>Setor</label><select name="setor_id">${setorOptions}</select></div>
+        <div><label>Status</label><select name="ativo"><option value="true" ${usuario?.ativo !== false ? 'selected' : ''}>Ativo</option><option value="false" ${usuario?.ativo === false ? 'selected' : ''}>Inativo</option></select></div>
+        <div class="full"><label><input type="checkbox" name="pode_receber_tarefas" ${usuario?.pode_receber_tarefas !== false ? 'checked' : ''}> Pode receber tarefas</label></div>
+        <div class="full"><label><input type="checkbox" name="pode_receber_os" ${usuario?.pode_receber_os ? 'checked' : ''}> Pode receber OS</label></div>
+      </div>
+      <div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Salvar usuário</button></div>
+    </form>
+  `);
+
+  $('usuarioForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const raw = Object.fromEntries(new FormData(e.target));
+    const data = {
+      ...raw,
+      ativo: raw.ativo === 'true',
+      pode_receber_tarefas: e.target.querySelector('[name="pode_receber_tarefas"]').checked,
+      pode_receber_os: e.target.querySelector('[name="pode_receber_os"]').checked
+    };
+    if (!data.senha) delete data.senha;
+    if (id) await api(`/api/usuarios/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    else await api('/api/usuarios', { method: 'POST', body: JSON.stringify(data) });
+    closeModal();
+    state.usuarios = await carregarUsuarios('');
+    renderConfig();
+  };
+};
+
+window.desativarUsuario = async (id) => {
+  if (!confirm('Desativar este usuário?')) return;
+  await api(`/api/usuarios/${id}`, { method: 'DELETE' });
+  state.usuarios = await carregarUsuarios('');
+  renderConfig();
+};
+
 $('loginForm').onsubmit = async (e) => {
   e.preventDefault();
   $('loginMsg').textContent = '';
@@ -1171,6 +1406,9 @@ $('loginForm').onsubmit = async (e) => {
 $('btnSair').onclick = () => { localStorage.removeItem('mb_token'); location.reload(); };
 $('btnDashboard').onclick = abrirDashboard;
 $('btnOS').onclick = abrirOS;
+$('btnMinhas').onclick = abrirMinhas;
+$('btnConfig').onclick = abrirConfig;
+$('btnSolicitarOS').onclick = () => window.open('/solicitar-os.html', '_blank');
 $('btnNovoSetor').onclick = () => setorForm();
 $('btnExcluirSetor').onclick = () => window.excluirSetorAtual();
 $('btnNovoGrupo').onclick = () => grupoForm();
