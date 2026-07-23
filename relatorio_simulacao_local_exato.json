@@ -1,0 +1,686 @@
+{
+  "migration_id": "local_exato_v1",
+  "modo": "SIMULAÇÃO",
+  "data": "2026-07-23T14:50:09.842Z",
+  "candidatos_encontrados": 75,
+  "aptos_para_migracao": 75,
+  "migrados": 0,
+  "ignorados": [],
+  "registros": [
+    {
+      "id": 10,
+      "numero": "OS-2026-00001",
+      "titulo": "Ação de venda biostratus",
+      "descricao_nova": "Escolher e preparar local para ação de vendas próximo ao pit stop para caminhão biostratus , ponto de água e energia,  dois dias 08 e 09 de julho impreterivelmente",
+      "local_exato_novo": "Estacionamento pit stop",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 11,
+      "numero": "OS-2026-00011",
+      "titulo": "Instalação armário e papeleiras",
+      "descricao_nova": "Instalar/ fixar armário e papeleiras em paredes.  Armário será na sala de trás,padaria.  Papeleiras local indicado põe Débora.  Utilizar mão  francesa é parafusos com bucha",
+      "local_exato_novo": "Setor de processados, sala de padaria, casa av sape 415",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 12,
+      "numero": "OS-2026-00012",
+      "titulo": "Instalação bomba de recalque",
+      "descricao_nova": "Instalação de bomba de recalque da caixa de 2000l no chão para caixa do telhado.  Prover todo o material necessário.  Bomba, fios, controles, canos, boias, insumos etc",
+      "local_exato_novo": "Caixa d'água fundos da casa do alojamento",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 13,
+      "numero": "OS-2026-00013",
+      "titulo": "Instalação sistema de caixa d'água",
+      "descricao_nova": "Instalação completa caixa d'água 2000l (cisterna) e adaptação caixa 1000l no telhado. Refazer tubulação para adaptar a nova ligação.  Prover todo material hidráulico",
+      "local_exato_novo": "Fundos da casa do alojamento",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 14,
+      "numero": "OS-2026-00014",
+      "titulo": "Piscina",
+      "descricao_nova": "Verificar/ avaliar/reparar toda borda da piscina.  Remover cola antiga caso a pedra estiver solta. Rebolar. Rejuntar.",
+      "local_exato_novo": "Casa de neto condomínio Américas",
+      "impacto_existente": "Sim, está prejudicando o funcionamento",
+      "impacto_encontrado_na_descricao": "Sim, está prejudicando o funcionamento"
+    },
+    {
+      "id": 15,
+      "numero": "OS-2026-00015",
+      "titulo": "Microondas com problemas",
+      "descricao_nova": "Djalma. Coletar 4 micro-ondas defeituosos que estão separados no container e casa dos funcionários e levar para assistência técnica",
+      "local_exato_novo": "Casa de funcionários e container manutenção",
+      "impacto_existente": "Sim, está prejudicando o funcionamento",
+      "impacto_encontrado_na_descricao": "Sim, está prejudicando o funcionamento"
+    },
+    {
+      "id": 16,
+      "numero": "OS-2026-00016",
+      "titulo": "Vedação com zinco",
+      "descricao_nova": "Vedar com zinco os equipamentos climatizadores no telhado do depósito de papel",
+      "local_exato_novo": "Climatizadores telhado deposito papel",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 17,
+      "numero": "OS-2026-00017",
+      "titulo": "Piso borracha solto",
+      "descricao_nova": "Piso emborrachado se soltando em rampas próximo ao bebedouro. Remover piso e cola e aplicar adesivo antiderrapante.  Providenciar material na newcenter",
+      "local_exato_novo": "Casa dos funcionários",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 18,
+      "numero": "OS-2026-00018",
+      "titulo": "Limpeza",
+      "descricao_nova": "Retirar material de obra de frente dentro da casa. Limpeza nestas áreas",
+      "local_exato_novo": "Casa alojamento",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 19,
+      "numero": "OS-2026-00019",
+      "titulo": "Pia com vazamento",
+      "descricao_nova": "Pia de manipulação com vazamento pelo sifão",
+      "local_exato_novo": "Casa processados",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 20,
+      "numero": "OS-2026-00020",
+      "titulo": "Lampada queimada",
+      "descricao_nova": "Trocar lâmpada corredor setor processados",
+      "local_exato_novo": "Processados",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 21,
+      "numero": "OS-2026-00021",
+      "titulo": "Infiltração no teto",
+      "descricao_nova": "Goteira no teto. Providenciar material  manta",
+      "local_exato_novo": "Sala de recebimento",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 22,
+      "numero": "OS-2026-00022",
+      "titulo": "Envelopar",
+      "descricao_nova": "Aplicar adesivo preto na porta e contorno da porta da câmara fria,  somente na parte que fica pra dentro do container",
+      "local_exato_novo": "Câmara fria",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 23,
+      "numero": "OS-2026-00023",
+      "titulo": "Buracos teto pvc",
+      "descricao_nova": "Tampar todas as aberturas no teto de pvc que esteja visível na loja e entrada do açougue.  Confeccionar tampas",
+      "local_exato_novo": "Entrada do açougue",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 24,
+      "numero": "OS-2026-00024",
+      "titulo": "Adaptação layout",
+      "descricao_nova": "Construir parede de drywall no meio do container pra dividir em duas salas. Abrir nova porta na alvenaria para a lateral",
+      "local_exato_novo": "Feira online",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 25,
+      "numero": "OS-2026-00025",
+      "titulo": "Sujeira área condensadora",
+      "descricao_nova": "Efetuar limpeza em toda área de manutenção das condensadores  e arredores.  Remover material que não pertence ao local. Drenar água acumulada. Verifique dreno",
+      "local_exato_novo": "Área dos condensadores depósito pippos",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 26,
+      "numero": "OS-2026-00026",
+      "titulo": "Teto com rachaduras",
+      "descricao_nova": "Trocar forro de gesso por forro de pvc",
+      "local_exato_novo": "Sala de monitoramento",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 27,
+      "numero": "OS-2026-00027",
+      "titulo": "Forro rachaduras e infiltração",
+      "descricao_nova": "Trocar forro de gesso por pvc. Após troca, reposicionar móveis e pintar a sala",
+      "local_exato_novo": "Sala do financeiro",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 28,
+      "numero": "OS-2026-00028",
+      "titulo": "Ventiladores",
+      "descricao_nova": "Inverter posição dos ventiladores dos corredores no depósito seco.",
+      "local_exato_novo": "Depósito seco, macarrão",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 29,
+      "numero": "OS-2026-00029",
+      "titulo": "Tomada sem tensão",
+      "descricao_nova": "Tomada esta inoperante,  sem corrente",
+      "local_exato_novo": "Máquina de café são braz",
+      "impacto_existente": "Urgente",
+      "impacto_encontrado_na_descricao": "Urgente"
+    },
+    {
+      "id": 31,
+      "numero": "OS-2026-00031",
+      "titulo": "Instalação microondas novo",
+      "descricao_nova": "Instalação de dois micro-ondas novos na copa da casa dos funcionários.  Micro-ondas se encontram na portaria.  Quardar 2 micro-ondas na caverna",
+      "local_exato_novo": "Casa dos funcionários, cozinha",
+      "impacto_existente": "Sim, está prejudicando o funcionamento",
+      "impacto_encontrado_na_descricao": "Sim, está prejudicando o funcionamento"
+    },
+    {
+      "id": 32,
+      "numero": "OS-2026-00032",
+      "titulo": "Vazamento",
+      "descricao_nova": "Vazamento de água no chicote do climatizadorer",
+      "local_exato_novo": "Casa funcionários, sala descanso frios",
+      "impacto_existente": "Urgente",
+      "impacto_encontrado_na_descricao": "Urgente"
+    },
+    {
+      "id": 33,
+      "numero": "OS-2026-00033",
+      "titulo": "Carrinhos",
+      "descricao_nova": "5 carrinhos quebrados  com problemas  variados",
+      "local_exato_novo": "Container manutenção",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 34,
+      "numero": "OS-2026-00034",
+      "titulo": "Iluminação apagada",
+      "descricao_nova": "Iluminação apagada no corredor,  disparando DR",
+      "local_exato_novo": "Corredor ao lado do elevador portaria",
+      "impacto_existente": "Sim, está prejudicando o funcionamento",
+      "impacto_encontrado_na_descricao": "Sim, está prejudicando o funcionamento"
+    },
+    {
+      "id": 35,
+      "numero": "OS-2026-00035",
+      "titulo": "Bebedouro instalar",
+      "descricao_nova": "Instalar bebedouro  próximo  a ponto de água  e luz. Verifique com operadores locais  . Providenciar material",
+      "local_exato_novo": "Processados",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 36,
+      "numero": "OS-2026-00036",
+      "titulo": "Montar casa de pet",
+      "descricao_nova": "Montar rodinhas em 3 casinhas de cachorro no depósito de descartáveis. Procure seu Chico.  Levar chave 14 de boca",
+      "local_exato_novo": "Depósito de descartáveis",
+      "impacto_existente": "Sim, está prejudicando o funcionamento",
+      "impacto_encontrado_na_descricao": "Sim, está prejudicando o funcionamento"
+    },
+    {
+      "id": 37,
+      "numero": "OS-2026-00037",
+      "titulo": "Moedor",
+      "descricao_nova": "Peça solta moedor carne. Precisa soldar",
+      "local_exato_novo": "Açougue",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 38,
+      "numero": "OS-2026-00038",
+      "titulo": "Tubulação exposta",
+      "descricao_nova": "Buraco na parede,  tubulação exposta.  Tampar buraco e repor o revestimento na parede",
+      "local_exato_novo": "Pia ao lado câmara ortifruti",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 39,
+      "numero": "OS-2026-00039",
+      "titulo": "Caixa acoplada com problemas",
+      "descricao_nova": "Caixa acoplada do sanitário do wc masculino loja não está enchendo",
+      "local_exato_novo": "Banheiro masculino da loja",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 40,
+      "numero": "OS-2026-00040",
+      "titulo": "Bebedouro",
+      "descricao_nova": "Instalação de bebedouro novo na cozinha.  Providenciar pontos de água e elétrico",
+      "local_exato_novo": "Casa alojamento",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 41,
+      "numero": "OS-2026-00041",
+      "titulo": "Muito sujas",
+      "descricao_nova": "Aplicar adesivo  branco nas paredes externas do açougue",
+      "local_exato_novo": "Paredes externas do açougue",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 42,
+      "numero": "OS-2026-00042",
+      "titulo": "Não chega água na caixa d'água",
+      "descricao_nova": "Instalação de pressurizador em tubo que enche a caixa d'água",
+      "local_exato_novo": "Climatizadores",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 43,
+      "numero": "OS-2026-00043",
+      "titulo": "Filtro bebedouro  com problemas",
+      "descricao_nova": "Verificar filtro do bebedouro.  Usuários reclamam de muita sujeira. Analisar se é  com manutenção ou equipe de limpeza",
+      "local_exato_novo": "Casa funcionários",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 44,
+      "numero": "OS-2026-00044",
+      "titulo": "Cantoneira",
+      "descricao_nova": "Instalação de cantoneira no assoalho do caminhão  azul.  Falar com Amauri",
+      "local_exato_novo": "Caminhão",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 45,
+      "numero": "OS-2026-00045",
+      "titulo": "Muito quente",
+      "descricao_nova": "Instalar ventilador na sala d3 descascar milho de Juvenal",
+      "local_exato_novo": "Sala de coco e milho",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 46,
+      "numero": "OS-2026-00046",
+      "titulo": "Pintura",
+      "descricao_nova": "Emassar falhas na parede e fazer pintura",
+      "local_exato_novo": "Sala do cpd",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 47,
+      "numero": "OS-2026-00047",
+      "titulo": "Instalação",
+      "descricao_nova": "Transporte e instalação armário porta objetos da casa alojamento para corredor ao lado do elevador",
+      "local_exato_novo": "Da casa alojamento para corredor elevador",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 48,
+      "numero": "OS-2026-00048",
+      "titulo": "Retirar bandeiras e decoração",
+      "descricao_nova": "Por solicitação de Neto,  retirar todas a decoração de bandeiras,  balões etc da  frente da loja",
+      "local_exato_novo": "Marquise/Estacionamento",
+      "impacto_existente": "Urgente",
+      "impacto_encontrado_na_descricao": "Urgente"
+    },
+    {
+      "id": 49,
+      "numero": "OS-2026-00049",
+      "titulo": "Vazamento",
+      "descricao_nova": "Vazamento no dreno da frezzer deixando chão molhado",
+      "local_exato_novo": "Freezer setor do iogurte",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 50,
+      "numero": "OS-2026-00050",
+      "titulo": "Torneira quebrado",
+      "descricao_nova": "Torneira do filtro quebrada",
+      "local_exato_novo": "Filtro em frente ao banheiro escritório",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 51,
+      "numero": "OS-2026-00051",
+      "titulo": "Encosto quebrado",
+      "descricao_nova": "Fixar encosto da cadeira.  Fica perto dos banheiros",
+      "local_exato_novo": "Cadeira do cliente frente de loja",
+      "impacto_existente": "Urgente",
+      "impacto_encontrado_na_descricao": "Urgente"
+    },
+    {
+      "id": 52,
+      "numero": "OS-2026-00052",
+      "titulo": "Goteira",
+      "descricao_nova": "Cano vazamento de água  cano teto  da loja,  proveniente possivelmente do wc do escritório",
+      "local_exato_novo": "Frios",
+      "impacto_existente": "Urgente",
+      "impacto_encontrado_na_descricao": "Urgente"
+    },
+    {
+      "id": 53,
+      "numero": "OS-2026-00053",
+      "titulo": "Pontos de ferrugem",
+      "descricao_nova": "Aplicação de acm em todo perímetro externo do açougue cobrindo pontos de ferrugem",
+      "local_exato_novo": "Açougue",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 54,
+      "numero": "OS-2026-00054",
+      "titulo": "Pisos com buracos",
+      "descricao_nova": "Tampar buracos do piso em frente a câmara de iogurte e corredores do depósito",
+      "local_exato_novo": "Câmara fria claudinha",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 55,
+      "numero": "OS-2026-00055",
+      "titulo": "Acm se soltando",
+      "descricao_nova": "Instalação de cantoneira de alumínio nos pilares açougue,  lado do atendimento ao cliente",
+      "local_exato_novo": "Pilar do balcão do açougue",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 56,
+      "numero": "OS-2026-00056",
+      "titulo": "Buracos no piso",
+      "descricao_nova": "Tampar buracos com cerâmica e/ou graute no piso do açougue, adjacências",
+      "local_exato_novo": "Piso do açougue e adjacências",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 57,
+      "numero": "OS-2026-00057",
+      "titulo": "Paredes externas da câmara muito suja",
+      "descricao_nova": "Pintar ou aplica adesivo nas paredes externa da câmara de congelado (polpas de fruta e sorvete)",
+      "local_exato_novo": "Câmara de congelados",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 58,
+      "numero": "OS-2026-00058",
+      "titulo": "Prateleiras",
+      "descricao_nova": "Instalação de 6 prateleiras no setor de processados , casa. Procurar Débora ou Lucas",
+      "local_exato_novo": "Processados",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 59,
+      "numero": "OS-2026-00059",
+      "titulo": "Refletores acesso",
+      "descricao_nova": "Refletores de chão  acessos direto.  Testar fotocelula",
+      "local_exato_novo": "Estacionamento",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 60,
+      "numero": "OS-2026-00060",
+      "titulo": "Elétrica dos climatizadores",
+      "descricao_nova": "Verificar instalação elétrica dos climatizadores do depósito de papel. Acompanhar pessoal da tudoclima na manutenção dos climatizadores",
+      "local_exato_novo": "Depósito papal",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 61,
+      "numero": "OS-2026-00061",
+      "titulo": "Fechamento da estrutura",
+      "descricao_nova": "Estruturar plataforma metálica da caixa d'água para receber telhado e acm de fechamento.  Instalação dos acm e telhado",
+      "local_exato_novo": "Plataforma caixa d'água",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 62,
+      "numero": "OS-2026-00062",
+      "titulo": "Guilhotina cega",
+      "descricao_nova": "Cortador de papel está  \"cego\" , não Corta.  Verifique se é possível afiar ou reajutar",
+      "local_exato_novo": "Sala do marketing",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 63,
+      "numero": "OS-2026-00063",
+      "titulo": "Parede escada muito suja",
+      "descricao_nova": "Pintura da escadaria e parede . Escadaria do setor de limpeza que dá pra loja",
+      "local_exato_novo": "Escadaria deposito de limpeza",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 64,
+      "numero": "OS-2026-00064",
+      "titulo": "Led apagado",
+      "descricao_nova": "Luz da prateleiras e teto setor ortifrute está apagada",
+      "local_exato_novo": "Setor do ortifrut dentro da loja",
+      "impacto_existente": "Urgente",
+      "impacto_encontrado_na_descricao": "Urgente"
+    },
+    {
+      "id": 65,
+      "numero": "OS-2026-00065",
+      "titulo": "Leitor biométrico apagado",
+      "descricao_nova": "Leitores faciais pra entrar na câmara fria do 1 andar não está  ligando.  Ponto elétrico sem energia",
+      "local_exato_novo": "Câmara fria de claudinha",
+      "impacto_existente": "Sim, está prejudicando o funcionamento",
+      "impacto_encontrado_na_descricao": "Sim, está prejudicando o funcionamento"
+    },
+    {
+      "id": 66,
+      "numero": "OS-2026-00066",
+      "titulo": "Dreno muito sujo",
+      "descricao_nova": "Ralo de frente  a câmara fria muito sujo",
+      "local_exato_novo": "Câmara fria congelado 1 andar",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 67,
+      "numero": "OS-2026-00067",
+      "titulo": "Bases para expositores",
+      "descricao_nova": "Fazer/ fabricar bases metálicas ou em cimento para expositores de carvão  água etc. Afim de deixá-lo nivelados pois piso está  irregular",
+      "local_exato_novo": "Pit stop",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 68,
+      "numero": "OS-2026-00068",
+      "titulo": "Pintura paredes estacionamento lateral",
+      "descricao_nova": "Pintura de paredes dos estabelecimentos",
+      "local_exato_novo": "Estacionamento",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 69,
+      "numero": "OS-2026-00069",
+      "titulo": "Paredes alojamento",
+      "descricao_nova": "Emassar e pintura das paredes alojamento,  internas e externas",
+      "local_exato_novo": "Casa alojamento",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 70,
+      "numero": "OS-2026-00070",
+      "titulo": "Ar condicionado",
+      "descricao_nova": "Fabricar plataforma metálica  sobre a marquise para receber aparelhos de ar condicionado da loja",
+      "local_exato_novo": "Marquise frente",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 71,
+      "numero": "OS-2026-00071",
+      "titulo": "Desmontagem",
+      "descricao_nova": "Desmontagem do bicicletario que fica na doca. Guardar ferragem",
+      "local_exato_novo": "Bicicletario doca",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 72,
+      "numero": "OS-2026-00072",
+      "titulo": "Apagada",
+      "descricao_nova": "Luzes apagadas na gôndolas",
+      "local_exato_novo": "Gôndolas produtos de bebê/ absorvente",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 73,
+      "numero": "OS-2026-00073",
+      "titulo": "Porta do container",
+      "descricao_nova": "Retirar porta do container para passar um freezer,  após isso  recolocar porta",
+      "local_exato_novo": "Container feira online line",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 74,
+      "numero": "OS-2026-00074",
+      "titulo": "Balizadores",
+      "descricao_nova": "Instalação de balizadores de sinalização e isolamento de área do bicicletario",
+      "local_exato_novo": "Bicicletario novo",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 75,
+      "numero": "OS-2026-00075",
+      "titulo": "Acm solto",
+      "descricao_nova": "Instalação de cantoneira no pilar reposicionamento do acm",
+      "local_exato_novo": "Pilar posto 06 loja em frente ao iogurte",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 76,
+      "numero": "OS-2026-00076",
+      "titulo": "Teto pvc com buraco",
+      "descricao_nova": "Tampar buraco no teto de pvc em frente ao freezer de iogurte próximo ao pilar posto 06",
+      "local_exato_novo": "Teto pilar posto 06 em frente ao iogurte",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 77,
+      "numero": "OS-2026-00077",
+      "titulo": "Caixa de som solta",
+      "descricao_nova": "Limpar e retirar caixa de som",
+      "local_exato_novo": "Pilar próximo ao suspiro e biscoito",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 78,
+      "numero": "OS-2026-00078",
+      "titulo": "Lampadas queimadas",
+      "descricao_nova": "Três lâmpadas com falhas n setor dos frios, freezer peito de frango,  diet, zero lactose",
+      "local_exato_novo": "Setor frios próximo freezer peito de frango",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 79,
+      "numero": "OS-2026-00079",
+      "titulo": "Armário novo",
+      "descricao_nova": "Levar novo armário 3 módulo da casa alojamento para corredor próximo a porta,  instalar ao lado do existentes",
+      "local_exato_novo": "Corredor ao lado do elevador",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 80,
+      "numero": "OS-2026-00080",
+      "titulo": "Instalação ventiladores",
+      "descricao_nova": "Instalação de ventiladores no depósito de bebidas.  Procure edson da prevenção pra fornecer os ventiladores",
+      "local_exato_novo": "Depósito de bebidas",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 81,
+      "numero": "OS-2026-00081",
+      "titulo": "Quadro lousa",
+      "descricao_nova": "Instalação de quadro na sala de reunião na parede do telão",
+      "local_exato_novo": "Sala de reunião",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 82,
+      "numero": "OS-2026-00082",
+      "titulo": "Gôndolas apagadas",
+      "descricao_nova": "Gôndolas do corredor 12 da loja, higiene pessoal,  luzes apagadas",
+      "local_exato_novo": "Corredor 12",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 83,
+      "numero": "OS-2026-00083",
+      "titulo": "Sem guarda corpo",
+      "descricao_nova": "Instalação de guarda corpo no mezanino  dobre o birô da portaria",
+      "local_exato_novo": "Mezanino em cima da portaria",
+      "impacto_existente": "Urgente",
+      "impacto_encontrado_na_descricao": "Urgente"
+    },
+    {
+      "id": 84,
+      "numero": "OS-2026-00084",
+      "titulo": "Sem sinalização de saída",
+      "descricao_nova": "Aplicar placas de seta de sinalização na escadaria,  que foi retirada para pintura",
+      "local_exato_novo": "Escadaria setor de limpeza",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    },
+    {
+      "id": 85,
+      "numero": "OS-2026-00085",
+      "titulo": "Cabo de rede",
+      "descricao_nova": "Efetuar a passagem de cabo de rede do servidor 1° andar para a balança interna do açougue da area de preparo",
+      "local_exato_novo": "Açougue internamente",
+      "impacto_existente": "Não impede o funcionamento",
+      "impacto_encontrado_na_descricao": "Não impede o funcionamento"
+    }
+  ]
+}

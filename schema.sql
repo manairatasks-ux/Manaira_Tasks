@@ -100,6 +100,11 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_receber_tarefas BOOLEAN DEFAU
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_receber_os BOOLEAN DEFAULT FALSE;
 ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS responsavel_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
 ALTER TABLE ordens_servico ADD COLUMN IF NOT EXISTS responsavel_principal_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+
+-- Migração: separar o local exato da descrição da OS
+ALTER TABLE ordens_servico
+ADD COLUMN IF NOT EXISTS local_exato TEXT DEFAULT '';
+
 CREATE INDEX IF NOT EXISTS idx_usuarios_setor ON usuarios(setor_id);
 CREATE INDEX IF NOT EXISTS idx_tarefas_responsavel_id ON tarefas(responsavel_id);
 CREATE INDEX IF NOT EXISTS idx_os_responsavel_principal_id ON ordens_servico(responsavel_principal_id);

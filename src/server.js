@@ -1799,14 +1799,24 @@ app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
     doc.pipe(res);
 
     const page = {
-      left: 28,
-      right: 567,
-      top: 28,
-      bottom: 784,
-      cardGap: 7,
-      cardH: 108
+      left: 16,
+      right: 579,
+
+      // Área útil ampliada porque o rodapé será removido
+      bottom: 828,
+
+      // Distância horizontal entre os cards
+      cardGap: 5,
+
+      // Distância vertical entre as linhas
+      rowGap: 8,
+
+      // Altura para caber 4 linhas por página
+      cardH: 158
     };
-    page.cardW = (page.right - page.left - (page.cardGap * 2)) / 3;
+
+    page.cardW =
+      (page.right - page.left - (page.cardGap * 2)) / 3;
 
     function txt(value) {
       return value && String(value).trim() ? String(value).trim() : '-';
@@ -1821,36 +1831,139 @@ app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
     }
 
     function drawHeader() {
-      doc.rect(0, 0, doc.page.width, doc.page.height).fill('#f8fafc');
-      doc.roundedRect(28, 20, 34, 24, 7).fill('#0b2f6b');
-      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(10).text('OS', 28, 27, { width: 34, align: 'center' });
+      doc
+        .rect(0, 0, doc.page.width, doc.page.height)
+        .fill('#f8fafc');
 
-      doc.fillColor('#0b2f6b').font('Helvetica-Bold').fontSize(13)
-        .text('Relatório compacto de OS', 72, 20, { width: 330 });
-      doc.fillColor('#64748b').font('Helvetica').fontSize(7)
-        .text(`Em execução e Pendências • ${rangeLabel}`, 72, 36, { width: 360 });
+      doc
+        .roundedRect(16, 18, 36, 26, 7)
+        .fill('#0b2f6b');
 
-      doc.fillColor('#334155').font('Helvetica-Bold').fontSize(6.2)
-        .text(`Gerado em ${brDateTime(new Date())}`, 414, 22, { width: 150, align: 'right' })
-        .text(`Usuário: ${req.user.nome || '-'}`, 414, 34, { width: 150, align: 'right' });
+      doc
+        .fillColor('#ffffff')
+        .font('Helvetica-Bold')
+        .fontSize(10.5)
+        .text(
+          'OS',
+          16,
+          26,
+          {
+            width: 36,
+            align: 'center'
+          }
+        );
 
-      const execCount = itens.filter(i => i.status === 'Em execução').length;
+      doc
+        .fillColor('#0b2f6b')
+        .font('Helvetica-Bold')
+        .fontSize(14)
+        .text(
+          'Relatório compacto de OS',
+          62,
+          18,
+          {
+            width: 340
+          }
+        );
+
+      doc
+        .fillColor('#64748b')
+        .font('Helvetica')
+        .fontSize(7.3)
+        .text(
+          `Em execução e Pendências • ${rangeLabel}`,
+          62,
+          36,
+          {
+            width: 360
+          }
+        );
+
+      doc
+        .fillColor('#334155')
+        .font('Helvetica-Bold')
+        .fontSize(6.5)
+        .text(
+          `Gerado em ${brDateTime(new Date())}`,
+          414,
+          20,
+          {
+            width: 150,
+            align: 'right'
+          }
+        )
+        .text(
+          `Usuário: ${req.user.nome || '-'}`,
+          414,
+          34,
+          {
+            width: 150,
+            align: 'right'
+          }
+        );
+
+      const execCount =
+        itens.filter(i => i.status === 'Em execução').length;
+
       const pendCount = itens.length - execCount;
-      const metricsY = 54;
-      const metricW = 124;
-      [
+
+      const metricsY = 53;
+      const metricGap = 8;
+      const metricW =
+        (page.right - page.left - metricGap * 3) / 4;
+
+      const metricas = [
         ['Total', itens.length, '#0b2f6b'],
         ['Em execução', execCount, '#f97316'],
         ['Pendências', pendCount, '#b91c1c'],
-        ['Alta/Urgente', itens.filter(i => ['Alta', 'Urgente'].includes(i.prioridade)).length, '#7f1d1d']
-      ].forEach((m, idx) => {
-        const x = 28 + idx * (metricW + 10);
-        doc.roundedRect(x, metricsY, metricW, 28, 8).fill('#ffffff').strokeColor('#dbeafe').lineWidth(0.6).stroke();
-        doc.fillColor('#64748b').font('Helvetica-Bold').fontSize(5.8).text(m[0], x + 8, metricsY + 5, { width: metricW - 16 });
-        doc.fillColor(m[2]).font('Helvetica-Bold').fontSize(12).text(String(m[1]), x + 8, metricsY + 15, { width: metricW - 16 });
+        [
+          'Alta/Urgente',
+          itens.filter(i =>
+            ['Alta', 'Urgente'].includes(i.prioridade)
+          ).length,
+          '#7f1d1d'
+        ]
+      ];
+
+      metricas.forEach((m, idx) => {
+        const x =
+          page.left + idx * (metricW + metricGap);
+
+        doc
+          .roundedRect(x, metricsY, metricW, 30, 8)
+          .fill('#ffffff')
+          .strokeColor('#dbeafe')
+          .lineWidth(0.6)
+          .stroke();
+
+        doc
+          .fillColor('#64748b')
+          .font('Helvetica-Bold')
+          .fontSize(6.1)
+          .text(
+            m[0],
+            x + 8,
+            metricsY + 5,
+            {
+              width: metricW - 16
+            }
+          );
+
+        doc
+          .fillColor(m[2])
+          .font('Helvetica-Bold')
+          .fontSize(12.5)
+          .text(
+            String(m[1]),
+            x + 8,
+            metricsY + 16,
+            {
+              width: metricW - 16
+            }
+          );
       });
 
-      return 92;
+      return 93;
     }
 
     function ensurePage(y, height) {
@@ -1861,46 +1974,87 @@ app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
 
     function drawSectionTitle(title, count, y) {
       y = ensurePage(y, 22);
-      const color = title === 'Em execução' ? '#f97316' : '#b91c1c';
-      doc.roundedRect(page.left, y, page.right - page.left, 16, 6).fill(color);
-      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(8).text(`${title} (${count})`, page.left + 9, y + 4.5, { width: 360 });
-      return y + 23;
+
+      const color =
+        title === 'Em execução'
+          ? '#f97316'
+          : '#b91c1c';
+
+      doc
+        .roundedRect(
+          page.left,
+          y,
+          page.right - page.left,
+          17,
+          6
+        )
+        .fill(color);
+
+      doc
+        .fillColor('#ffffff')
+        .font('Helvetica-Bold')
+        .fontSize(8.5)
+        .text(
+          `${title} (${count})`,
+          page.left + 9,
+          y + 5,
+          {
+            width: 360
+          }
+        );
+
+      return y + 24;
     }
 
     function pill(x, y, text, bg, fg, w) {
-      doc.roundedRect(x, y, w, 11, 5.5).fill(bg);
-      doc.fillColor(fg).font('Helvetica-Bold').fontSize(4.3)
-        .text(String(text || '-'), x + 2, y + 3.4, {
-          width: w - 4,
-          align: 'center',
-          ellipsis: true
-        });
+      doc
+        .roundedRect(x, y, w, 12, 6)
+        .fill(bg);
+
+      doc
+        .fillColor(fg)
+        .font('Helvetica-Bold')
+        .fontSize(4.7)
+        .text(
+          String(text || '-'),
+          x + 2,
+          y + 3.7,
+          {
+            width: w - 4,
+            align: 'center',
+            ellipsis: true
+          }
+        );
     }
 
     function drawInfo(label, value, x, y, w) {
       doc
         .fillColor('#64748b')
         .font('Helvetica-Bold')
-        .fontSize(5.5)
+        .fontSize(5.9)
         .text(
           String(label).toUpperCase(),
           x,
           y,
-          { width: w }
+          {
+            width: w,
+            height: 8
+          }
         );
 
       doc
         .fillColor('#0f172a')
         .font('Helvetica')
-        .fontSize(6.4)
+        .fontSize(6.8)
         .text(
           txt(value),
           x,
-          y + 7,
+          y + 8,
           {
             width: w,
-            height: 14,
-            ellipsis: true
+            height: 17,
+            ellipsis: true,
+            lineGap: 1
           }
         );
     }
@@ -1917,7 +2071,67 @@ app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
           ? '#f97316'
           : '#b91c1c';
 
+      /*
+        No cadastro público, o local exato e o impacto
+        são adicionados dentro da própria descrição.
+    
+        Aqui separamos essas informações para:
+        - mostrar somente a descrição principal;
+        - exibir o local exato em uma área própria;
+        - ocultar o impacto, pois a prioridade já aparece no card.
+      */
+      const descricaoCompleta = String(o.descricao || '');
+
+      /*
+        Compatibilidade com OS antigas.
+      
+        Nas OS antigas, o local exato ainda está
+        dentro da descrição.
+      */
+      const localAntigoMatch = descricaoCompleta.match(
+        /Local exato informado:\s*(.*?)(?=\s*Impacto informado:|$)/is
+      );
+
+      const localExatoAntigo = localAntigoMatch
+        ? localAntigoMatch[1]
+          .replace(/\s+/g, ' ')
+          .trim()
+        : '';
+
+      /*
+        Nas OS novas, usa diretamente a coluna local_exato.
+      
+        Caso a OS seja antiga e a coluna esteja vazia,
+        utiliza o local extraído da descrição.
+      */
+      const localExatoDetalhado =
+        String(o.local_exato || '').trim() ||
+        localExatoAntigo;
+
+      /*
+        Limpa a descrição antiga para que o PDF
+        não mostre novamente local e impacto.
+      
+        Nas OS novas, essas expressões não existirão,
+        então a descrição permanecerá como foi salva.
+      */
+      const descricaoLimpa = descricaoCompleta
+        .replace(
+          /\s*Local exato informado:\s*.*?(?=\s*Impacto informado:|$)/is,
+          ''
+        )
+        .replace(
+          /\s*Impacto informado:\s*.*$/is,
+          ''
+        )
+        .replace(/\s+/g, ' ')
+        .trim();
+
+
+      // =========================
       // CARD
+      // =========================
+
       doc
         .roundedRect(x, y, w, h, 9)
         .fill('#ffffff')
@@ -1925,7 +2139,6 @@ app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
         .lineWidth(0.7)
         .stroke();
 
-      // BARRA LATERAL
       doc
         .roundedRect(x, y, 5, h, 3)
         .fill(accent);
@@ -1938,33 +2151,34 @@ app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
       doc
         .fillColor('#0b2f6b')
         .font('Helvetica-Bold')
-        .fontSize(6.5)
+        .fontSize(6.9)
         .text(
           txt(o.numero || `OS-${o.id}`),
           x + 9,
           y + 7,
           {
-            width: 62,
+            width: 66,
+            height: 9,
             ellipsis: true
           }
         );
 
       pill(
-        x + w - 92,
+        x + w - 96,
         y + 5,
         o.status,
         stat[0],
         stat[1],
-        62
+        65
       );
 
       pill(
-        x + w - 27,
+        x + w - 28,
         y + 5,
         o.prioridade,
         pri[0],
         pri[1],
-        24
+        25
       );
 
 
@@ -1975,15 +2189,16 @@ app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
       doc
         .fillColor('#0f172a')
         .font('Helvetica-Bold')
-        .fontSize(7.5)
+        .fontSize(8.1)
         .text(
-          short(o.titulo, 58),
+          short(o.titulo, 75),
           x + 9,
-          y + 21,
+          y + 23,
           {
             width: w - 18,
-            height: 14,
-            ellipsis: true
+            height: 15,
+            ellipsis: true,
+            lineGap: 1
           }
         );
 
@@ -1992,12 +2207,11 @@ app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
       // INFORMAÇÕES PRINCIPAIS
       // =========================
 
-      const infoY = y + 38;
-
-      const colGap = 5;
+      const infoY = y + 39;
+      const colGap = 4;
 
       const colW =
-        (w - 18 - (colGap * 2)) / 3;
+        (w - 18 - colGap * 2) / 3;
 
       drawInfo(
         'Resp.',
@@ -2029,75 +2243,134 @@ app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
 
 
       // =========================
-      // DESCRIÇÃO
+      // DESCRIÇÃO PRINCIPAL
       // =========================
+
+      const descY = y + 64;
 
       doc
         .fillColor('#64748b')
         .font('Helvetica-Bold')
-        .fontSize(5.8)
+        .fontSize(6.1)
         .text(
           'DESC.',
           x + 9,
-          y + 61,
+          descY,
           {
-            width: 29
+            width: 18,
+            height: 8
           }
         );
 
       doc
         .fillColor('#334155')
         .font('Helvetica')
-        .fontSize(6.5)
+        .fontSize(7)
         .text(
-          short(o.descricao, 300),
-          x + 38,
-          y + 61,
+          short(
+            descricaoLimpa || 'Sem descrição informada.',
+            450
+          ),
+          x + 27,
+          descY,
           {
-            width: w - 47,
-            height: 30,
+            width: w - 36,
+
+            // Até aproximadamente quatro linhas
+            height: 38,
+
             ellipsis: true,
-            lineGap: 1
+            lineGap: 1.2
           }
         );
+
+
+      // =========================
+      // LOCAL EXATO DETALHADO
+      // =========================
+
+      const localDetalhadoY = y + 105;
+
+      if (localExatoDetalhado) {
+        doc
+          .fillColor('#0b2f6b')
+          .font('Helvetica-Bold')
+          .fontSize(6.1)
+          .text(
+            'LOCAL:',
+            x + 9,
+            localDetalhadoY,
+            {
+              width: 21,
+              height: 8
+            }
+          );
+
+        doc
+          .fillColor('#334155')
+          .font('Helvetica')
+          .fontSize(6.8)
+          .text(
+            short(localExatoDetalhado, 180),
+            x + 30,
+            localDetalhadoY,
+            {
+              width: w - 39,
+
+              // Até aproximadamente duas linhas
+              height: 19,
+
+              ellipsis: true,
+              lineGap: 1
+            }
+          );
+      }
 
 
       // =========================
       // PENDÊNCIAS
       // =========================
 
-      if (o.pendencias) {
+      if (o.pendencias && String(o.pendencias).trim()) {
+        const pendY = y + 127;
 
         doc
           .fillColor('#b91c1c')
           .font('Helvetica-Bold')
-          .fontSize(5.8)
+          .fontSize(6.1)
           .text(
             'PEND.',
             x + 9,
-            y + 88,
+            pendY,
             {
-              width: 29
+              width: 18,
+              height: 8
             }
           );
 
         doc
           .fillColor('#7f1d1d')
           .font('Helvetica')
-          .fontSize(6.5)
+          .fontSize(7)
           .text(
-            short(o.pendencias, 230),
-            x + 38,
-            y + 88,
+            short(o.pendencias, 300),
+            x + 27,
+            pendY,
             {
-              width: w - 47,
-              height: 23,
+              width: w - 36,
+
+              // Até aproximadamente três linhas
+              height: 26,
+
               ellipsis: true,
-              lineGap: 1
+              lineGap: 1.2
             }
           );
       }
     }
+
+
+
 
     let y = drawHeader();
 
@@ -2105,32 +2378,122 @@ app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
       doc.roundedRect(60, y + 50, 475, 90, 16).fill('#ffffff').strokeColor('#dbeafe').stroke();
       doc.fillColor('#0b2f6b').font('Helvetica-Bold').fontSize(13).text('Nenhuma OS encontrada', 60, y + 78, { width: 475, align: 'center' });
       doc.fillColor('#64748b').font('Helvetica').fontSize(8).text('Não existem chamados em execução ou pendências para os filtros selecionados.', 80, y + 102, { width: 435, align: 'center' });
-    } else {
+    }
+
+    else {
       const sections = [
-        ['Em execução', itens.filter(o => o.status === 'Em execução')],
-        ['Pendências', itens.filter(o => o.status !== 'Em execução')]
+        [
+          'Em execução',
+          itens.filter(o => o.status === 'Em execução')
+        ],
+        [
+          'Pendências',
+          itens.filter(o => o.status !== 'Em execução')
+        ]
       ];
+
+      // Controla quantas linhas já foram usadas na página
+      let rowsOnPage = 0;
 
       for (const [title, list] of sections) {
         if (!list.length) continue;
+
+        /*
+          Caso a página já tenha quatro linhas,
+          começa uma nova página antes da seção.
+        */
+        if (rowsOnPage >= 4) {
+          doc.addPage();
+          y = drawHeader();
+          rowsOnPage = 0;
+        }
+
+        /*
+          Verifica se ainda cabe o título e pelo menos
+          uma linha de cards.
+        */
+        if (
+          y + 24 + page.cardH >
+          page.bottom
+        ) {
+          doc.addPage();
+          y = drawHeader();
+          rowsOnPage = 0;
+        }
+
         y = drawSectionTitle(title, list.length, y);
+
         let col = 0;
+
         for (const os of list) {
-          if (col === 0) y = ensurePage(y, page.cardH + 10);
-          const x = page.left + col * (page.cardW + page.cardGap);
+          /*
+            Sempre que começar uma nova linha,
+            verifica se já atingiu quatro linhas.
+          */
+          if (col === 0 && rowsOnPage >= 4) {
+            doc.addPage();
+            y = drawHeader();
+            rowsOnPage = 0;
+
+            // Repete o título da seção na nova página
+            y = drawSectionTitle(
+              `${title} — continuação`,
+              list.length,
+              y
+            );
+          }
+
+          /*
+            Segurança adicional para não ultrapassar
+            a parte inferior da página.
+          */
+          if (
+            col === 0 &&
+            y + page.cardH > page.bottom
+          ) {
+            doc.addPage();
+            y = drawHeader();
+            rowsOnPage = 0;
+
+            y = drawSectionTitle(
+              `${title} — continuação`,
+              list.length,
+              y
+            );
+          }
+
+          const x =
+            page.left +
+            col * (page.cardW + page.cardGap);
+
           drawCard(os, x, y);
+
           col += 1;
+
+          /*
+            Ao completar três colunas,
+            avança uma linha.
+          */
           if (col >= 3) {
             col = 0;
-            y += page.cardH + 7;
+            rowsOnPage += 1;
+            y += page.cardH + page.rowGap;
           }
         }
-        if (col !== 0) y += page.cardH + 7;
+
+        /*
+          Caso a última linha tenha menos de três cards,
+          ainda assim ela conta como uma linha.
+        */
+        if (col !== 0) {
+          rowsOnPage += 1;
+          y += page.cardH + page.rowGap;
+        }
+
         y += 4;
       }
     }
 
-    drawFooterPages(doc, 'Relatório A4 para comunicação visual das OS em execução e pendências.');
     doc.end();
   } catch (err) {
     console.error('ERRO AO GERAR PDF DE OS EM ANDAMENTO:');
@@ -2363,7 +2726,6 @@ app.post('/api/public/os/validar-senha', async (req, res) => {
     return res.status(500).json({ error: 'Erro ao validar acesso.', details: err.message });
   }
 });
-
 app.post('/api/public/os', async (req, res) => {
   try {
     const {
@@ -2378,59 +2740,102 @@ app.post('/api/public/os', async (req, res) => {
     } = req.body || {};
 
     if (!checkPortalPassword(senha_portal)) {
-      return res.status(401).json({ error: 'Senha de acesso inválida.' });
+      return res.status(401).json({
+        error: 'Senha de acesso inválida.'
+      });
     }
 
     if (!titulo || !String(titulo).trim()) {
-      return res.status(400).json({ error: 'Informe o título do problema.' });
+      return res.status(400).json({
+        error: 'Informe o título do problema.'
+      });
     }
 
     if (!descricao || !String(descricao).trim()) {
-      return res.status(400).json({ error: 'Descreva o que está acontecendo.' });
+      return res.status(400).json({
+        error: 'Descreva o que está acontecendo.'
+      });
     }
 
     const numero = await generateOsNumber();
-    const descricaoCompleta = [
-      String(descricao || '').trim(),
-      local_exato ? `\n\nLocal exato informado: ${String(local_exato).trim()}` : '',
-      impacto ? `\nImpacto informado: ${String(impacto).trim()}` : ''
-    ].join('').trim();
 
-    const prioridadeInicial = String(impacto || '').toLowerCase().includes('sim') ? 'Alta' : 'Média';
+    /*
+      A partir desta versão, cada informação passa
+      a ser salva em seu próprio campo.
+    */
+    const descricaoFinal = String(descricao || '').trim();
+    const localExatoFinal = String(local_exato || '').trim();
+    const impactoFinal = String(impacto || '').trim();
 
-    const os = await get(`
-      INSERT INTO ordens_servico
-      (numero, titulo, descricao, solicitante, setor_local, categoria, prioridade, impacto, status,
-       responsavel_principal, funcionarios, quantidade_mao_obra, tempo_estimado_min, tempo_real_min,
-       previsao_conclusao, data_inicio, data_conclusao, material_necessario, material_utilizado, pendencias,
-       execucao, observacao_conclusao, criado_por)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
-      RETURNING *
-    `, [
-      numero,
-      String(titulo).trim(),
-      descricaoCompleta,
-      solicitante || '',
-      setor_local || '',
-      categoria || 'Outros',
-      prioridadeInicial,
-      impacto || '',
-      'Recebido',
-      '',
-      '',
-      1,
-      0,
-      0,
-      null,
-      null,
-      null,
-      '',
-      '',
-      '',
-      '',
-      '',
-      null
-    ]);
+    const prioridadeInicial = impactoFinal
+      .toLowerCase()
+      .includes('sim')
+      ? 'Alta'
+      : 'Média';
+
+    const os = await get(
+      `
+        INSERT INTO ordens_servico (
+          numero,
+          titulo,
+          descricao,
+          local_exato,
+          solicitante,
+          setor_local,
+          categoria,
+          prioridade,
+          impacto,
+          status,
+          responsavel_principal,
+          funcionarios,
+          quantidade_mao_obra,
+          tempo_estimado_min,
+          tempo_real_min,
+          previsao_conclusao,
+          data_inicio,
+          data_conclusao,
+          material_necessario,
+          material_utilizado,
+          pendencias,
+          execucao,
+          observacao_conclusao,
+          criado_por
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6,
+          $7, $8, $9, $10, $11, $12,
+          $13, $14, $15, $16, $17, $18,
+          $19, $20, $21, $22, $23, $24
+        )
+        RETURNING *
+      `,
+      [
+        numero,
+        String(titulo).trim(),
+        descricaoFinal,
+        localExatoFinal,
+        String(solicitante || '').trim(),
+        String(setor_local || '').trim(),
+        categoria || 'Outros',
+        prioridadeInicial,
+        impactoFinal,
+        'Recebido',
+        '',
+        '',
+        1,
+        0,
+        0,
+        null,
+        null,
+        null,
+        '',
+        '',
+        '',
+        '',
+        '',
+        null
+      ]
+    );
 
     return res.status(201).json({
       ok: true,
@@ -2440,7 +2845,11 @@ app.post('/api/public/os', async (req, res) => {
   } catch (err) {
     console.error('ERRO AO CRIAR OS PELO PORTAL:');
     console.error(err);
-    return res.status(500).json({ error: 'Erro ao enviar solicitação.', details: err.message });
+
+    return res.status(500).json({
+      error: 'Erro ao enviar solicitação.',
+      details: err.message
+    });
   }
 });
 
