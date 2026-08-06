@@ -1,0 +1,7 @@
+Manaíra Board V11 Ajustada
+- Setores privados com proprietário.
+- Compartilhamento: visualizar, criar, editar e gerenciar.
+- Hierarquia: Administrador Principal > Administrador > Gerente > Encarregado > Colaborador.
+- Central de administração com abas.
+- Ferramenta para corrigir/definir o Administrador Principal pelo email.
+- Migração preserva setores, grupos, tarefas e ordens de serviço.

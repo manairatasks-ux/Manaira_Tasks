@@ -1,0 +1,25 @@
+MANAÍRA BOARD V11.1 — REVISÃO DE SEGURANÇA E PERMISSÕES
+
+Correções aplicadas:
+- Colaborador não pode criar setor. Criação de setor exige Encarregado ou nível superior.
+- Criar, editar ou excluir grupos exige permissão Gerenciar setor.
+- Permissão Editar continua permitindo editar tarefas, mas não altera a estrutura dos grupos.
+- Criar tarefas exige Visualizar e criar ou nível superior.
+- Usuário com Visualizar e criar edita apenas as tarefas que criou.
+- Edição de tarefa não permite movê-la silenciosamente para outro setor.
+- Compartilhamento valida se o usuário existe e está ativo.
+- Rotas administrativas de Ordens de Serviço exigem Encarregado ou nível superior.
+- Relatórios de OS também respeitam o nível hierárquico.
+- Criação e edição de usuários rejeitam perfis inválidos.
+- Banco reforçado para manter apenas um Administrador Principal.
+- Interface esconde Novo setor para Colaborador e Novo grupo para quem não possui Gerenciar setor.
+
+Matriz de setor:
+Visualizar: consultar setor, tarefas, comentários e relatórios.
+Criar: visualizar, criar tarefas/comentários e editar tarefas próprias.
+Editar: criar tarefas e editar todas as tarefas do setor.
+Gerenciar: editar estrutura, criar/editar/excluir grupos e compartilhar o setor.
+Proprietário: controle total, incluindo excluir o setor.
+
+Observação:
+O Administrador Principal possui acesso mestre aos setores para recuperação e administração.

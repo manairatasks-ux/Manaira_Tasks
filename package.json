@@ -1,12 +1,13 @@
 {
   "name": "manaira-board-render",
-  "version": "2.0.0",
+  "version": "3.1.0",
   "description": "Monday simplificado para gestão de tarefas do Supermercado Manaíra com PostgreSQL Render",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "init-db": "node src/init-db.js"
+    "init-db": "node src/init-db.js",
+    "definir-admin-principal": "node src/definir-admin-principal.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,0 +1,11 @@
+MANAÍRA BOARD V11 - AJUSTADA
+
+1. Faça backup do banco antes de iniciar.
+2. Garanta que seu login seja o Administrador Principal executando uma única vez:
+   npm run definir-admin-principal -- SEU_EMAIL_DE_LOGIN
+3. Depois inicie normalmente:
+   npm start
+
+No Render, também é possível configurar ADMIN_PRINCIPAL_EMAIL com o email do seu login.
+A V11 cria propriedade e compartilhamento de setores sem apagar grupos, tarefas ou OS.
+A área Configurações agora possui abas de Usuários, Setores/Proprietários e Hierarquia.

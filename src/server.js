@@ -69,15 +69,88 @@ function authPdf(req, res, next) {
 }
 
 
+const HIERARQUIA = {
+  colaborador: 1,
+  encarregado: 2,
+  gerente: 3,
+  administrador: 4,
+  administrador_principal: 5
+};
+
+
+const PERFIS_VALIDOS = new Set(Object.keys(HIERARQUIA));
+
+function perfilValido(perfil) {
+  return PERFIS_VALIDOS.has(String(perfil || '').toLowerCase());
+}
+
+function nivelPerfil(perfil) {
+  return HIERARQUIA[String(perfil || '').toLowerCase()] || 0;
+}
+
 function canManage(req) {
-  return ['admin', 'gerente'].includes(String(req.user?.perfil || '').toLowerCase());
+  return nivelPerfil(req.user?.perfil) >= HIERARQUIA.encarregado;
+}
+
+function canCreateSector(req) {
+  return nivelPerfil(req.user?.perfil) >= HIERARQUIA.encarregado;
 }
 
 function requireManager(req, res, next) {
   if (!canManage(req)) {
-    return res.status(403).json({ error: 'Acesso restrito ao administrador/gerente.' });
+    return res.status(403).json({ error: 'Seu perfil não permite gerenciar usuários.' });
   }
   next();
+}
+
+
+function requireManagerPdf(req, res, next) {
+  if (!canManage(req)) {
+    return res.status(403).send('Seu perfil não permite acessar este relatório.');
+  }
+  next();
+}
+
+function isPrincipal(req) {
+  return String(req.user?.perfil || '').toLowerCase() === 'administrador_principal';
+}
+
+async function obterAcessoSetor(userId, setorId) {
+  return get(`
+    SELECT s.id, s.proprietario_id,
+      CASE
+        WHEN s.proprietario_id = $1 THEN 'proprietario'
+        ELSE sc.permissao
+      END AS permissao
+    FROM setores s
+    LEFT JOIN setor_compartilhamentos sc ON sc.setor_id = s.id AND sc.usuario_id = $1
+    WHERE s.id = $2 AND (s.proprietario_id = $1 OR sc.usuario_id = $1)
+  `, [userId, setorId]);
+}
+
+const PERMISSAO_NIVEL = { visualizar: 1, criar: 2, editar: 3, gerenciar: 4, proprietario: 5 };
+
+async function exigirAcessoSetor(req, res, setorId, minimo = 'visualizar') {
+  if (isPrincipal(req)) {
+    const setor = await get('SELECT id, proprietario_id FROM setores WHERE id = $1', [setorId]);
+    return setor ? { ...setor, permissao: setor.proprietario_id === req.user.id ? 'proprietario' : 'gerenciar' } : null;
+  }
+  const acesso = await obterAcessoSetor(req.user.id, setorId);
+  if (!acesso || (PERMISSAO_NIVEL[acesso.permissao] || 0) < PERMISSAO_NIVEL[minimo]) {
+    res.status(403).json({ error: 'Você não possui permissão para esta ação no setor.' });
+    return null;
+  }
+  return acesso;
+}
+
+async function setorIdPorGrupo(grupoId) {
+  const row = await get('SELECT setor_id FROM grupos WHERE id = $1', [grupoId]);
+  return row?.setor_id || null;
+}
+
+async function setorIdPorTarefa(tarefaId) {
+  const row = await get('SELECT g.setor_id FROM tarefas t JOIN grupos g ON g.id = t.grupo_id WHERE t.id = $1', [tarefaId]);
+  return row?.setor_id || null;
 }
 
 function cleanId(value) {
@@ -155,7 +228,7 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/me', auth, async (req, res) => {
   try {
     const usuario = await get(
-      'SELECT id, nome, email, perfil, setor_id, pode_receber_tarefas, pode_receber_os FROM usuarios WHERE id = $1',
+      'SELECT id, nome, email, perfil, administrador_principal, setor_id, pode_receber_tarefas, pode_receber_os FROM usuarios WHERE id = $1',
       [req.user.id]
     );
 
@@ -180,7 +253,7 @@ app.get('/api/usuarios', auth, async (req, res) => {
 
     const usuarios = await all(`
       SELECT
-        u.id, u.nome, u.email, u.perfil, u.setor_id,
+        u.id, u.nome, u.email, u.perfil, u.administrador_principal, u.setor_id,
         s.nome AS setor_nome,
         u.pode_receber_tarefas,
         u.pode_receber_os,
@@ -200,109 +273,53 @@ app.get('/api/usuarios', auth, async (req, res) => {
 
 app.post('/api/usuarios', auth, requireManager, async (req, res) => {
   try {
-    const {
-      nome, email, senha, perfil = 'colaborador', setor_id,
-      pode_receber_tarefas = true,
-      pode_receber_os = false,
-      ativo = true
-    } = req.body;
-
-    if (!nome || !email || !senha) {
-      return res.status(400).json({ error: 'Nome, email e senha são obrigatórios.' });
-    }
-
+    const { nome, email, senha, perfil = 'colaborador', setor_id, pode_receber_tarefas = true, pode_receber_os = false, ativo = true } = req.body;
+    if (!nome || !email || !senha) return res.status(400).json({ error: 'Nome, email e senha são obrigatórios.' });
+    if (!perfilValido(perfil)) return res.status(400).json({ error: 'Perfil inválido.' });
+    if (perfil === 'administrador_principal') return res.status(400).json({ error: 'O Administrador Principal é único e não pode ser criado por esta tela.' });
+    if (nivelPerfil(perfil) >= nivelPerfil(req.user.perfil)) return res.status(403).json({ error: 'Você só pode criar usuários de nível inferior ao seu.' });
     const senhaHash = await bcrypt.hash(String(senha), 10);
-
-    const usuario = await get(`
-      INSERT INTO usuarios
-        (nome, email, senha_hash, perfil, setor_id, pode_receber_tarefas, pode_receber_os, ativo)
+    const usuario = await get(`INSERT INTO usuarios
+      (nome,email,senha_hash,perfil,setor_id,pode_receber_tarefas,pode_receber_os,ativo)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-      RETURNING id, nome, email, perfil, setor_id, pode_receber_tarefas, pode_receber_os, ativo, criado_em
-    `, [
-      String(nome).trim(),
-      String(email).trim().toLowerCase(),
-      senhaHash,
-      perfil || 'colaborador',
-      cleanId(setor_id),
-      !!pode_receber_tarefas,
-      !!pode_receber_os,
-      ativo !== false
-    ]);
-
+      RETURNING id,nome,email,perfil,administrador_principal,setor_id,pode_receber_tarefas,pode_receber_os,ativo,criado_em`,
+      [String(nome).trim(),String(email).trim().toLowerCase(),senhaHash,perfil,cleanId(setor_id),!!pode_receber_tarefas,!!pode_receber_os,ativo!==false]);
     res.status(201).json(usuario);
   } catch (err) {
-    if (err.code === '23505') {
-      return res.status(400).json({ error: 'Já existe um usuário com este email.' });
-    }
+    if (err.code === '23505') return res.status(400).json({ error: 'Já existe um usuário com este email.' });
     res.status(500).json({ error: 'Erro ao criar usuário.', details: err.message });
   }
 });
 
 app.put('/api/usuarios/:id', auth, requireManager, async (req, res) => {
   try {
-    const {
-      nome, email, senha, perfil = 'colaborador', setor_id,
-      pode_receber_tarefas = true,
-      pode_receber_os = false,
-      ativo = true
-    } = req.body;
-
-    if (!nome || !email) {
-      return res.status(400).json({ error: 'Nome e email são obrigatórios.' });
-    }
-
-    let usuario;
-    if (senha && String(senha).trim()) {
-      const senhaHash = await bcrypt.hash(String(senha), 10);
-      usuario = await get(`
-        UPDATE usuarios SET
-          nome = $1,
-          email = $2,
-          senha_hash = $3,
-          perfil = $4,
-          setor_id = $5,
-          pode_receber_tarefas = $6,
-          pode_receber_os = $7,
-          ativo = $8
-        WHERE id = $9
-        RETURNING id, nome, email, perfil, setor_id, pode_receber_tarefas, pode_receber_os, ativo, criado_em
-      `, [String(nome).trim(), String(email).trim().toLowerCase(), senhaHash, perfil, cleanId(setor_id), !!pode_receber_tarefas, !!pode_receber_os, ativo !== false, req.params.id]);
-    } else {
-      usuario = await get(`
-        UPDATE usuarios SET
-          nome = $1,
-          email = $2,
-          perfil = $3,
-          setor_id = $4,
-          pode_receber_tarefas = $5,
-          pode_receber_os = $6,
-          ativo = $7
-        WHERE id = $8
-        RETURNING id, nome, email, perfil, setor_id, pode_receber_tarefas, pode_receber_os, ativo, criado_em
-      `, [String(nome).trim(), String(email).trim().toLowerCase(), perfil, cleanId(setor_id), !!pode_receber_tarefas, !!pode_receber_os, ativo !== false, req.params.id]);
-    }
-
-    if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    const alvo = await get('SELECT * FROM usuarios WHERE id = $1', [req.params.id]);
+    if (!alvo) return res.status(404).json({ error: 'Usuário não encontrado.' });
+    if (alvo.administrador_principal || nivelPerfil(alvo.perfil) >= nivelPerfil(req.user.perfil)) return res.status(403).json({ error: 'Você só pode editar usuários de nível inferior ao seu.' });
+    const { nome,email,senha,perfil='colaborador',setor_id,pode_receber_tarefas=true,pode_receber_os=false,ativo=true }=req.body;
+    if (!nome || !email) return res.status(400).json({ error: 'Nome e email são obrigatórios.' });
+    if (!perfilValido(perfil)) return res.status(400).json({ error: 'Perfil inválido.' });
+    if (perfil === 'administrador_principal' || nivelPerfil(perfil) >= nivelPerfil(req.user.perfil)) return res.status(403).json({ error: 'Você não pode atribuir um nível igual ou superior ao seu.' });
+    const senhaHash = senha && String(senha).trim() ? await bcrypt.hash(String(senha),10) : alvo.senha_hash;
+    const usuario=await get(`UPDATE usuarios SET nome=$1,email=$2,senha_hash=$3,perfil=$4,setor_id=$5,pode_receber_tarefas=$6,pode_receber_os=$7,ativo=$8 WHERE id=$9
+      RETURNING id,nome,email,perfil,administrador_principal,setor_id,pode_receber_tarefas,pode_receber_os,ativo,criado_em`,
+      [String(nome).trim(),String(email).trim().toLowerCase(),senhaHash,perfil,cleanId(setor_id),!!pode_receber_tarefas,!!pode_receber_os,ativo!==false,req.params.id]);
     res.json(usuario);
-  } catch (err) {
-    if (err.code === '23505') {
-      return res.status(400).json({ error: 'Já existe um usuário com este email.' });
-    }
-    res.status(500).json({ error: 'Erro ao atualizar usuário.', details: err.message });
+  } catch(err){
+    if (err.code === '23505') return res.status(400).json({ error: 'Já existe um usuário com este email.' });
+    res.status(500).json({ error:'Erro ao atualizar usuário.', details:err.message });
   }
 });
 
-app.delete('/api/usuarios/:id', auth, requireManager, async (req, res) => {
-  try {
-    if (String(req.params.id) === String(req.user.id)) {
-      return res.status(400).json({ error: 'Você não pode desativar o próprio usuário.' });
-    }
-
-    await query('UPDATE usuarios SET ativo = FALSE WHERE id = $1', [req.params.id]);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao desativar usuário.', details: err.message });
-  }
+app.delete('/api/usuarios/:id', auth, requireManager, async (req,res)=>{
+  try{
+    if(String(req.params.id)===String(req.user.id)) return res.status(400).json({error:'Você não pode desativar o próprio usuário.'});
+    const alvo=await get('SELECT * FROM usuarios WHERE id=$1',[req.params.id]);
+    if(!alvo) return res.status(404).json({error:'Usuário não encontrado.'});
+    if(alvo.administrador_principal || nivelPerfil(alvo.perfil)>=nivelPerfil(req.user.perfil)) return res.status(403).json({error:'Você só pode desativar usuários de nível inferior ao seu.'});
+    await query('UPDATE usuarios SET ativo=FALSE WHERE id=$1',[req.params.id]);
+    res.json({ok:true});
+  }catch(err){res.status(500).json({error:'Erro ao desativar usuário.',details:err.message});}
 });
 
 app.get('/api/minhas-tarefas', auth, async (req, res) => {
@@ -401,468 +418,112 @@ app.patch('/api/minhas-os/:id/status', auth, async (req, res) => {
 
 app.get('/api/dashboard', auth, async (req, res) => {
   try {
-    const { setor_id, responsavel, periodo = '90' } = req.query;
+    const { setor_id, periodo = '90' } = req.query;
     const periodoDias = Math.max(7, Math.min(parseInt(periodo, 10) || 90, 365));
-
-    const params = [];
-    const filters = [];
-
-    if (setor_id) {
-      params.push(setor_id);
-      filters.push(`s.id = $${params.length}`);
-    }
-
-    if (responsavel) {
-      params.push(`%${String(responsavel).trim()}%`);
-      filters.push(`COALESCE(t.responsavel, '') ILIKE $${params.length}`);
-    }
-
-    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
-
-    const totalizadores = await get(`
-      SELECT
-        COUNT(t.*)::int AS total,
-        COUNT(t.*) FILTER (WHERE t.status <> 'Feito')::int AS abertas,
-        COUNT(t.*) FILTER (WHERE t.status = 'Feito')::int AS concluidas,
-        COUNT(t.*) FILTER (WHERE t.status <> 'Feito' AND t.prazo IS NOT NULL AND t.prazo < CURRENT_DATE)::int AS atrasadas,
-        COUNT(t.*) FILTER (WHERE t.status <> 'Feito' AND t.prazo = CURRENT_DATE)::int AS vencem_hoje,
-        COUNT(t.*) FILTER (WHERE t.status <> 'Feito' AND t.prazo BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days')::int AS proximos_7_dias,
-        COUNT(t.*) FILTER (WHERE t.status = 'Feito' AND t.atualizado_em >= date_trunc('week', CURRENT_DATE))::int AS concluidas_semana,
-        COUNT(DISTINCT NULLIF(TRIM(t.responsavel), ''))::int AS responsaveis_ativos,
-        ROUND(
-          CASE WHEN COUNT(t.*) = 0 THEN 0
-          ELSE (COUNT(t.*) FILTER (WHERE t.status = 'Feito')::numeric / COUNT(t.*)::numeric) * 100 END
-        )::int AS taxa_conclusao
-      FROM tarefas t
-      JOIN grupos g ON g.id = t.grupo_id
-      JOIN setores s ON s.id = g.setor_id
-      ${where}
-    `, params);
-
-    const porSetor = await all(`
-      SELECT
-        s.id,
-        s.nome,
-        s.cor,
-        COUNT(t.id)::int AS total,
-        COUNT(t.id) FILTER (WHERE t.status <> 'Feito')::int AS abertas,
-        COUNT(t.id) FILTER (WHERE t.status = 'Feito')::int AS concluidas,
-        COUNT(t.id) FILTER (WHERE t.status <> 'Feito' AND t.prazo IS NOT NULL AND t.prazo < CURRENT_DATE)::int AS atrasadas,
-        ROUND(CASE WHEN COUNT(t.id) = 0 THEN 0 ELSE (COUNT(t.id) FILTER (WHERE t.status = 'Feito')::numeric / COUNT(t.id)::numeric) * 100 END)::int AS taxa_conclusao
-      FROM setores s
-      LEFT JOIN grupos g ON g.setor_id = s.id
-      LEFT JOIN tarefas t ON t.grupo_id = g.id
-      ${setor_id ? 'WHERE s.id = $1' : ''}
-      GROUP BY s.id, s.nome, s.cor
-      ORDER BY abertas DESC, atrasadas DESC, s.nome
-      LIMIT 12
-    `, setor_id ? [setor_id] : []);
-
-    const porStatus = await all(`
-      SELECT t.status, COUNT(*)::int AS total
-      FROM tarefas t
-      JOIN grupos g ON g.id = t.grupo_id
-      JOIN setores s ON s.id = g.setor_id
-      ${where}
-      GROUP BY t.status
-      ORDER BY total DESC, t.status
-    `, params);
-
-    const porResponsavel = await all(`
-      SELECT
-        COALESCE(NULLIF(TRIM(t.responsavel), ''), 'Sem responsável') AS responsavel,
-        COUNT(*)::int AS total,
-        COUNT(*) FILTER (WHERE t.status <> 'Feito')::int AS abertas,
-        COUNT(*) FILTER (WHERE t.status = 'Feito')::int AS concluidas,
-        COUNT(*) FILTER (WHERE t.status <> 'Feito' AND t.prazo IS NOT NULL AND t.prazo < CURRENT_DATE)::int AS atrasadas,
-        ROUND(CASE WHEN COUNT(*) = 0 THEN 0 ELSE (COUNT(*) FILTER (WHERE t.status = 'Feito')::numeric / COUNT(*)::numeric) * 100 END)::int AS taxa_conclusao
-      FROM tarefas t
-      JOIN grupos g ON g.id = t.grupo_id
-      JOIN setores s ON s.id = g.setor_id
-      ${where}
-      GROUP BY COALESCE(NULLIF(TRIM(t.responsavel), ''), 'Sem responsável')
-      ORDER BY abertas DESC, atrasadas DESC, total DESC
-      LIMIT 10
-    `, params);
-
-    const tarefasPorMes = await all(`
-      SELECT
-        to_char(date_trunc('month', t.criado_em), 'YYYY-MM') AS mes,
-        COUNT(*)::int AS criadas,
-        COUNT(*) FILTER (WHERE t.status = 'Feito')::int AS concluidas
-      FROM tarefas t
-      JOIN grupos g ON g.id = t.grupo_id
-      JOIN setores s ON s.id = g.setor_id
-      WHERE t.criado_em >= date_trunc('month', CURRENT_DATE) - ($1::int * INTERVAL '1 day')
-      ${setor_id ? 'AND s.id = $2' : ''}
-      GROUP BY date_trunc('month', t.criado_em)
-      ORDER BY date_trunc('month', t.criado_em)
-    `, setor_id ? [periodoDias, setor_id] : [periodoDias]);
-
-    const proximosPrazos = await all(`
-      SELECT t.id, t.titulo, t.responsavel, t.status, t.prioridade, t.prazo, s.nome AS setor, g.nome AS grupo
-      FROM tarefas t
-      JOIN grupos g ON g.id = t.grupo_id
-      JOIN setores s ON s.id = g.setor_id
-      ${where ? where + " AND" : "WHERE"} t.status <> 'Feito' AND t.prazo IS NOT NULL
-      ORDER BY t.prazo ASC, CASE t.prioridade WHEN 'Alta' THEN 1 WHEN 'Média' THEN 2 ELSE 3 END, t.id ASC
-      LIMIT 14
-    `, params);
-
-    const ultimasAtividades = await all(`
-      SELECT t.id, t.titulo, t.status, t.responsavel, t.atualizado_em, s.nome AS setor, g.nome AS grupo
-      FROM tarefas t
-      JOIN grupos g ON g.id = t.grupo_id
-      JOIN setores s ON s.id = g.setor_id
-      ${where}
-      ORDER BY t.atualizado_em DESC, t.id DESC
-      LIMIT 12
-    `, params);
-
-    const calendario = await all(`
-      SELECT t.id, t.titulo, t.responsavel, t.status, t.prioridade, t.prazo, s.nome AS setor
-      FROM tarefas t
-      JOIN grupos g ON g.id = t.grupo_id
-      JOIN setores s ON s.id = g.setor_id
-      WHERE t.prazo BETWEEN date_trunc('month', CURRENT_DATE)::date AND (date_trunc('month', CURRENT_DATE) + INTERVAL '1 month - 1 day')::date
-      ${setor_id ? 'AND s.id = $1' : ''}
-      ORDER BY t.prazo, t.prioridade DESC, t.id
-    `, setor_id ? [setor_id] : []);
-
-    const quickLists = await getQuickDashboardLists(setor_id || null);
-
-    res.json({
-      filtros: { setor_id: setor_id || '', responsavel: responsavel || '', periodo: periodoDias },
-      totalizadores: totalizadores || {},
-      porSetor,
-      porStatus,
-      porResponsavel,
-      tarefasPorMes,
-      proximosPrazos,
-      ultimasAtividades,
-      calendario,
-      quickLists
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao carregar dashboard.', details: err.message });
-  }
+    const acessoSql = isPrincipal(req)
+      ? 'TRUE'
+      : '(s.proprietario_id = $1 OR EXISTS (SELECT 1 FROM setor_compartilhamentos sc WHERE sc.setor_id=s.id AND sc.usuario_id=$1))';
+    const baseParams = isPrincipal(req) ? [] : [req.user.id];
+    let extra = '';
+    const params = [...baseParams];
+    if (setor_id) { params.push(setor_id); extra = ` AND s.id = $${params.length}`; }
+    const totalizadores = await get(`SELECT COUNT(t.*)::int total,
+      COUNT(t.*) FILTER(WHERE t.status<>'Feito')::int abertas,
+      COUNT(t.*) FILTER(WHERE t.status='Feito')::int concluidas,
+      COUNT(t.*) FILTER(WHERE t.status<>'Feito' AND t.prazo<CURRENT_DATE)::int atrasadas,
+      COUNT(t.*) FILTER(WHERE t.status<>'Feito' AND t.prazo=CURRENT_DATE)::int vencem_hoje,
+      COUNT(t.*) FILTER(WHERE t.status<>'Feito' AND t.prazo BETWEEN CURRENT_DATE AND CURRENT_DATE+INTERVAL '7 days')::int proximos_7_dias,
+      COUNT(t.*) FILTER(WHERE t.status='Feito' AND t.atualizado_em>=date_trunc('week',CURRENT_DATE))::int concluidas_semana,
+      COUNT(DISTINCT t.responsavel_id)::int responsaveis_ativos,
+      ROUND(CASE WHEN COUNT(t.*)=0 THEN 0 ELSE COUNT(t.*) FILTER(WHERE t.status='Feito')::numeric/COUNT(t.*)*100 END)::int taxa_conclusao
+      FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra}`, params);
+    const porSetor=await all(`SELECT s.id,s.nome,s.cor,COUNT(t.id)::int total,COUNT(t.id) FILTER(WHERE t.status<>'Feito')::int abertas,COUNT(t.id) FILTER(WHERE t.status='Feito')::int concluidas,COUNT(t.id) FILTER(WHERE t.status<>'Feito' AND t.prazo<CURRENT_DATE)::int atrasadas,ROUND(CASE WHEN COUNT(t.id)=0 THEN 0 ELSE COUNT(t.id) FILTER(WHERE t.status='Feito')::numeric/COUNT(t.id)*100 END)::int taxa_conclusao FROM setores s LEFT JOIN grupos g ON g.setor_id=s.id LEFT JOIN tarefas t ON t.grupo_id=g.id WHERE ${acessoSql}${extra} GROUP BY s.id ORDER BY abertas DESC,s.nome LIMIT 12`,params);
+    const porStatus=await all(`SELECT t.status,COUNT(*)::int total FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} GROUP BY t.status ORDER BY total DESC`,params);
+    const porResponsavel=await all(`SELECT COALESCE(NULLIF(TRIM(t.responsavel),''),'Sem responsável') responsavel,COUNT(*)::int total,COUNT(*) FILTER(WHERE t.status<>'Feito')::int abertas,COUNT(*) FILTER(WHERE t.status='Feito')::int concluidas,COUNT(*) FILTER(WHERE t.status<>'Feito' AND t.prazo<CURRENT_DATE)::int atrasadas,ROUND(CASE WHEN COUNT(*)=0 THEN 0 ELSE COUNT(*) FILTER(WHERE t.status='Feito')::numeric/COUNT(*)*100 END)::int taxa_conclusao FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} GROUP BY 1 ORDER BY abertas DESC LIMIT 10`,params);
+    const tarefasPorMes=await all(`SELECT to_char(date_trunc('month',t.criado_em),'YYYY-MM') mes,COUNT(*)::int criadas,COUNT(*) FILTER(WHERE t.status='Feito')::int concluidas FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} AND t.criado_em>=CURRENT_DATE-($${params.length+1}::int*INTERVAL '1 day') GROUP BY date_trunc('month',t.criado_em) ORDER BY 1`,[...params,periodoDias]);
+    const proximosPrazos=await all(`SELECT t.id,t.titulo,t.responsavel,t.status,t.prioridade,t.prazo,s.nome setor,g.nome grupo FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} AND t.status<>'Feito' AND t.prazo IS NOT NULL ORDER BY t.prazo LIMIT 14`,params);
+    const ultimasAtividades=await all(`SELECT t.id,t.titulo,t.status,t.responsavel,t.atualizado_em,s.nome setor,g.nome grupo FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} ORDER BY t.atualizado_em DESC LIMIT 12`,params);
+    const calendario=await all(`SELECT t.id,t.titulo,t.responsavel,t.status,t.prioridade,t.prazo,s.nome setor FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} AND t.prazo BETWEEN date_trunc('month',CURRENT_DATE)::date AND (date_trunc('month',CURRENT_DATE)+INTERVAL '1 month - 1 day')::date ORDER BY t.prazo`,params);
+    const quickBase=`FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} AND t.status<>'Feito'`;
+    const [atrasadas,hoje,semana,alta,semResponsavel]=await Promise.all([
+      all(`SELECT t.*,s.nome setor,g.nome grupo ${quickBase} AND t.prazo<CURRENT_DATE ORDER BY t.prazo LIMIT 30`,params),
+      all(`SELECT t.*,s.nome setor,g.nome grupo ${quickBase} AND t.prazo=CURRENT_DATE ORDER BY t.id LIMIT 30`,params),
+      all(`SELECT t.*,s.nome setor,g.nome grupo ${quickBase} AND t.prazo BETWEEN CURRENT_DATE AND CURRENT_DATE+INTERVAL '7 days' ORDER BY t.prazo LIMIT 30`,params),
+      all(`SELECT t.*,s.nome setor,g.nome grupo ${quickBase} AND t.prioridade='Alta' ORDER BY t.prazo NULLS LAST LIMIT 30`,params),
+      all(`SELECT t.*,s.nome setor,g.nome grupo ${quickBase} AND t.responsavel_id IS NULL ORDER BY t.prazo NULLS LAST LIMIT 30`,params)
+    ]);
+    res.json({filtros:{setor_id:setor_id||'',periodo:periodoDias},totalizadores:totalizadores||{},porSetor,porStatus,porResponsavel,tarefasPorMes,proximosPrazos,ultimasAtividades,calendario,quickLists:{atrasadas,hoje,semana,alta,semResponsavel}});
+  } catch(err){res.status(500).json({error:'Erro ao carregar dashboard.',details:err.message});}
 });
 
-async function getQuickDashboardLists(setorId = null) {
-  const setorFilter = setorId ? 'AND s.id = $1' : '';
-  const params = setorId ? [setorId] : [];
-  const base = `
-    SELECT t.id, t.titulo, t.responsavel, t.status, t.prioridade, t.prazo, s.nome AS setor, g.nome AS grupo
-    FROM tarefas t
-    JOIN grupos g ON g.id = t.grupo_id
-    LEFT JOIN usuarios u ON u.id = t.responsavel_id
-    JOIN setores s ON s.id = g.setor_id
-    WHERE t.status <> 'Feito' ${setorFilter}
-  `;
-
-  const [atrasadas, hoje, semana, alta, semResponsavel] = await Promise.all([
-    all(`${base} AND t.prazo IS NOT NULL AND t.prazo < CURRENT_DATE ORDER BY t.prazo ASC LIMIT 30`, params),
-    all(`${base} AND t.prazo = CURRENT_DATE ORDER BY t.prioridade DESC, t.id LIMIT 30`, params),
-    all(`${base} AND t.prazo BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days' ORDER BY t.prazo ASC LIMIT 30`, params),
-    all(`${base} AND t.prioridade = 'Alta' ORDER BY t.prazo ASC NULLS LAST LIMIT 30`, params),
-    all(`${base} AND NULLIF(TRIM(COALESCE(t.responsavel, '')), '') IS NULL ORDER BY t.prazo ASC NULLS LAST LIMIT 30`, params)
-  ]);
-
-  return { atrasadas, hoje, semana, alta, semResponsavel };
-}
-
-app.get('/api/setores', auth, async (req, res) => {
-  try {
-    const setores = await all('SELECT * FROM setores ORDER BY nome');
+app.get('/api/setores', auth, async (req,res)=>{
+  try{
+    const setores=await all(`SELECT s.*,u.nome AS proprietario_nome,
+      CASE WHEN s.proprietario_id=$1 THEN 'proprietario' ELSE sc.permissao END AS permissao
+      FROM setores s LEFT JOIN usuarios u ON u.id=s.proprietario_id
+      LEFT JOIN setor_compartilhamentos sc ON sc.setor_id=s.id AND sc.usuario_id=$1
+      WHERE $2::boolean=TRUE OR s.proprietario_id=$1 OR sc.usuario_id=$1 ORDER BY s.nome`,[req.user.id,isPrincipal(req)]);
     res.json(setores);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao listar setores.', details: err.message });
-  }
+  }catch(err){res.status(500).json({error:'Erro ao listar setores.',details:err.message});}
 });
 
-app.post('/api/setores', auth, async (req, res) => {
-  try {
-    const { nome, descricao, cor } = req.body;
+app.post('/api/setores',auth,async(req,res)=>{try{
+  if(!canCreateSector(req))return res.status(403).json({error:'Seu perfil não permite criar setores.'});
+  const {nome,descricao,cor}=req.body;if(!nome)return res.status(400).json({error:'Nome do setor é obrigatório.'});
+  const setor=await get('INSERT INTO setores(nome,descricao,cor,proprietario_id) VALUES($1,$2,$3,$4) RETURNING *',[nome,descricao||'',cor||'#2563eb',req.user.id]);
+  await query('INSERT INTO grupos(setor_id,nome,cor,ordem) VALUES($1,$2,$3,1)',[setor.id,'Prioridades da semana','#2563eb']);
+  res.status(201).json({...setor,permissao:'proprietario'});
+}catch(err){res.status(500).json({error:'Erro ao criar setor.',details:err.message});}});
 
-    if (!nome) {
-      return res.status(400).json({ error: 'Nome do setor é obrigatório.' });
-    }
+app.put('/api/setores/:id',auth,async(req,res)=>{try{
+  if(!await exigirAcessoSetor(req,res,req.params.id,'gerenciar'))return;
+  const {nome,descricao,cor}=req.body;const setor=await get('UPDATE setores SET nome=$1,descricao=$2,cor=$3 WHERE id=$4 RETURNING *',[nome,descricao||'',cor||'#2563eb',req.params.id]);res.json(setor);
+}catch(err){res.status(500).json({error:'Erro ao atualizar setor.',details:err.message});}});
 
-    const setor = await get(
-      'INSERT INTO setores (nome, descricao, cor) VALUES ($1, $2, $3) RETURNING *',
-      [nome, descricao || '', cor || '#2563eb']
-    );
+app.delete('/api/setores/:id',auth,async(req,res)=>{try{
+  const setor=await get('SELECT * FROM setores WHERE id=$1',[req.params.id]);
+  if(!setor)return res.status(404).json({error:'Setor não encontrado.'});
+  if(!isPrincipal(req)&&String(setor.proprietario_id)!==String(req.user.id))return res.status(403).json({error:'Somente o proprietário pode excluir o setor.'});
+  await query('DELETE FROM setores WHERE id=$1',[req.params.id]);res.json({ok:true});
+}catch(err){res.status(500).json({error:'Erro ao excluir setor.',details:err.message});}});
 
-    await query(
-      'INSERT INTO grupos (setor_id, nome, cor, ordem) VALUES ($1, $2, $3, $4)',
-      [setor.id, 'Prioridades da semana', '#2563eb', 1]
-    );
+app.get('/api/setores/:id/quadro',auth,async(req,res)=>{try{
+  const acesso=await exigirAcessoSetor(req,res,req.params.id,'visualizar');if(!acesso)return;
+  const setor=await get('SELECT s.*,u.nome proprietario_nome FROM setores s LEFT JOIN usuarios u ON u.id=s.proprietario_id WHERE s.id=$1',[req.params.id]);
+  const grupos=await all('SELECT * FROM grupos WHERE setor_id=$1 ORDER BY ordem,id',[req.params.id]);
+  for(const grupo of grupos){grupo.tarefas=await all(`SELECT t.*,COALESCE(u.nome,NULLIF(TRIM(t.responsavel),''),'Sem responsável') responsavel_nome FROM tarefas t LEFT JOIN usuarios u ON u.id=t.responsavel_id WHERE t.grupo_id=$1 ORDER BY t.ordem,t.id`,[grupo.id]);}
+  res.json({setor:{...setor,permissao:acesso.permissao},grupos});
+}catch(err){res.status(500).json({error:'Erro ao carregar quadro.',details:err.message});}});
 
-    res.status(201).json(setor);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao criar setor.', details: err.message });
-  }
-});
+app.get('/api/setores/:id/compartilhamentos',auth,async(req,res)=>{try{
+  const acesso=await exigirAcessoSetor(req,res,req.params.id,'gerenciar');if(!acesso)return;
+  const itens=await all(`SELECT sc.usuario_id,sc.permissao,u.nome,u.email,u.perfil FROM setor_compartilhamentos sc JOIN usuarios u ON u.id=sc.usuario_id WHERE sc.setor_id=$1 ORDER BY u.nome`,[req.params.id]);res.json(itens);
+}catch(err){res.status(500).json({error:'Erro ao listar compartilhamentos.',details:err.message});}});
 
-app.put('/api/setores/:id', auth, async (req, res) => {
-  try {
-    const { nome, descricao, cor } = req.body;
+app.put('/api/setores/:id/compartilhamentos',auth,async(req,res)=>{try{
+  const acesso=await exigirAcessoSetor(req,res,req.params.id,'gerenciar');if(!acesso)return;
+  const {usuario_id,permissao}=req.body;if(!PERMISSAO_NIVEL[permissao]||permissao==='proprietario')return res.status(400).json({error:'Permissão inválida.'});
+  const usuarioId=cleanId(usuario_id);if(!usuarioId)return res.status(400).json({error:'Usuário inválido.'});
+  const usuario=await get('SELECT id,ativo FROM usuarios WHERE id=$1',[usuarioId]);if(!usuario||!usuario.ativo)return res.status(400).json({error:'O usuário selecionado não existe ou está inativo.'});
+  const setor=await get('SELECT proprietario_id FROM setores WHERE id=$1',[req.params.id]);if(!setor)return res.status(404).json({error:'Setor não encontrado.'});
+  if(String(setor.proprietario_id)===String(usuarioId))return res.status(400).json({error:'O proprietário já possui acesso total.'});
+  await query(`INSERT INTO setor_compartilhamentos(setor_id,usuario_id,permissao,criado_por) VALUES($1,$2,$3,$4) ON CONFLICT(setor_id,usuario_id) DO UPDATE SET permissao=EXCLUDED.permissao,criado_por=EXCLUDED.criado_por,atualizado_em=CURRENT_TIMESTAMP`,[req.params.id,usuarioId,permissao,req.user.id]);res.json({ok:true});
+}catch(err){res.status(500).json({error:'Erro ao compartilhar setor.',details:err.message});}});
 
-    const setor = await get(
-      'UPDATE setores SET nome = $1, descricao = $2, cor = $3 WHERE id = $4 RETURNING *',
-      [nome, descricao || '', cor || '#2563eb', req.params.id]
-    );
+app.delete('/api/setores/:id/compartilhamentos/:usuarioId',auth,async(req,res)=>{try{if(!await exigirAcessoSetor(req,res,req.params.id,'gerenciar'))return;await query('DELETE FROM setor_compartilhamentos WHERE setor_id=$1 AND usuario_id=$2',[req.params.id,req.params.usuarioId]);res.json({ok:true});}catch(err){res.status(500).json({error:'Erro ao remover acesso.',details:err.message});}});
 
-    res.json(setor);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao atualizar setor.', details: err.message });
-  }
-});
+app.get('/api/admin/setores',auth,async(req,res)=>{try{if(!isPrincipal(req))return res.status(403).json({error:'Acesso exclusivo do Administrador Principal.'});const itens=await all(`SELECT s.*,u.nome proprietario_nome,(SELECT COUNT(*)::int FROM setor_compartilhamentos sc WHERE sc.setor_id=s.id) compartilhados FROM setores s LEFT JOIN usuarios u ON u.id=s.proprietario_id ORDER BY s.nome`);res.json(itens);}catch(err){res.status(500).json({error:'Erro ao listar setores administrativos.',details:err.message});}});
+app.put('/api/admin/setores/:id/proprietario',auth,async(req,res)=>{try{if(!isPrincipal(req))return res.status(403).json({error:'Acesso exclusivo do Administrador Principal.'});const {usuario_id}=req.body;const u=await get('SELECT id FROM usuarios WHERE id=$1 AND ativo=TRUE',[usuario_id]);if(!u)return res.status(400).json({error:'Usuário inválido.'});await query('UPDATE setores SET proprietario_id=$1 WHERE id=$2',[usuario_id,req.params.id]);await query('DELETE FROM setor_compartilhamentos WHERE setor_id=$1 AND usuario_id=$2',[req.params.id,usuario_id]);res.json({ok:true});}catch(err){res.status(500).json({error:'Erro ao transferir propriedade.',details:err.message});}});
 
-app.delete('/api/setores/:id', auth, async (req, res) => {
-  try {
-    await query('DELETE FROM setores WHERE id = $1', [req.params.id]);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao excluir setor.', details: err.message });
-  }
-});
+app.post('/api/grupos',auth,async(req,res)=>{try{const{setor_id,nome,cor}=req.body;if(!setor_id||!nome)return res.status(400).json({error:'Setor e nome são obrigatórios.'});if(!await exigirAcessoSetor(req,res,setor_id,'gerenciar'))return;const ordem=await getNextOrder('grupos','setor_id',setor_id);const grupo=await get('INSERT INTO grupos(setor_id,nome,cor,ordem) VALUES($1,$2,$3,$4) RETURNING *',[setor_id,nome,cor||'#2563eb',ordem]);res.status(201).json(grupo);}catch(err){res.status(500).json({error:'Erro ao criar grupo.',details:err.message});}});
+app.put('/api/grupos/:id',auth,async(req,res)=>{try{const sid=await setorIdPorGrupo(req.params.id);if(!sid||!await exigirAcessoSetor(req,res,sid,'gerenciar'))return;const{nome,cor}=req.body;res.json(await get('UPDATE grupos SET nome=$1,cor=$2 WHERE id=$3 RETURNING *',[nome,cor||'#2563eb',req.params.id]));}catch(err){res.status(500).json({error:'Erro ao atualizar grupo.',details:err.message});}});
+app.delete('/api/grupos/:id',auth,async(req,res)=>{try{const sid=await setorIdPorGrupo(req.params.id);if(!sid||!await exigirAcessoSetor(req,res,sid,'gerenciar'))return;await query('DELETE FROM grupos WHERE id=$1',[req.params.id]);res.json({ok:true});}catch(err){res.status(500).json({error:'Erro ao excluir grupo.',details:err.message});}});
 
-app.get('/api/setores/:id/quadro', auth, async (req, res) => {
-  try {
-    const setor = await get('SELECT * FROM setores WHERE id = $1', [req.params.id]);
-
-    if (!setor) {
-      return res.status(404).json({ error: 'Setor não encontrado.' });
-    }
-
-    const grupos = await all(
-      'SELECT * FROM grupos WHERE setor_id = $1 ORDER BY ordem, id',
-      [req.params.id]
-    );
-
-    for (const grupo of grupos) {
-      grupo.tarefas = await all(
-        `SELECT t.*, COALESCE(u.nome, NULLIF(TRIM(t.responsavel), ''), 'Sem responsável') AS responsavel_nome
-         FROM tarefas t
-         LEFT JOIN usuarios u ON u.id = t.responsavel_id
-         WHERE t.grupo_id = $1
-         ORDER BY t.ordem, t.id`,
-        [grupo.id]
-      );
-    }
-
-    res.json({ setor, grupos });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao carregar quadro.', details: err.message });
-  }
-});
-
-app.post('/api/grupos', auth, async (req, res) => {
-  try {
-    const { setor_id, nome, cor } = req.body;
-
-    if (!setor_id || !nome) {
-      return res.status(400).json({ error: 'Setor e nome são obrigatórios.' });
-    }
-
-    const ordem = await getNextOrder('grupos', 'setor_id', setor_id);
-
-    const grupo = await get(
-      'INSERT INTO grupos (setor_id, nome, cor, ordem) VALUES ($1, $2, $3, $4) RETURNING *',
-      [setor_id, nome, cor || '#2563eb', ordem]
-    );
-
-    res.status(201).json(grupo);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao criar grupo.', details: err.message });
-  }
-});
-
-app.put('/api/grupos/:id', auth, async (req, res) => {
-  try {
-    const { nome, cor } = req.body;
-
-    const grupo = await get(
-      'UPDATE grupos SET nome = $1, cor = $2 WHERE id = $3 RETURNING *',
-      [nome, cor || '#2563eb', req.params.id]
-    );
-
-    res.json(grupo);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao atualizar grupo.', details: err.message });
-  }
-});
-
-app.delete('/api/grupos/:id', auth, async (req, res) => {
-  try {
-    await query('DELETE FROM grupos WHERE id = $1', [req.params.id]);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao excluir grupo.', details: err.message });
-  }
-});
-
-app.post('/api/tarefas', auth, async (req, res) => {
-  try {
-    const {
-      grupo_id,
-      titulo,
-      responsavel_id,
-      responsavel,
-      status,
-      prioridade,
-      prazo,
-      cronograma_inicio,
-      cronograma_fim,
-      observacoes
-    } = req.body;
-
-    if (!grupo_id || !titulo) {
-      return res.status(400).json({ error: 'Grupo e título são obrigatórios.' });
-    }
-
-    const respId = cleanId(responsavel_id);
-    const respNome = respId ? await getUserNameById(respId) : (responsavel || '');
-    const ordem = await getNextOrder('tarefas', 'grupo_id', grupo_id);
-
-    const tarefa = await get(
-      `INSERT INTO tarefas
-      (
-        grupo_id,
-        titulo,
-        responsavel,
-        responsavel_id,
-        status,
-        prioridade,
-        prazo,
-        cronograma_inicio,
-        cronograma_fim,
-        observacoes,
-        ordem
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING *`,
-      [
-        grupo_id,
-        titulo,
-        respNome || '',
-        respId,
-        status || 'Não iniciado',
-        prioridade || 'Média',
-        cleanDate(prazo),
-        cleanDate(cronograma_inicio),
-        cleanDate(cronograma_fim),
-        observacoes || '',
-        ordem
-      ]
-    );
-
-    res.status(201).json(tarefa);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao criar tarefa.', details: err.message });
-  }
-});
-
-app.put('/api/tarefas/:id', auth, async (req, res) => {
-  try {
-    const {
-      grupo_id,
-      titulo,
-      responsavel_id,
-      responsavel,
-      status,
-      prioridade,
-      prazo,
-      cronograma_inicio,
-      cronograma_fim,
-      observacoes
-    } = req.body;
-
-    const respId = cleanId(responsavel_id);
-    const respNome = respId ? await getUserNameById(respId) : (responsavel || '');
-
-    const tarefa = await get(
-      `UPDATE tarefas SET
-        grupo_id = $1,
-        titulo = $2,
-        responsavel = $3,
-        responsavel_id = $4,
-        status = $5,
-        prioridade = $6,
-        prazo = $7,
-        cronograma_inicio = $8,
-        cronograma_fim = $9,
-        observacoes = $10,
-        atualizado_em = CURRENT_TIMESTAMP
-      WHERE id = $11
-      RETURNING *`,
-      [
-        grupo_id,
-        titulo,
-        respNome || '',
-        respId,
-        status || 'Não iniciado',
-        prioridade || 'Média',
-        cleanDate(prazo),
-        cleanDate(cronograma_inicio),
-        cleanDate(cronograma_fim),
-        observacoes || '',
-        req.params.id
-      ]
-    );
-
-    res.json(tarefa);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao atualizar tarefa.', details: err.message });
-  }
-});
-
-app.delete('/api/tarefas/:id', auth, async (req, res) => {
-  try {
-    await query('DELETE FROM tarefas WHERE id = $1', [req.params.id]);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao excluir tarefa.', details: err.message });
-  }
-});
-
-app.get('/api/tarefas/:id/comentarios', auth, async (req, res) => {
-  try {
-    const comentarios = await all(
-      `SELECT c.*, u.nome AS usuario_nome
-       FROM comentarios c
-       LEFT JOIN usuarios u ON u.id = c.usuario_id
-       WHERE tarefa_id = $1
-       ORDER BY c.id DESC`,
-      [req.params.id]
-    );
-
-    res.json(comentarios);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao listar comentários.', details: err.message });
-  }
-});
-
-app.post('/api/tarefas/:id/comentarios', auth, async (req, res) => {
-  try {
-    const { comentario } = req.body;
-
-    if (!comentario) {
-      return res.status(400).json({ error: 'Comentário obrigatório.' });
-    }
-
-    const novo = await get(
-      'INSERT INTO comentarios (tarefa_id, usuario_id, comentario) VALUES ($1, $2, $3) RETURNING *',
-      [req.params.id, req.user.id, comentario]
-    );
-
-    res.status(201).json(novo);
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao criar comentário.', details: err.message });
-  }
-});
-
+app.post('/api/tarefas',auth,async(req,res)=>{try{const{grupo_id,titulo,responsavel_id,responsavel,status,prioridade,prazo,cronograma_inicio,cronograma_fim,observacoes}=req.body;if(!grupo_id||!titulo)return res.status(400).json({error:'Grupo e título são obrigatórios.'});const sid=await setorIdPorGrupo(grupo_id);if(!sid||!await exigirAcessoSetor(req,res,sid,'criar'))return;const respId=cleanId(responsavel_id),respNome=respId?await getUserNameById(respId):(responsavel||''),ordem=await getNextOrder('tarefas','grupo_id',grupo_id);const tarefa=await get(`INSERT INTO tarefas(grupo_id,titulo,responsavel,responsavel_id,status,prioridade,prazo,cronograma_inicio,cronograma_fim,observacoes,ordem,criado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,[grupo_id,titulo,respNome||'',respId,status||'Não iniciado',prioridade||'Média',cleanDate(prazo),cleanDate(cronograma_inicio),cleanDate(cronograma_fim),observacoes||'',ordem,req.user.id]);res.status(201).json(tarefa);}catch(err){res.status(500).json({error:'Erro ao criar tarefa.',details:err.message});}});
+app.put('/api/tarefas/:id',auth,async(req,res)=>{try{const antiga=await get('SELECT t.*,g.setor_id FROM tarefas t JOIN grupos g ON g.id=t.grupo_id WHERE t.id=$1',[req.params.id]);if(!antiga)return res.status(404).json({error:'Tarefa não encontrada.'});const acesso=await exigirAcessoSetor(req,res,antiga.setor_id,'visualizar');if(!acesso)return;const podeEditar=PERMISSAO_NIVEL[acesso.permissao]>=PERMISSAO_NIVEL.editar||(acesso.permissao==='criar'&&String(antiga.criado_por)===String(req.user.id));if(!podeEditar)return res.status(403).json({error:'Você pode editar apenas tarefas criadas por você.'});const{grupo_id,titulo,responsavel_id,responsavel,status,prioridade,prazo,cronograma_inicio,cronograma_fim,observacoes}=req.body;const novoGrupoId=cleanId(grupo_id);if(!novoGrupoId)return res.status(400).json({error:'Grupo inválido.'});const novoSetorId=await setorIdPorGrupo(novoGrupoId);if(!novoSetorId)return res.status(400).json({error:'Grupo não encontrado.'});if(String(novoSetorId)!==String(antiga.setor_id))return res.status(403).json({error:'Não é permitido mover a tarefa para outro setor por esta operação.'});const respId=cleanId(responsavel_id),respNome=respId?await getUserNameById(respId):(responsavel||'');const tarefa=await get(`UPDATE tarefas SET grupo_id=$1,titulo=$2,responsavel=$3,responsavel_id=$4,status=$5,prioridade=$6,prazo=$7,cronograma_inicio=$8,cronograma_fim=$9,observacoes=$10,atualizado_em=CURRENT_TIMESTAMP WHERE id=$11 RETURNING *`,[novoGrupoId,titulo,respNome||'',respId,status||'Não iniciado',prioridade||'Média',cleanDate(prazo),cleanDate(cronograma_inicio),cleanDate(cronograma_fim),observacoes||'',req.params.id]);res.json(tarefa);}catch(err){res.status(500).json({error:'Erro ao atualizar tarefa.',details:err.message});}});
+app.delete('/api/tarefas/:id',auth,async(req,res)=>{try{const t=await get('SELECT t.criado_por,g.setor_id FROM tarefas t JOIN grupos g ON g.id=t.grupo_id WHERE t.id=$1',[req.params.id]);if(!t)return res.status(404).json({error:'Tarefa não encontrada.'});const acesso=await exigirAcessoSetor(req,res,t.setor_id,'visualizar');if(!acesso)return;const pode=PERMISSAO_NIVEL[acesso.permissao]>=PERMISSAO_NIVEL.gerenciar||(acesso.permissao==='criar'&&String(t.criado_por)===String(req.user.id));if(!pode)return res.status(403).json({error:'Sem permissão para excluir esta tarefa.'});await query('DELETE FROM tarefas WHERE id=$1',[req.params.id]);res.json({ok:true});}catch(err){res.status(500).json({error:'Erro ao excluir tarefa.',details:err.message});}});
+app.get('/api/tarefas/:id/comentarios',auth,async(req,res)=>{try{const sid=await setorIdPorTarefa(req.params.id);if(!sid||!await exigirAcessoSetor(req,res,sid,'visualizar'))return;res.json(await all(`SELECT c.*,u.nome usuario_nome FROM comentarios c LEFT JOIN usuarios u ON u.id=c.usuario_id WHERE tarefa_id=$1 ORDER BY c.id DESC`,[req.params.id]));}catch(err){res.status(500).json({error:'Erro ao listar comentários.',details:err.message});}});
+app.post('/api/tarefas/:id/comentarios',auth,async(req,res)=>{try{const sid=await setorIdPorTarefa(req.params.id);if(!sid||!await exigirAcessoSetor(req,res,sid,'criar'))return;const{comentario}=req.body;if(!comentario)return res.status(400).json({error:'Comentário obrigatório.'});res.status(201).json(await get('INSERT INTO comentarios(tarefa_id,usuario_id,comentario) VALUES($1,$2,$3) RETURNING *',[req.params.id,req.user.id,comentario]));}catch(err){res.status(500).json({error:'Erro ao criar comentário.',details:err.message});}});
 
 function brDate(value) {
   if (!value) return '-';
@@ -1389,6 +1050,8 @@ function renderSectorPdfV22(doc, setor, grupos, allTasks, req, options = {}) {
 
 app.get('/api/grupos/:id/relatorio-pdf', authPdf, async (req, res) => {
   try {
+    const sid = await setorIdPorGrupo(req.params.id);
+    if (!sid || !await exigirAcessoSetor(req, res, sid, 'visualizar')) return;
     const { periodo = 'todos', status = '', busca = '', responsavel = '' } = req.query;
     const grupo = await get(`
       SELECT g.*, s.nome AS setor_nome, s.descricao AS setor_descricao, s.cor AS setor_cor
@@ -1412,6 +1075,7 @@ app.get('/api/grupos/:id/relatorio-pdf', authPdf, async (req, res) => {
 
 app.get('/api/setores/:id/relatorio-pdf', authPdf, async (req, res) => {
   try {
+    if (!await exigirAcessoSetor(req, res, req.params.id, 'visualizar')) return;
     const { periodo = 'todos', status = '', busca = '', responsavel = '' } = req.query;
     const setor = await get('SELECT * FROM setores WHERE id = $1', [req.params.id]);
     if (!setor) return res.status(404).send('Setor não encontrado.');
@@ -1463,7 +1127,7 @@ function osOpenFilter(alias = 'o') {
   return `${alias}.status NOT IN ('Concluído', 'Cancelado')`;
 }
 
-app.get('/api/os/dashboard', auth, async (req, res) => {
+app.get('/api/os/dashboard', auth, requireManager, async (req, res) => {
   try {
     const { busca = '', status = '', prioridade = '', responsavel = '', periodo = '30' } = req.query;
     const params = [];
@@ -1534,7 +1198,7 @@ app.get('/api/os/dashboard', auth, async (req, res) => {
   }
 });
 
-app.post('/api/os', auth, async (req, res) => {
+app.post('/api/os', auth, requireManager, async (req, res) => {
   try {
     const {
       titulo, descricao, solicitante, setor_local, categoria, prioridade, impacto, status,
@@ -1570,7 +1234,7 @@ app.post('/api/os', auth, async (req, res) => {
 });
 
 
-app.put('/api/os/:id', auth, async (req, res) => {
+app.put('/api/os/:id', auth, requireManager, async (req, res) => {
   try {
     const {
       titulo,
@@ -1657,7 +1321,7 @@ app.put('/api/os/:id', auth, async (req, res) => {
 });
 
 
-app.patch('/api/os/:id/status', auth, async (req, res) => {
+app.patch('/api/os/:id/status', auth, requireManager, async (req, res) => {
   try {
     const { status } = req.body;
 
@@ -1722,7 +1386,7 @@ app.patch('/api/os/:id/status', auth, async (req, res) => {
   }
 });
 
-app.delete('/api/os/:id', auth, async (req, res) => {
+app.delete('/api/os/:id', auth, requireManager, async (req, res) => {
   try {
     await query('DELETE FROM ordens_servico WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
@@ -1732,7 +1396,7 @@ app.delete('/api/os/:id', auth, async (req, res) => {
 });
 
 
-app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
+app.get('/api/os/relatorio-andamento-pdf', authPdf, requireManagerPdf, async (req, res) => {
   try {
     const { range = 'all', busca = '', prioridade = '', responsavel = '' } = req.query;
 
@@ -2502,7 +2166,7 @@ app.get('/api/os/relatorio-andamento-pdf', authPdf, async (req, res) => {
   }
 });
 
-app.get('/api/os/relatorio-pdf', authPdf, async (req, res) => {
+app.get('/api/os/relatorio-pdf', authPdf, requireManagerPdf, async (req, res) => {
   try {
     const itens = await all(`
       SELECT o.*, u.nome AS responsavel_nome

@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   nome VARCHAR(120) NOT NULL,
   email VARCHAR(120) UNIQUE NOT NULL,
   senha_hash VARCHAR(255) NOT NULL,
-  perfil VARCHAR(30) DEFAULT 'gerente',
+  perfil VARCHAR(30) DEFAULT 'colaborador',
   setor_id INTEGER,
   pode_receber_tarefas BOOLEAN DEFAULT TRUE,
   pode_receber_os BOOLEAN DEFAULT FALSE,
@@ -108,3 +108,76 @@ ADD COLUMN IF NOT EXISTS local_exato TEXT DEFAULT '';
 CREATE INDEX IF NOT EXISTS idx_usuarios_setor ON usuarios(setor_id);
 CREATE INDEX IF NOT EXISTS idx_tarefas_responsavel_id ON tarefas(responsavel_id);
 CREATE INDEX IF NOT EXISTS idx_os_responsavel_principal_id ON ordens_servico(responsavel_principal_id);
+
+
+-- Migrações V11 - hierarquia, propriedade e compartilhamento de setores
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS administrador_principal BOOLEAN DEFAULT FALSE;
+ALTER TABLE setores ADD COLUMN IF NOT EXISTS proprietario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS setor_compartilhamentos (
+  id SERIAL PRIMARY KEY,
+  setor_id INTEGER NOT NULL REFERENCES setores(id) ON DELETE CASCADE,
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  permissao VARCHAR(30) NOT NULL DEFAULT 'visualizar',
+  criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(setor_id, usuario_id),
+  CONSTRAINT chk_setor_permissao CHECK (permissao IN ('visualizar','criar','editar','gerenciar'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_setores_proprietario ON setores(proprietario_id);
+CREATE INDEX IF NOT EXISTS idx_setor_comp_usuario ON setor_compartilhamentos(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_setor_comp_setor ON setor_compartilhamentos(setor_id);
+CREATE INDEX IF NOT EXISTS idx_tarefas_criado_por ON tarefas(criado_por);
+
+-- Normaliza perfis antigos.
+UPDATE usuarios SET perfil = 'administrador' WHERE LOWER(perfil) = 'admin';
+
+-- Garante um administrador principal quando o banco ainda não possui um.
+-- Dá preferência ao antigo administrador padrão e, depois, ao administrador mais antigo.
+UPDATE usuarios
+SET administrador_principal = TRUE,
+    perfil = 'administrador_principal'
+WHERE id = COALESCE(
+  (SELECT id FROM usuarios WHERE LOWER(email) = 'admin@manaira.com' AND ativo = TRUE ORDER BY id LIMIT 1),
+  (SELECT id FROM usuarios WHERE perfil = 'administrador' AND ativo = TRUE ORDER BY criado_em ASC, id ASC LIMIT 1),
+  (SELECT id FROM usuarios WHERE ativo = TRUE ORDER BY criado_em ASC, id ASC LIMIT 1)
+)
+AND NOT EXISTS (SELECT 1 FROM usuarios WHERE administrador_principal = TRUE);
+
+UPDATE usuarios SET perfil = 'administrador_principal' WHERE administrador_principal = TRUE;
+
+-- Setores antigos passam inicialmente ao administrador principal.
+UPDATE setores
+SET proprietario_id = (SELECT id FROM usuarios WHERE administrador_principal = TRUE ORDER BY id LIMIT 1)
+WHERE proprietario_id IS NULL;
+
+-- Tarefas antigas recebem como criador o proprietário atual do setor.
+UPDATE tarefas t
+SET criado_por = s.proprietario_id
+FROM grupos g
+JOIN setores s ON s.id = g.setor_id
+WHERE t.grupo_id = g.id AND t.criado_por IS NULL;
+
+
+-- Reforços de integridade V11.1
+ALTER TABLE usuarios ALTER COLUMN perfil SET DEFAULT 'colaborador';
+
+-- Mantém somente um Administrador Principal caso uma migração antiga tenha duplicado a marcação.
+WITH principal_mantido AS (
+  SELECT id FROM usuarios
+  WHERE administrador_principal = TRUE
+  ORDER BY CASE WHEN perfil = 'administrador_principal' THEN 0 ELSE 1 END, id
+  LIMIT 1
+)
+UPDATE usuarios
+SET administrador_principal = FALSE,
+    perfil = CASE WHEN perfil = 'administrador_principal' THEN 'administrador' ELSE perfil END
+WHERE administrador_principal = TRUE
+  AND id <> COALESCE((SELECT id FROM principal_mantido), -1);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_admin_principal_unico
+ON usuarios (administrador_principal)
+WHERE administrador_principal = TRUE;

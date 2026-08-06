@@ -19,7 +19,8 @@ const state = {
   osFilters: { busca: '', status: '', prioridade: '', responsavel: '', periodo: '30' },
   cache: { dashboard: new Map(), quadros: new Map() },
   pending: { dashboard: null, setor: null },
-  renderTimer: null
+  renderTimer: null,
+  configTab: 'usuarios'
 };
 
 const CACHE_TTL = 60 * 1000;
@@ -95,14 +96,14 @@ function showLogin() {
 
 function configurarMenuPorPerfil() {
   const perfil = String(state.usuario?.perfil || '').toLowerCase();
-  const isManager = ['admin', 'gerente'].includes(perfil);
-  const isWorker = ['colaborador', 'encarregado'].includes(perfil);
+  const isManager = ['administrador_principal','administrador','gerente','encarregado'].includes(perfil);
+  const isWorker = ['colaborador'].includes(perfil);
 
-  $('btnDashboard')?.classList.toggle('hidden', !isManager);
+  $('btnDashboard')?.classList.remove('hidden');
   $('btnOS')?.classList.toggle('hidden', !isManager);
   $('btnConfig')?.classList.toggle('hidden', !isManager);
   $('btnNovoSetor')?.classList.toggle('hidden', !isManager);
-  $('setoresList')?.classList.toggle('hidden', !isManager);
+  $('setoresList')?.classList.remove('hidden');
 
   // Colaborador e encarregado começam na própria área.
   // Gerente/admin continuam na visão executiva.
@@ -205,14 +206,8 @@ async function init() {
     state.cache.quadros.clear();
     await carregarSetores(false);
     const perfilAtual = String(state.usuario?.perfil || '').toLowerCase();
-    if (['admin', 'gerente'].includes(perfilAtual)) {
-      state.usuarios = await carregarUsuarios();
-    }
-    if (['colaborador', 'encarregado'].includes(perfilAtual)) {
-      await abrirMinhas();
-    } else {
-      await abrirDashboard(true);
-    }
+    state.usuarios = await carregarUsuarios();
+    await abrirDashboard(true);
   } catch {
     localStorage.removeItem('mb_token');
     state.token = null;
@@ -251,7 +246,8 @@ function usuarioOptions(tipo = 'tarefas', selectedId = '') {
 
 function perfilLabel(perfil) {
   return {
-    admin: 'Administrador',
+    administrador_principal: 'Administrador Principal',
+    administrador: 'Administrador',
     gerente: 'Gerente',
     encarregado: 'Encarregado',
     colaborador: 'Colaborador'
@@ -308,6 +304,7 @@ async function abrirSetor(id, force = false) {
     setView('board');
     $('setorTitulo').textContent = state.setorAtual.nome;
     $('setorDescricao').textContent = state.setorAtual.descricao || 'Quadro de tarefas do setor.';
+    atualizarAcoesSetor();
     renderSetores();
     scheduleRender(renderBoard);
     return;
@@ -325,6 +322,7 @@ async function abrirSetor(id, force = false) {
     setView('board');
     $('setorTitulo').textContent = state.setorAtual.nome;
     $('setorDescricao').textContent = state.setorAtual.descricao || 'Quadro de tarefas do setor.';
+    atualizarAcoesSetor();
     renderSetores();
     scheduleRender(renderBoard);
   } finally {
@@ -533,6 +531,11 @@ function renderBoard() {
 
   if (!state.quadro) return;
 
+  const acessoNivel = permissaoNivel(state.quadro?.setor?.permissao);
+  const podeCriar = acessoNivel >= 2;
+  const podeEditarEstrutura = acessoNivel >= 4;
+  const podeGerenciar = acessoNivel >= 4;
+
   state.quadro.grupos.forEach(grupo => {
     const tarefas = grupo.tarefas.filter(t => {
       const matchBusca = !busca || [t.titulo, t.responsavel, t.observacoes].join(' ').toLowerCase().includes(busca);
@@ -552,9 +555,9 @@ function renderBoard() {
         </div>
         <div class="group-actions">
           <button onclick="imprimirGrupoPdf(${grupo.id})">📄 PDF do grupo</button>
-          <button onclick="editarGrupo(${grupo.id})">Editar grupo</button>
-          <button onclick="excluirGrupo(${grupo.id})">Excluir grupo</button>
-          <button class="primary" onclick="novaTarefa(${grupo.id})">+ Tarefa</button>
+          ${podeEditarEstrutura ? `<button onclick="editarGrupo(${grupo.id})">Editar grupo</button>` : ''}
+          ${podeGerenciar ? `<button onclick="excluirGrupo(${grupo.id})">Excluir grupo</button>` : ''}
+          ${podeCriar ? `<button class="primary" onclick="novaTarefa(${grupo.id})">+ Tarefa</button>` : ''}
         </div>
       </div>
       <table>
@@ -582,15 +585,15 @@ function renderBoard() {
               <td>${escapeHtml(t.observacoes || '')}</td>
               <td>
                 <div class="task-actions">
-                  <button title="Editar" onclick="editarTarefa(${t.id})">✏️</button>
-                  <button title="Excluir" class="danger" onclick="excluirTarefa(${t.id})">🗑️</button>
+                  ${(acessoNivel >= 3 || (acessoNivel >= 2 && String(t.criado_por) === String(state.usuario?.id))) ? `<button title="Editar" onclick="editarTarefa(${t.id})">✏️</button>` : ''}
+                  ${(acessoNivel >= 4 || (acessoNivel >= 2 && String(t.criado_por) === String(state.usuario?.id))) ? `<button title="Excluir" class="danger" onclick="excluirTarefa(${t.id})">🗑️</button>` : ''}
                 </div>
               </td>
             </tr>
           `).join('') : '<tr><td colspan="8" class="empty">Nenhuma tarefa cadastrada neste grupo.</td></tr>'}
         </tbody>
       </table>
-      <button class="add-task-line" onclick="novaTarefa(${grupo.id})">+ Adicionar tarefa</button>
+      ${podeCriar ? `<button class="add-task-line" onclick="novaTarefa(${grupo.id})">+ Adicionar tarefa</button>` : ''}
     `;
     board.appendChild(div);
   });
@@ -604,6 +607,27 @@ function openModal(title, body) {
 
 function closeModal() {
   $('modal').classList.add('hidden');
+}
+
+function permissaoNivel(p) { return ({visualizar:1,criar:2,editar:3,gerenciar:4,proprietario:5})[p] || 0; }
+function atualizarAcoesSetor() {
+  const p=state.setorAtual?.permissao || '';
+  const share=$('btnCompartilharSetor');
+  if(share) share.classList.toggle('hidden', permissaoNivel(p)<4);
+  $('btnExcluirSetor')?.classList.toggle('hidden', p!=='proprietario' && state.usuario?.perfil!=='administrador_principal');
+  $('btnNovoGrupo')?.classList.toggle('hidden', permissaoNivel(p)<4);
+  $('btnNovaTarefa')?.classList.toggle('hidden', permissaoNivel(p)<2);
+}
+
+async function compartilharSetor() {
+  if(!state.setorAtual) return;
+  state.usuarios = await carregarUsuarios('');
+  const atuais = await api(`/api/setores/${state.setorAtual.id}/compartilhamentos`);
+  const map = new Map(atuais.map(x=>[String(x.usuario_id),x]));
+  const disponiveis=(state.usuarios||[]).filter(u=>String(u.id)!==String(state.setorAtual.proprietario_id));
+  openModal('Compartilhar setor', `<p class="hint">Defina o acesso de cada funcionário ao setor <strong>${escapeHtml(state.setorAtual.nome)}</strong>.</p>
+    <div class="share-list">${disponiveis.map(u=>{const a=map.get(String(u.id));return `<div class="share-row"><div><strong>${escapeHtml(u.nome)}</strong><small>${escapeHtml(perfilLabel(u.perfil))}</small></div><select data-share-user="${u.id}"><option value="">Sem acesso</option><option value="visualizar" ${a?.permissao==='visualizar'?'selected':''}>Somente visualizar</option><option value="criar" ${a?.permissao==='criar'?'selected':''}>Visualizar e criar</option><option value="editar" ${a?.permissao==='editar'?'selected':''}>Editar</option><option value="gerenciar" ${a?.permissao==='gerenciar'?'selected':''}>Gerenciar setor</option></select></div>`}).join('')||'<p>Nenhum outro usuário ativo.</p>'}</div><div class="modal-actions"><button onclick="closeModal()">Cancelar</button><button class="primary" id="salvarCompartilhamentos">Salvar</button></div>`);
+  $('salvarCompartilhamentos').onclick=async()=>{for(const sel of document.querySelectorAll('[data-share-user]')){const uid=sel.dataset.shareUser,val=sel.value,old=map.get(String(uid));if(!val&&old) await api(`/api/setores/${state.setorAtual.id}/compartilhamentos/${uid}`,{method:'DELETE'});else if(val&&(!old||old.permissao!==val)) await api(`/api/setores/${state.setorAtual.id}/compartilhamentos`,{method:'PUT',body:JSON.stringify({usuario_id:Number(uid),permissao:val})});}closeModal();alert('Compartilhamentos atualizados.');};
 }
 
 function setorForm(setor = {}) {
@@ -1327,39 +1351,84 @@ async function abrirConfig() {
   renderConfig();
 }
 
+function podeGerenciarUsuario(usuario) {
+  const niveis = { colaborador:1, encarregado:2, gerente:3, administrador:4, administrador_principal:5 };
+  return !usuario.administrador_principal && (niveis[usuario.perfil] || 0) < (niveis[state.usuario?.perfil] || 0);
+}
+
+window.mudarAbaConfig = async (aba) => {
+  state.configTab = aba;
+  renderConfig();
+  if (aba === 'setores' && state.usuario?.perfil === 'administrador_principal') await renderConfigSetores();
+};
+
 function renderConfig() {
   const panel = $('configPanel');
-  const setorOptions = ['<option value="">Sem setor</option>'].concat(state.setores.map(s => `<option value="${s.id}">${escapeHtml(s.nome)}</option>`)).join('');
-
+  const principal = state.usuario?.perfil === 'administrador_principal';
+  const tab = principal ? state.configTab : 'usuarios';
   panel.innerHTML = `
+    <div class="config-hero">
+      <div><strong>Central de administração</strong><span>Gerencie usuários, hierarquia, proprietários e compartilhamentos.</span></div>
+      <div class="config-user-badge">${escapeHtml(perfilLabel(state.usuario?.perfil))}</div>
+    </div>
+    <div class="config-tabs">
+      <button class="${tab==='usuarios'?'active':''}" onclick="mudarAbaConfig('usuarios')">👥 Usuários</button>
+      ${principal ? `<button class="${tab==='setores'?'active':''}" onclick="mudarAbaConfig('setores')">🗂️ Setores e proprietários</button>` : ''}
+      <button class="${tab==='hierarquia'?'active':''}" onclick="mudarAbaConfig('hierarquia')">🛡️ Hierarquia</button>
+    </div>
+    <div id="configConteudo"></div>`;
+
+  if (tab === 'usuarios') renderConfigUsuarios();
+  else if (tab === 'setores') renderConfigSetores();
+  else renderConfigHierarquia();
+}
+
+function renderConfigUsuarios() {
+  const conteudo = $('configConteudo');
+  conteudo.innerHTML = `
     <div class="dashboard-toolbar">
-      <div>
-        <strong>Usuários cadastrados</strong>
-        <span>Somente usuários ativos e habilitados aparecem como responsáveis em tarefas e OS.</span>
-      </div>
+      <div><strong>Usuários cadastrados</strong><span>Você só pode alterar pessoas de nível inferior ao seu.</span></div>
       <button class="primary" onclick="usuarioForm()">+ Novo usuário</button>
     </div>
-
     <section class="dash-panel wide">
       <table class="dash-table">
-        <thead><tr><th>Nome</th><th>Email/Login</th><th>Perfil</th><th>Setor</th><th>Tarefas</th><th>OS</th><th>Status</th><th>Ações</th></tr></thead>
-        <tbody>
-          ${(state.usuarios || []).map(u => `
-            <tr>
-              <td>${escapeHtml(u.nome)}</td>
-              <td>${escapeHtml(u.email)}</td>
-              <td>${escapeHtml(perfilLabel(u.perfil))}</td>
-              <td>${escapeHtml(u.setor_nome || '-')}</td>
-              <td>${u.pode_receber_tarefas ? 'Sim' : 'Não'}</td>
-              <td>${u.pode_receber_os ? 'Sim' : 'Não'}</td>
-              <td>${u.ativo ? 'Ativo' : 'Inativo'}</td>
-              <td><div class="task-actions"><button onclick="usuarioForm(${u.id})">✏️</button><button class="danger" onclick="desativarUsuario(${u.id})">🚫</button></div></td>
-            </tr>
-          `).join('') || '<tr><td colspan="8" class="empty">Nenhum usuário cadastrado.</td></tr>'}
-        </tbody>
+        <thead><tr><th>Nome</th><th>Email/Login</th><th>Perfil</th><th>Setor de vínculo</th><th>Tarefas</th><th>OS</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody>${(state.usuarios || []).map(u => {
+          const pode = podeGerenciarUsuario(u);
+          return `<tr><td>${escapeHtml(u.nome)}${u.administrador_principal?' <span class="principal-tag">Principal</span>':''}</td><td>${escapeHtml(u.email)}</td><td>${escapeHtml(perfilLabel(u.perfil))}</td><td>${escapeHtml(u.setor_nome || '-')}</td><td>${u.pode_receber_tarefas?'Sim':'Não'}</td><td>${u.pode_receber_os?'Sim':'Não'}</td><td>${u.ativo?'Ativo':'Inativo'}</td><td><div class="task-actions">${pode?`<button onclick="usuarioForm(${u.id})">✏️</button><button class="danger" onclick="desativarUsuario(${u.id})">🚫</button>`:'<span class="muted">Protegido</span>'}</div></td></tr>`;
+        }).join('') || '<tr><td colspan="8" class="empty">Nenhum usuário cadastrado.</td></tr>'}</tbody>
       </table>
-    </section>
-  `;
+    </section>`;
+}
+
+async function renderConfigSetores() {
+  const conteudo = $('configConteudo');
+  if (!conteudo || state.usuario?.perfil !== 'administrador_principal') return;
+  conteudo.innerHTML = '<section class="dash-panel wide"><p class="empty">Carregando setores...</p></section>';
+  try {
+    const setores = await api('/api/admin/setores');
+    const usuarios = (state.usuarios || []).filter(u => u.ativo);
+    conteudo.innerHTML = `
+      <div class="dashboard-toolbar"><div><strong>Proprietários dos setores</strong><span>Todos os setores antigos ficam inicialmente sob seu controle. A transferência não apaga tarefas.</span></div></div>
+      <section class="dash-panel wide"><div class="admin-sector-list">${setores.map(s=>`
+        <div class="admin-sector-row"><div><strong><span class="color-dot" style="background:${s.cor}"></span>${escapeHtml(s.nome)}</strong><small>Proprietário: ${escapeHtml(s.proprietario_nome||'Não definido')} • ${s.compartilhados||0} compartilhamento(s)</small></div>
+        <select data-owner-sector="${s.id}">${usuarios.map(u=>`<option value="${u.id}" ${String(u.id)===String(s.proprietario_id)?'selected':''}>${escapeHtml(u.nome)} — ${escapeHtml(perfilLabel(u.perfil))}</option>`).join('')}</select>
+        <button class="primary" data-save-owner="${s.id}">Salvar proprietário</button></div>`).join('') || '<p class="empty">Nenhum setor cadastrado.</p>'}</div></section>`;
+    document.querySelectorAll('[data-save-owner]').forEach(btn=>btn.onclick=async()=>{
+      const id=btn.dataset.saveOwner, sel=document.querySelector(`[data-owner-sector="${id}"]`);
+      btn.disabled=true; btn.textContent='Salvando...';
+      try { await api(`/api/admin/setores/${id}/proprietario`,{method:'PUT',body:JSON.stringify({usuario_id:Number(sel.value)})}); await carregarSetores(false); btn.textContent='Salvo ✓'; }
+      finally { setTimeout(()=>{btn.disabled=false;btn.textContent='Salvar proprietário';},900); }
+    });
+  } catch (err) { conteudo.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`; }
+}
+
+function renderConfigHierarquia() {
+  $('configConteudo').innerHTML = `<section class="dash-panel wide hierarchy-panel">
+    <h3>Hierarquia oficial da V11</h3>
+    <div class="hierarchy-flow"><div>Administrador Principal<small>Controle mestre e proprietário inicial</small></div><span>↓</span><div>Administrador<small>Gerencia gerente, encarregado e colaborador</small></div><span>↓</span><div>Gerente<small>Gerencia encarregado e colaborador</small></div><span>↓</span><div>Encarregado<small>Gerencia colaborador</small></div><span>↓</span><div>Colaborador<small>Sem acesso à gestão de usuários</small></div></div>
+    <p class="hint">Nenhum usuário pode editar, desativar ou promover alguém para o mesmo nível ou para um nível superior ao seu.</p>
+  </section>`;
 }
 
 window.usuarioForm = (id = null) => {
@@ -1375,7 +1444,7 @@ window.usuarioForm = (id = null) => {
         <div><label>Email/Login</label><input name="email" type="email" value="${escapeHtml(usuario?.email || '')}" required></div>
         <div><label>Senha ${id ? '(preencha apenas para alterar)' : ''}</label><input name="senha" type="password" ${id ? '' : 'required'}></div>
         <div><label>Perfil</label><select name="perfil">
-          ${['admin', 'gerente', 'encarregado', 'colaborador'].map(p => `<option value="${p}" ${usuario?.perfil === p ? 'selected' : ''}>${perfilLabel(p)}</option>`).join('')}
+          ${['administrador','gerente','encarregado','colaborador'].filter(p => ({administrador:4,gerente:3,encarregado:2,colaborador:1})[p] < ({administrador_principal:5,administrador:4,gerente:3,encarregado:2,colaborador:1})[state.usuario?.perfil]).map(p => `<option value="${p}" ${usuario?.perfil === p ? 'selected' : ''}>${perfilLabel(p)}</option>`).join('')}
         </select></div>
         <div><label>Setor</label><select name="setor_id">${setorOptions}</select></div>
         <div><label>Status</label><select name="ativo"><option value="true" ${usuario?.ativo !== false ? 'selected' : ''}>Ativo</option><option value="false" ${usuario?.ativo === false ? 'selected' : ''}>Inativo</option></select></div>
@@ -1429,7 +1498,10 @@ $('btnOS').onclick = abrirOS;
 $('btnMinhas').onclick = abrirMinhas;
 $('btnConfig').onclick = abrirConfig;
 $('btnSolicitarOS').onclick = () => window.open('/solicitar-os.html', '_blank');
+window.abrirGestaoSetores = async () => { state.configTab='setores'; await abrirConfig(); };
+
 $('btnNovoSetor').onclick = () => setorForm();
+$('btnCompartilharSetor').onclick = compartilharSetor;
 $('btnExcluirSetor').onclick = () => window.excluirSetorAtual();
 $('btnNovoGrupo').onclick = () => grupoForm();
 $('btnNovaTarefa').onclick = () => tarefaForm({}, state.quadro?.grupos?.[0]?.id);

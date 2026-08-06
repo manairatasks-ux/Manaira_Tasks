@@ -15,6 +15,21 @@ async function initDb() {
 
   await query(schema);
 
+  // Permite definir explicitamente o Administrador Principal sem editar o banco.
+  // Use ADMIN_PRINCIPAL_EMAIL no .env/Render ou execute o script npm run definir-admin-principal.
+  const principalEmail = String(process.env.ADMIN_PRINCIPAL_EMAIL || '').trim().toLowerCase();
+  if (principalEmail) {
+    const principal = await get('SELECT id FROM usuarios WHERE LOWER(email) = $1 AND ativo = TRUE', [principalEmail]);
+    if (!principal) {
+      throw new Error(`ADMIN_PRINCIPAL_EMAIL não corresponde a um usuário ativo: ${principalEmail}`);
+    }
+    await query('UPDATE usuarios SET administrador_principal = FALSE WHERE id <> $1', [principal.id]);
+    await query(`UPDATE usuarios SET administrador_principal = TRUE, perfil = 'administrador_principal' WHERE id = $1`, [principal.id]);
+    await query(`UPDATE usuarios SET perfil = 'administrador' WHERE id <> $1 AND perfil = 'administrador_principal'`, [principal.id]);
+    await query('UPDATE setores SET proprietario_id = $1 WHERE proprietario_id IS NULL', [principal.id]);
+    console.log(`Administrador Principal confirmado: ${principalEmail}`);
+  }
+
   // Verifica se já existe algum usuário administrativo
   const userCount = await get(
     'SELECT COUNT(*)::int AS total FROM usuarios'
@@ -38,11 +53,29 @@ async function initDb() {
         'Administrador',
         'admin@manaira.com',
         senhaHash,
-        'admin'
+        'administrador_principal'
       ]
     );
 
-    console.log('Usuário administrador inicial criado.');
+    await query(`UPDATE usuarios SET administrador_principal = TRUE WHERE email = $1`, ['admin@manaira.com']);
+
+    console.log('Usuário administrador principal inicial criado.');
+  }
+
+  const principalAtual = await get(`SELECT id FROM usuarios WHERE administrador_principal = TRUE AND ativo = TRUE ORDER BY id LIMIT 1`);
+  if (!principalAtual) {
+    const candidato = await get(`
+      SELECT id FROM usuarios
+      WHERE ativo = TRUE
+      ORDER BY CASE WHEN perfil IN ('administrador_principal','administrador','admin') THEN 0 ELSE 1 END,
+               criado_em ASC, id ASC
+      LIMIT 1
+    `);
+    if (candidato) {
+      await query('UPDATE usuarios SET administrador_principal = FALSE');
+      await query(`UPDATE usuarios SET administrador_principal = TRUE, perfil = 'administrador_principal' WHERE id = $1`, [candidato.id]);
+      await query('UPDATE setores SET proprietario_id = $1 WHERE proprietario_id IS NULL', [candidato.id]);
+    }
   }
 
   console.log('Banco de dados inicializado com sucesso.');
