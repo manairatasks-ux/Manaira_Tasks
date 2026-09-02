@@ -113,7 +113,7 @@ function exigirModulo(codigo, nome) {
 
 function configurarMenuPorPerfil() {
   const perfil = String(state.usuario?.perfil || '').toLowerCase();
-  const isManager = ['administrador_principal','administrador','gerente','encarregado'].includes(perfil);
+  const isManager = ['administrador_principal', 'administrador', 'gerente', 'encarregado'].includes(perfil);
   const atividades = temAcessoModulo('atividades');
   const os = temAcessoModulo('os') && isManager;
   const admin = temAcessoModulo('administracao') && isManager;
@@ -223,8 +223,8 @@ function setView(view) {
   $('btnOS')?.classList.toggle('active', isOS);
   $('btnMinhas')?.classList.toggle('active', isMinhas);
   $('btnConfig')?.classList.toggle('active', isConfig);
-  ['btnAlmoxDashboard','btnAlmoxEstoque','btnAlmoxEntrada','btnAlmoxSaida','btnAlmoxHistorico'].forEach(id => $(id)?.classList.remove('active'));
-  const almoxBtn = { dashboard:'btnAlmoxDashboard', estoque:'btnAlmoxEstoque', entrada:'btnAlmoxEntrada', saida:'btnAlmoxSaida', historico:'btnAlmoxHistorico' }[state.almoxView];
+  ['btnAlmoxDashboard', 'btnAlmoxEstoque', 'btnAlmoxEntrada', 'btnAlmoxSaida', 'btnAlmoxHistorico'].forEach(id => $(id)?.classList.remove('active'));
+  const almoxBtn = { dashboard: 'btnAlmoxDashboard', estoque: 'btnAlmoxEstoque', entrada: 'btnAlmoxEntrada', saida: 'btnAlmoxSaida', historico: 'btnAlmoxHistorico' }[state.almoxView];
   if (isAlmox && almoxBtn) $(almoxBtn)?.classList.add('active');
   $('btnExcluirSetor').classList.toggle('hidden', !isBoard);
   $('btnCompartilharSetor')?.classList.toggle('hidden', !isBoard);
@@ -691,25 +691,25 @@ function closeModal() {
   $('modal').classList.add('hidden');
 }
 
-function permissaoNivel(p) { return ({visualizar:1,criar:2,editar:3,gerenciar:4,proprietario:5})[p] || 0; }
+function permissaoNivel(p) { return ({ visualizar: 1, criar: 2, editar: 3, gerenciar: 4, proprietario: 5 })[p] || 0; }
 function atualizarAcoesSetor() {
-  const p=state.setorAtual?.permissao || '';
-  const share=$('btnCompartilharSetor');
-  if(share) share.classList.toggle('hidden', permissaoNivel(p)<4);
-  $('btnExcluirSetor')?.classList.toggle('hidden', p!=='proprietario' && state.usuario?.perfil!=='administrador_principal');
-  $('btnNovoGrupo')?.classList.toggle('hidden', permissaoNivel(p)<4);
-  $('btnNovaTarefa')?.classList.toggle('hidden', permissaoNivel(p)<2);
+  const p = state.setorAtual?.permissao || '';
+  const share = $('btnCompartilharSetor');
+  if (share) share.classList.toggle('hidden', permissaoNivel(p) < 4);
+  $('btnExcluirSetor')?.classList.toggle('hidden', p !== 'proprietario' && state.usuario?.perfil !== 'administrador_principal');
+  $('btnNovoGrupo')?.classList.toggle('hidden', permissaoNivel(p) < 4);
+  $('btnNovaTarefa')?.classList.toggle('hidden', permissaoNivel(p) < 2);
 }
 
 async function compartilharSetor() {
-  if(!state.setorAtual) return;
+  if (!state.setorAtual) return;
   state.usuarios = await carregarUsuarios('');
   const atuais = await api(`/api/setores/${state.setorAtual.id}/compartilhamentos`);
-  const map = new Map(atuais.map(x=>[String(x.usuario_id),x]));
-  const disponiveis=(state.usuarios||[]).filter(u=>String(u.id)!==String(state.setorAtual.proprietario_id));
+  const map = new Map(atuais.map(x => [String(x.usuario_id), x]));
+  const disponiveis = (state.usuarios || []).filter(u => String(u.id) !== String(state.setorAtual.proprietario_id));
   openModal('Compartilhar setor', `<p class="hint">Defina o acesso de cada funcionário ao setor <strong>${escapeHtml(state.setorAtual.nome)}</strong>.</p>
-    <div class="share-list">${disponiveis.map(u=>{const a=map.get(String(u.id));return `<div class="share-row"><div><strong>${escapeHtml(u.nome)}</strong><small>${escapeHtml(perfilLabel(u.perfil))}</small></div><select data-share-user="${u.id}"><option value="">Sem acesso</option><option value="visualizar" ${a?.permissao==='visualizar'?'selected':''}>Somente visualizar</option><option value="criar" ${a?.permissao==='criar'?'selected':''}>Visualizar e criar</option><option value="editar" ${a?.permissao==='editar'?'selected':''}>Editar</option><option value="gerenciar" ${a?.permissao==='gerenciar'?'selected':''}>Gerenciar setor</option></select></div>`}).join('')||'<p>Nenhum outro usuário ativo.</p>'}</div><div class="modal-actions"><button onclick="closeModal()">Cancelar</button><button class="primary" id="salvarCompartilhamentos">Salvar</button></div>`);
-  $('salvarCompartilhamentos').onclick=async()=>{for(const sel of document.querySelectorAll('[data-share-user]')){const uid=sel.dataset.shareUser,val=sel.value,old=map.get(String(uid));if(!val&&old) await api(`/api/setores/${state.setorAtual.id}/compartilhamentos/${uid}`,{method:'DELETE'});else if(val&&(!old||old.permissao!==val)) await api(`/api/setores/${state.setorAtual.id}/compartilhamentos`,{method:'PUT',body:JSON.stringify({usuario_id:Number(uid),permissao:val})});}closeModal();alert('Compartilhamentos atualizados.');};
+    <div class="share-list">${disponiveis.map(u => { const a = map.get(String(u.id)); return `<div class="share-row"><div><strong>${escapeHtml(u.nome)}</strong><small>${escapeHtml(perfilLabel(u.perfil))}</small></div><select data-share-user="${u.id}"><option value="">Sem acesso</option><option value="visualizar" ${a?.permissao === 'visualizar' ? 'selected' : ''}>Somente visualizar</option><option value="criar" ${a?.permissao === 'criar' ? 'selected' : ''}>Visualizar e criar</option><option value="editar" ${a?.permissao === 'editar' ? 'selected' : ''}>Editar</option><option value="gerenciar" ${a?.permissao === 'gerenciar' ? 'selected' : ''}>Gerenciar setor</option></select></div>` }).join('') || '<p>Nenhum outro usuário ativo.</p>'}</div><div class="modal-actions"><button onclick="closeModal()">Cancelar</button><button class="primary" id="salvarCompartilhamentos">Salvar</button></div>`);
+  $('salvarCompartilhamentos').onclick = async () => { for (const sel of document.querySelectorAll('[data-share-user]')) { const uid = sel.dataset.shareUser, val = sel.value, old = map.get(String(uid)); if (!val && old) await api(`/api/setores/${state.setorAtual.id}/compartilhamentos/${uid}`, { method: 'DELETE' }); else if (val && (!old || old.permissao !== val)) await api(`/api/setores/${state.setorAtual.id}/compartilhamentos`, { method: 'PUT', body: JSON.stringify({ usuario_id: Number(uid), permissao: val }) }); } closeModal(); alert('Compartilhamentos atualizados.'); };
 }
 
 function setorForm(setor = {}) {
@@ -1542,13 +1542,13 @@ async function renderAlmoxEstoque(busca = '') {
 window.almoxItemForm = async (id = null) => {
   if (!state.almoxItens.length) await carregarAlmoxItens();
   const item = id ? state.almoxItens.find(i => Number(i.id) === Number(id)) : null;
-  const categorias = ['EPI','Fardamento','Eletrônicos','Equipamentos','Ferramentas','Material de escritório','Material de limpeza','Utensílios','Outros'];
+  const categorias = ['EPI', 'Fardamento', 'Eletrônicos', 'Equipamentos', 'Ferramentas', 'Material de escritório', 'Material de limpeza', 'Utensílios', 'Outros'];
   openModal(item ? 'Editar item' : 'Novo item', `
     <form id="almoxItemForm">
       <div class="form-grid">
         <div class="full"><label>Descrição</label><input name="descricao" value="${escapeHtml(item?.descricao || '')}" placeholder="Ex.: Bota de Segurança em couro preta Nº 40" required></div>
         <div><label>Categoria</label><input name="categoria" list="almoxCategorias" value="${escapeHtml(item?.categoria || '')}" placeholder="Ex.: EPI"><datalist id="almoxCategorias">${categorias.map(c => `<option value="${c}">`).join('')}</datalist></div>
-        <div><label>Unidade</label><select name="unidade">${['UND','PAR','CX','PCT','KIT','M','KG'].map(u => `<option value="${u}" ${(item?.unidade || 'UND') === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
+        <div><label>Unidade</label><select name="unidade">${['UND', 'PAR', 'CX', 'PCT', 'KIT', 'M', 'KG'].map(u => `<option value="${u}" ${(item?.unidade || 'UND') === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
         <div class="full"><label>Código do patrimônio <small>(opcional)</small></label><input name="codigo_patrimonio" value="${escapeHtml(item?.codigo_patrimonio || '')}" placeholder="Deixe em branco quando não houver"></div>
         ${item ? '' : '<div><label>Quantidade inicial</label><input name="quantidade_inicial" type="number" min="0" step="1" value="0"></div>'}
         <div class="full"><label>Observação <small>(opcional)</small></label><textarea name="observacao" rows="3">${escapeHtml(item?.observacao || '')}</textarea></div>
@@ -1625,13 +1625,13 @@ async function renderAlmoxHistorico(busca = '', tipo = '') {
     panel.innerHTML = `
       <div class="almox-history-filters">
         <input id="almoxHistBusca" placeholder="Buscar item, destino, responsável..." value="${escapeHtml(busca)}">
-        <select id="almoxHistTipo"><option value="">Entradas e saídas</option><option value="ENTRADA" ${tipo==='ENTRADA'?'selected':''}>Entradas</option><option value="SAIDA" ${tipo==='SAIDA'?'selected':''}>Saídas</option></select>
+        <select id="almoxHistTipo"><option value="">Entradas e saídas</option><option value="ENTRADA" ${tipo === 'ENTRADA' ? 'selected' : ''}>Entradas</option><option value="SAIDA" ${tipo === 'SAIDA' ? 'selected' : ''}>Saídas</option></select>
         <button id="almoxHistBuscar">Filtrar</button>
       </div>
       <section class="dash-panel wide">
         <div class="almox-history-list detailed">
           ${data.map(m => `<div class="almox-history-row">
-            <div>${almoxTipoBadge(m.tipo)}<strong>${escapeHtml(m.item_descricao)}</strong><small>${fmtDateTime(m.criado_em)}${m.usuario_nome ? ' • registrado por ' + escapeHtml(m.usuario_nome) : ''}</small>${m.destino || m.responsavel || m.observacao ? `<p>${m.destino ? '<b>Destino:</b> '+escapeHtml(m.destino)+' ' : ''}${m.responsavel ? '<b>Responsável:</b> '+escapeHtml(m.responsavel)+' ' : ''}${m.observacao ? '<b>Obs.:</b> '+escapeHtml(m.observacao) : ''}</p>` : ''}</div>
+            <div>${almoxTipoBadge(m.tipo)}<strong>${escapeHtml(m.item_descricao)}</strong><small>${fmtDateTime(m.criado_em)}${m.usuario_nome ? ' • registrado por ' + escapeHtml(m.usuario_nome) : ''}</small>${m.destino || m.responsavel || m.observacao ? `<p>${m.destino ? '<b>Destino:</b> ' + escapeHtml(m.destino) + ' ' : ''}${m.responsavel ? '<b>Responsável:</b> ' + escapeHtml(m.responsavel) + ' ' : ''}${m.observacao ? '<b>Obs.:</b> ' + escapeHtml(m.observacao) : ''}</p>` : ''}</div>
             <div class="almox-history-qty"><strong>${m.tipo === 'SAIDA' ? '−' : '+'}${Number(m.quantidade)}</strong><small>${escapeHtml(m.unidade || 'UND')} • saldo ${Number(m.saldo_posterior)}</small></div>
           </div>`).join('') || '<p class="empty">Nenhuma movimentação encontrada.</p>'}
         </div>
@@ -1648,7 +1648,7 @@ async function renderAlmoxHistorico(busca = '', tipo = '') {
 window.abrirAlmoxarifado = abrirAlmoxarifado;
 
 function podeGerenciarUsuario(usuario) {
-  const niveis = { colaborador:1, encarregado:2, gerente:3, administrador:4, administrador_principal:5 };
+  const niveis = { colaborador: 1, encarregado: 2, gerente: 3, administrador: 4, administrador_principal: 5 };
   return !usuario.administrador_principal && (niveis[usuario.perfil] || 0) < (niveis[state.usuario?.perfil] || 0);
 }
 
@@ -1660,7 +1660,7 @@ window.mudarAbaConfig = async (aba) => {
 function renderConfig() {
   const panel = $('configPanel');
   const principal = state.usuario?.perfil === 'administrador_principal';
-  const permitidas = principal ? ['usuarios','acessos','setores','hierarquia'] : ['usuarios','acessos','hierarquia'];
+  const permitidas = principal ? ['usuarios', 'acessos', 'setores', 'hierarquia'] : ['usuarios', 'acessos', 'hierarquia'];
   if (!permitidas.includes(state.configTab)) state.configTab = 'usuarios';
   const tab = state.configTab;
   panel.innerHTML = `
@@ -1669,10 +1669,10 @@ function renderConfig() {
       <div class="config-user-badge">${escapeHtml(perfilLabel(state.usuario?.perfil))}</div>
     </div>
     <div class="config-tabs">
-      <button class="${tab==='usuarios'?'active':''}" onclick="mudarAbaConfig('usuarios')">👥 Usuários</button>
-      <button class="${tab==='acessos'?'active':''}" onclick="mudarAbaConfig('acessos')">🔐 Acessos aos módulos</button>
-      ${principal ? `<button class="${tab==='setores'?'active':''}" onclick="mudarAbaConfig('setores')">🗂️ Setores e proprietários</button>` : ''}
-      <button class="${tab==='hierarquia'?'active':''}" onclick="mudarAbaConfig('hierarquia')">🛡️ Hierarquia</button>
+      <button class="${tab === 'usuarios' ? 'active' : ''}" onclick="mudarAbaConfig('usuarios')">👥 Usuários</button>
+      <button class="${tab === 'acessos' ? 'active' : ''}" onclick="mudarAbaConfig('acessos')">🔐 Acessos aos módulos</button>
+      ${principal ? `<button class="${tab === 'setores' ? 'active' : ''}" onclick="mudarAbaConfig('setores')">🗂️ Setores e proprietários</button>` : ''}
+      <button class="${tab === 'hierarquia' ? 'active' : ''}" onclick="mudarAbaConfig('hierarquia')">🛡️ Hierarquia</button>
     </div>
     <div id="configConteudo"></div>`;
 
@@ -1693,9 +1693,9 @@ function renderConfigUsuarios() {
       <table class="dash-table">
         <thead><tr><th>Nome</th><th>Email/Login</th><th>Perfil</th><th>Setor de vínculo</th><th>Tarefas</th><th>OS</th><th>Status</th><th>Ações</th></tr></thead>
         <tbody>${(state.usuarios || []).map(u => {
-          const pode = podeGerenciarUsuario(u);
-          return `<tr><td>${escapeHtml(u.nome)}${u.administrador_principal?' <span class="principal-tag">Principal</span>':''}</td><td>${escapeHtml(u.email)}</td><td>${escapeHtml(perfilLabel(u.perfil))}</td><td>${escapeHtml(u.setor_nome || '-')}</td><td>${u.pode_receber_tarefas?'Sim':'Não'}</td><td>${u.pode_receber_os?'Sim':'Não'}</td><td>${u.ativo?'Ativo':'Inativo'}</td><td><div class="task-actions">${pode?`<button onclick="usuarioForm(${u.id})">✏️</button><button class="danger" onclick="desativarUsuario(${u.id})">🚫</button>`:'<span class="muted">Protegido</span>'}</div></td></tr>`;
-        }).join('') || '<tr><td colspan="8" class="empty">Nenhum usuário cadastrado.</td></tr>'}</tbody>
+    const pode = podeGerenciarUsuario(u);
+    return `<tr><td>${escapeHtml(u.nome)}${u.administrador_principal ? ' <span class="principal-tag">Principal</span>' : ''}</td><td>${escapeHtml(u.email)}</td><td>${escapeHtml(perfilLabel(u.perfil))}</td><td>${escapeHtml(u.setor_nome || '-')}</td><td>${u.pode_receber_tarefas ? 'Sim' : 'Não'}</td><td>${u.pode_receber_os ? 'Sim' : 'Não'}</td><td>${u.ativo ? 'Ativo' : 'Inativo'}</td><td><div class="task-actions">${pode ? `<button onclick="usuarioForm(${u.id})">✏️</button><button class="danger" onclick="desativarUsuario(${u.id})">🚫</button>` : '<span class="muted">Protegido</span>'}</div></td></tr>`;
+  }).join('') || '<tr><td colspan="8" class="empty">Nenhum usuário cadastrado.</td></tr>'}</tbody>
       </table>
     </section>`;
 }
@@ -1703,46 +1703,185 @@ function renderConfigUsuarios() {
 async function renderConfigAcessos() {
   const conteudo = $('configConteudo');
   if (!conteudo) return;
-  conteudo.innerHTML = '<section class="dash-panel wide"><p class="empty">Carregando acessos...</p></section>';
+
+  conteudo.innerHTML =
+    '<section class="dash-panel wide"><p class="empty">Carregando acessos...</p></section>';
+
   try {
     const data = await api('/api/modulos/acessos');
+
     const modulos = data.modulos || [];
     const usuarios = data.usuarios || [];
-    const principalAtual = state.usuario?.perfil === 'administrador_principal';
-    const nivel = { colaborador:1, encarregado:2, gerente:3, administrador:4, administrador_principal:5 };
+
+    const principalAtual =
+      state.usuario?.perfil === 'administrador_principal';
+
+    const nivel = {
+      colaborador: 1,
+      encarregado: 2,
+      gerente: 3,
+      administrador: 4,
+      administrador_principal: 5
+    };
 
     conteudo.innerHTML = `
       <div class="dashboard-toolbar">
-        <div><strong>Acessos aos módulos</strong><span>O card só aparece na Central de Módulos quando o usuário possui acesso. O backend também bloqueia acessos diretos sem permissão.</span></div>
-      </div>
-      <section class="dash-panel wide">
-        <div class="module-access-list">
-          ${usuarios.map(u => {
-            const protegido = u.administrador_principal || u.perfil === 'administrador_principal';
-            const podeEditar = !protegido && (nivel[u.perfil] || 0) < (nivel[state.usuario?.perfil] || 0);
-            const acessos = Array.isArray(u.modulos) ? u.modulos : [];
-            return `<article class="module-access-row" data-access-user="${u.id}">
-              <div class="module-access-user">
-                <strong>${escapeHtml(u.nome)}${protegido ? ' <span class="principal-tag">Principal</span>' : ''}</strong>
-                <small>${escapeHtml(perfilLabel(u.perfil))} • ${escapeHtml(u.email)}${u.ativo ? '' : ' • Inativo'}</small>
-              </div>
-              <div class="module-access-options">
-                ${modulos.map(m => {
-                  const isAdmin = m.codigo === 'administracao';
-                  const incompatColab = u.perfil === 'colaborador' && (m.codigo === 'os' || isAdmin);
-                  const disabled = protegido || !podeEditar || incompatColab || (isAdmin && !principalAtual);
-                  const checked = protegido || acessos.includes(m.codigo);
-                  const title = incompatColab ? 'Exige perfil de Encarregado ou superior' : (isAdmin && !principalAtual ? 'Somente o Administrador Principal altera este acesso' : '');
-                  return `<label class="module-access-check ${disabled?'disabled':''}" title="${escapeHtml(title)}"><input type="checkbox" data-module="${m.codigo}" ${checked?'checked':''} ${disabled?'disabled':''}><span><strong>${escapeHtml(m.nome)}</strong><small>${escapeHtml(m.descricao || '')}</small></span></label>`;
-                }).join('')}
-              </div>
-              <div class="module-access-action">${podeEditar ? `<button class="primary" onclick="salvarAcessosModulos(${u.id})">Salvar acessos</button>` : '<span class="muted">Protegido pela hierarquia</span>'}</div>
-            </article>`;
-          }).join('') || '<p class="empty">Nenhum usuário cadastrado.</p>'}
+        <div>
+          <strong>Acessos aos módulos</strong>
+          <span>
+            O card só aparece na Central de Módulos quando o usuário possui acesso.
+            O backend também bloqueia acessos diretos sem permissão.
+          </span>
         </div>
-      </section>`;
+      </div>
+
+      <section class="dash-panel wide">
+
+        <div class="module-access-list">
+
+          ${usuarios.map(u => {
+
+      const protegido =
+        u.administrador_principal ||
+        u.perfil === 'administrador_principal';
+
+      const podeEditar =
+        !protegido &&
+        (nivel[u.perfil] || 0) <
+        (nivel[state.usuario?.perfil] || 0);
+
+      const acessos =
+        Array.isArray(u.modulos)
+          ? u.modulos
+          : [];
+
+      return `
+              <article
+                class="module-access-row"
+                data-access-user="${u.id}"
+              >
+
+                <div class="module-access-user">
+
+                  <strong>
+                    ${escapeHtml(u.nome)}
+
+                    ${protegido
+          ? ' <span class="principal-tag">Principal</span>'
+          : ''
+        }
+                  </strong>
+
+                  <small>
+                    ${escapeHtml(perfilLabel(u.perfil))}
+                    •
+                    ${escapeHtml(u.email)}
+                    ${u.ativo ? '' : ' • Inativo'}
+                  </small>
+
+                </div>
+
+
+                <div class="module-access-options">
+
+                  ${modulos.map(m => {
+
+          const isAdmin =
+            m.codigo === 'administracao';
+
+          const incompatColab =
+            u.perfil === 'colaborador' &&
+            (
+              m.codigo === 'os' ||
+              isAdmin
+            );
+
+          const disabled =
+            protegido ||
+            !podeEditar ||
+            incompatColab ||
+            (isAdmin && !principalAtual);
+
+          const checked =
+            protegido ||
+            acessos.includes(m.codigo);
+
+          const title =
+            incompatColab
+              ? 'Exige perfil de Encarregado ou superior'
+              : (
+                isAdmin && !principalAtual
+                  ? 'Somente o Administrador Principal altera este acesso'
+                  : ''
+              );
+
+          return `
+                      <label
+                        class="module-access-check ${disabled ? 'disabled' : ''}"
+                        title="${escapeHtml(title || m.descricao || '')}"
+                      >
+
+                        <input
+                          type="checkbox"
+                          data-module="${m.codigo}"
+                          ${checked ? 'checked' : ''}
+                          ${disabled ? 'disabled' : ''}
+                        >
+
+                        <span>
+                          <strong>
+                            ${escapeHtml(m.nome)}
+                          </strong>
+                        </span>
+
+                      </label>
+                    `;
+
+        }).join('')}
+
+                </div>
+
+
+                <div class="module-access-action">
+
+                  ${podeEditar
+          ? `
+                        <button
+                          class="primary"
+                          onclick="salvarAcessosModulos(${u.id})"
+                        >
+                          Salvar acessos
+                        </button>
+                      `
+          : `
+                        <span class="muted">
+                          Protegido pela hierarquia
+                        </span>
+                      `
+        }
+
+                </div>
+
+              </article>
+            `;
+
+    }).join('') || '<p class="empty">Nenhum usuário cadastrado.</p>'}
+
+        </div>
+
+      </section>
+    `;
+
   } catch (err) {
-    conteudo.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
+
+    conteudo.innerHTML = `
+      <section class="dash-panel wide">
+        <p class="empty">
+          ${escapeHtml(err.message)}
+        </p>
+      </section>
+    `;
+
   }
 }
 
@@ -1771,15 +1910,15 @@ async function renderConfigSetores() {
     const usuarios = (state.usuarios || []).filter(u => u.ativo);
     conteudo.innerHTML = `
       <div class="dashboard-toolbar"><div><strong>Proprietários dos setores</strong><span>Todos os setores antigos ficam inicialmente sob seu controle. A transferência não apaga tarefas.</span></div></div>
-      <section class="dash-panel wide"><div class="admin-sector-list">${setores.map(s=>`
-        <div class="admin-sector-row"><div><strong><span class="color-dot" style="background:${s.cor}"></span>${escapeHtml(s.nome)}</strong><small>Proprietário: ${escapeHtml(s.proprietario_nome||'Não definido')} • ${s.compartilhados||0} compartilhamento(s)</small></div>
-        <select data-owner-sector="${s.id}">${usuarios.map(u=>`<option value="${u.id}" ${String(u.id)===String(s.proprietario_id)?'selected':''}>${escapeHtml(u.nome)} — ${escapeHtml(perfilLabel(u.perfil))}</option>`).join('')}</select>
+      <section class="dash-panel wide"><div class="admin-sector-list">${setores.map(s => `
+        <div class="admin-sector-row"><div><strong><span class="color-dot" style="background:${s.cor}"></span>${escapeHtml(s.nome)}</strong><small>Proprietário: ${escapeHtml(s.proprietario_nome || 'Não definido')} • ${s.compartilhados || 0} compartilhamento(s)</small></div>
+        <select data-owner-sector="${s.id}">${usuarios.map(u => `<option value="${u.id}" ${String(u.id) === String(s.proprietario_id) ? 'selected' : ''}>${escapeHtml(u.nome)} — ${escapeHtml(perfilLabel(u.perfil))}</option>`).join('')}</select>
         <button class="primary" data-save-owner="${s.id}">Salvar proprietário</button></div>`).join('') || '<p class="empty">Nenhum setor cadastrado.</p>'}</div></section>`;
-    document.querySelectorAll('[data-save-owner]').forEach(btn=>btn.onclick=async()=>{
-      const id=btn.dataset.saveOwner, sel=document.querySelector(`[data-owner-sector="${id}"]`);
-      btn.disabled=true; btn.textContent='Salvando...';
-      try { await api(`/api/admin/setores/${id}/proprietario`,{method:'PUT',body:JSON.stringify({usuario_id:Number(sel.value)})}); await carregarSetores(false); btn.textContent='Salvo ✓'; }
-      finally { setTimeout(()=>{btn.disabled=false;btn.textContent='Salvar proprietário';},900); }
+    document.querySelectorAll('[data-save-owner]').forEach(btn => btn.onclick = async () => {
+      const id = btn.dataset.saveOwner, sel = document.querySelector(`[data-owner-sector="${id}"]`);
+      btn.disabled = true; btn.textContent = 'Salvando...';
+      try { await api(`/api/admin/setores/${id}/proprietario`, { method: 'PUT', body: JSON.stringify({ usuario_id: Number(sel.value) }) }); await carregarSetores(false); btn.textContent = 'Salvo ✓'; }
+      finally { setTimeout(() => { btn.disabled = false; btn.textContent = 'Salvar proprietário'; }, 900); }
     });
   } catch (err) { conteudo.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`; }
 }
@@ -1805,7 +1944,7 @@ window.usuarioForm = (id = null) => {
         <div><label>Email/Login</label><input name="email" type="email" value="${escapeHtml(usuario?.email || '')}" required></div>
         <div><label>Senha ${id ? '(preencha apenas para alterar)' : ''}</label><input name="senha" type="password" ${id ? '' : 'required'}></div>
         <div><label>Perfil</label><select name="perfil">
-          ${['administrador','gerente','encarregado','colaborador'].filter(p => ({administrador:4,gerente:3,encarregado:2,colaborador:1})[p] < ({administrador_principal:5,administrador:4,gerente:3,encarregado:2,colaborador:1})[state.usuario?.perfil]).map(p => `<option value="${p}" ${usuario?.perfil === p ? 'selected' : ''}>${perfilLabel(p)}</option>`).join('')}
+          ${['administrador', 'gerente', 'encarregado', 'colaborador'].filter(p => ({ administrador: 4, gerente: 3, encarregado: 2, colaborador: 1 })[p] < ({ administrador_principal: 5, administrador: 4, gerente: 3, encarregado: 2, colaborador: 1 })[state.usuario?.perfil]).map(p => `<option value="${p}" ${usuario?.perfil === p ? 'selected' : ''}>${perfilLabel(p)}</option>`).join('')}
         </select></div>
         <div><label>Setor</label><select name="setor_id">${setorOptions}</select></div>
         <div><label>Status</label><select name="ativo"><option value="true" ${usuario?.ativo !== false ? 'selected' : ''}>Ativo</option><option value="false" ${usuario?.ativo === false ? 'selected' : ''}>Inativo</option></select></div>
@@ -1869,7 +2008,7 @@ $('btnOS').onclick = abrirOS;
 $('btnMinhas').onclick = abrirMinhas;
 $('btnConfig').onclick = abrirConfig;
 $('btnSolicitarOS').onclick = () => window.open('/solicitar-os.html', '_blank');
-window.abrirGestaoSetores = async () => { state.configTab='setores'; await abrirConfig(); };
+window.abrirGestaoSetores = async () => { state.configTab = 'setores'; await abrirConfig(); };
 
 $('btnNovoSetor').onclick = () => setorForm();
 $('btnCompartilharSetor').onclick = compartilharSetor;
