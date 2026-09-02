@@ -1,0 +1,20 @@
+PLATAFORMA MANAÍRA V13
+======================
+
+Objetivo: reorganização estrutural do backend sem alterar o comportamento visual da V12.
+
+Principais mudanças:
+- server.js reduzido para bootstrap da aplicação.
+- novo app.js para configuração do Express e montagem dos módulos.
+- arquitetura Controller / Service / Model.
+- autenticação separada em módulo próprio.
+- usuários separados em Controller, Service e Model.
+- Atividades isolado em módulo próprio com Model/Service compartilhando regras de acesso a setores.
+- Ordem de Serviço isolada em módulo próprio.
+- middlewares de autenticação removidos do server.js.
+- configurações de ambiente centralizadas em config/env.js.
+- acesso ao banco centralizado em config/database.js.
+- utilitários e hierarquia movidos para shared/.
+- endpoints e frontend mantidos compatíveis com a V12.
+
+Estratégia: refatoração incremental para diminuir risco. PDFs e relatórios continuam no controller de domínio nesta versão e poderão ser extraídos para services específicos depois.

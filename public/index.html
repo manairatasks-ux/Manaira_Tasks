@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Manaíra Board</title>
+  <title>Plataforma Manaíra</title>
   <link rel="stylesheet" href="/css/style.css" />
   <link rel="icon" type="image/png" href="/img/favicon.png">
 </head>
@@ -13,8 +13,8 @@
   <div id="loginScreen" class="login-screen">
     <div class="login-card">
       <div class="brand-mark">M</div>
-      <h1>Manaíra Board</h1>
-      <p>Gestão visual de setores e tarefas.</p>
+      <h1>Plataforma Manaíra</h1>
+      <p>Acesso aos módulos internos.</p>
 
       <form id="loginForm">
         <label>Email</label>
@@ -34,19 +34,28 @@
       <div class="logo-row">
         <div class="logo">M</div>
         <div>
-          <strong>Manaíra Board</strong>
-          <span>Gestão interna</span>
+          <strong>Plataforma Manaíra</strong>
+          <span id="moduleLabel">Central de módulos</span>
         </div>
       </div>
 
-      <button class="nav-main active" id="btnDashboard">🏠 Dashboard</button>
-      <button class="nav-main" id="btnOS">🛠️ Ordem de Serviço</button>
-      <button class="nav-main" id="btnMinhas">✅ Minhas tarefas/OS</button>
-      <button class="nav-main" id="btnConfig">⚙️ Configurações</button>
-      <button class="nav-main" id="btnSolicitarOS" type="button">📲 Solicitar OS</button>
-      <button class="new-sector" id="btnNovoSetor">+ Novo setor</button>
-
-      <nav id="setoresList"></nav>
+      <button class="nav-main active" id="btnHome">⌂ Início</button>
+      <div id="activityMenu" class="module-menu hidden">
+        <div class="module-menu-title">ATIVIDADES</div>
+        <button class="nav-main" id="btnDashboard">▦ Dashboard</button>
+        <button class="nav-main" id="btnMinhas">✓ Minhas atividades</button>
+        <button class="new-sector" id="btnNovoSetor">+ Novo setor</button>
+        <nav id="setoresList"></nav>
+      </div>
+      <div id="osMenu" class="module-menu hidden">
+        <div class="module-menu-title">ORDEM DE SERVIÇO</div>
+        <button class="nav-main" id="btnOS">🛠 Painel de OS</button>
+        <button class="nav-main" id="btnSolicitarOS" type="button">＋ Solicitar OS</button>
+      </div>
+      <div id="adminMenu" class="module-menu hidden">
+        <div class="module-menu-title">ADMINISTRAÇÃO</div>
+        <button class="nav-main" id="btnConfig">⚙ Configurações</button>
+      </div>
 
       <div class="sidebar-footer">
         <span id="userName"></span>
@@ -95,7 +104,28 @@
         <span>Carregando...</span>
       </div>
 
-      <section id="dashboard" class="dashboard"></section>
+      <section id="homePanel" class="module-home">
+        <div class="home-welcome">
+          <span class="eyebrow">PLATAFORMA MANAÍRA</span>
+          <h2>Olá, <span id="homeUserName">usuário</span>.</h2>
+          <p>Escolha um módulo para começar. Cada área agora funciona de forma independente.</p>
+        </div>
+        <div class="module-grid">
+          <button class="module-card" id="cardAtividades" type="button">
+            <span class="module-icon">✓</span><span class="module-card-copy"><strong>Atividades</strong><small>Dashboard, setores, grupos, tarefas e acompanhamento.</small></span><span class="module-arrow">→</span>
+          </button>
+          <button class="module-card" id="cardOS" type="button">
+            <span class="module-icon">🛠</span><span class="module-card-copy"><strong>Ordem de Serviço</strong><small>Recebimento, execução, pendências e histórico de OS.</small></span><span class="module-arrow">→</span>
+          </button>
+          <button class="module-card" id="cardAdmin" type="button">
+            <span class="module-icon">⚙</span><span class="module-card-copy"><strong>Administração</strong><small>Usuários, hierarquia, setores, proprietários e permissões.</small></span><span class="module-arrow">→</span>
+          </button>
+          <div class="module-card module-card-disabled">
+            <span class="module-icon">＋</span><span class="module-card-copy"><strong>Novos módulos</strong><small>Estrutura preparada para expansão da plataforma.</small></span><span class="module-badge">Em breve</span>
+          </div>
+        </div>
+      </section>
+      <section id="dashboard" class="dashboard hidden"></section>
       <section id="board" class="board hidden"></section>
       <section id="osPanel" class="os-panel hidden"></section>
       <section id="minhasPanel" class="dashboard hidden"></section>

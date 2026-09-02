@@ -1,6 +1,6 @@
-# Manaíra Board V9
+# Plataforma Manaíra V14
 
-Versão V9 com separação entre gestão de tarefas e OS, cadastro de usuários, permissões básicas e responsáveis vinculados por usuário.
+Versão modular da Plataforma Manaíra com backend organizado por domínio e camadas **Route → Controller → Service → Model**, além de controle de acesso por módulo.
 
 ## Rodar local
 
@@ -9,22 +9,36 @@ npm install
 npm start
 ```
 
-## Login inicial
+Na inicialização, o sistema executa as migrações de `schema.sql` e cria/atualiza o catálogo de módulos automaticamente.
 
-- Email: `admin@manaira.com`
-- Senha: `admin123`
+## Módulos atuais
 
-## Novidades da V9
+- Atividades
+- Ordem de Serviço
+- Administração
 
-- Cadastro de usuários no painel de Configurações.
-- Usuários podem ser habilitados para receber tarefas e/ou OS.
-- Responsável de tarefas agora é selecionado por lista de usuários cadastrados.
-- Responsável principal de OS agora é selecionado por lista de usuários cadastrados.
-- Página "Minhas tarefas/OS" para colaboradores acompanharem o que foi atribuído a eles.
-- Colaboradores/encarregados iniciam na própria área.
-- Estrutura preparada para permissões por perfil.
-- Mantém portal público protegido de solicitação de OS.
+O Administrador Principal possui acesso permanente a todos. Os demais usuários enxergam na Central de Módulos somente os módulos liberados para sua conta.
 
-## Variáveis de ambiente
+## Gerenciar acessos
 
-Use `.env.example` como base para criar `.env`.
+Entre em **Administração → Acessos aos módulos**. A hierarquia continua sendo respeitada: um usuário só pode alterar pessoas de nível inferior. O acesso ao módulo Administração só pode ser concedido ou removido pelo Administrador Principal.
+
+## Estrutura principal
+
+```text
+src/
+├── app.js
+├── server.js
+├── config/
+├── middlewares/
+│   ├── auth.middleware.js
+│   └── module-access.middleware.js
+└── modules/
+    ├── auth/
+    ├── usuarios/
+    ├── atividades/
+    ├── os/
+    └── modulos/
+```
+
+Consulte `ARQUITETURA_V14.md` e `VERSION_V14_NOTAS.txt` para os detalhes desta versão.

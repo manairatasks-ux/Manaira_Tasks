@@ -1,0 +1,28 @@
+PLATAFORMA MANAÍRA V14
+======================
+
+Foco desta versão: controle de acesso por módulo.
+
+NOVO
+- Cadastro dos módulos Atividades, Ordem de Serviço e Administração no PostgreSQL.
+- Tabela usuario_modulos para relacionar usuários e módulos permitidos.
+- Middleware de segurança que valida o módulo também no backend.
+- Central de Módulos exibe somente os cards autorizados para o usuário logado.
+- Administração ganhou a aba "Acessos aos módulos".
+- Acessos podem ser ativados/desativados por usuário respeitando a hierarquia existente.
+- Administrador Principal mantém acesso permanente a todos os módulos.
+- Somente o Administrador Principal pode conceder/remover acesso ao módulo Administração.
+- Colaboradores continuam com sua área individual de tarefas/OS, mas painel completo de OS e Administração permanecem para Encarregado ou superior.
+
+MIGRAÇÃO SEGURA
+- Usuários existentes recebem na primeira inicialização permissões equivalentes ao comportamento da V13.
+- Usuários que já possuam configuração em usuario_modulos não têm permissões restauradas automaticamente ao reiniciar.
+- Novos usuários recebem acessos padrão conforme o perfil e podem ser ajustados depois na Administração.
+
+SEGURANÇA
+- Esconder o card não é a única proteção: endpoints de Atividades, OS e Administração validam o módulo no servidor.
+- Digitar uma URL/API manualmente sem acesso retorna 403.
+
+VERSÃO
+- package.json: 6.0.0
+- Servidor identificado como Plataforma Manaíra V14.

@@ -181,3 +181,25 @@ WHERE administrador_principal = TRUE
 CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_admin_principal_unico
 ON usuarios (administrador_principal)
 WHERE administrador_principal = TRUE;
+
+
+-- V14: controle de acesso por módulo
+CREATE TABLE IF NOT EXISTS modulos (
+  id SERIAL PRIMARY KEY,
+  codigo VARCHAR(50) UNIQUE NOT NULL,
+  nome VARCHAR(100) NOT NULL,
+  descricao TEXT,
+  ordem INTEGER DEFAULT 0,
+  ativo BOOLEAN DEFAULT TRUE,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS usuario_modulos (
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+  modulo_id INTEGER NOT NULL REFERENCES modulos(id) ON DELETE CASCADE,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (usuario_id, modulo_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_usuario_modulos_usuario ON usuario_modulos(usuario_id);
+CREATE INDEX IF NOT EXISTS idx_usuario_modulos_modulo ON usuario_modulos(modulo_id);

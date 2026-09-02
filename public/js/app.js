@@ -4,7 +4,8 @@ const state = {
   setores: [],
   setorAtual: null,
   quadro: null,
-  view: 'dashboard',
+  view: 'home',
+  module: 'home',
   dashboardFilters: { periodo: '90', setor_id: '', responsavel: '' },
   dashboardData: null,
   osData: null,
@@ -20,7 +21,8 @@ const state = {
   cache: { dashboard: new Map(), quadros: new Map() },
   pending: { dashboard: null, setor: null },
   renderTimer: null,
-  configTab: 'usuarios'
+  configTab: 'usuarios',
+  modulosAcesso: []
 };
 
 const CACHE_TTL = 60 * 1000;
@@ -94,19 +96,34 @@ function showLogin() {
 }
 
 
+function temAcessoModulo(codigo) {
+  if (String(state.usuario?.perfil || '').toLowerCase() === 'administrador_principal') return true;
+  return (state.modulosAcesso || state.usuario?.modulos || []).includes(codigo);
+}
+
+function exigirModulo(codigo, nome) {
+  if (temAcessoModulo(codigo)) return true;
+  alert(`Seu usuário não possui acesso ao módulo ${nome}.`);
+  abrirHome();
+  return false;
+}
+
 function configurarMenuPorPerfil() {
   const perfil = String(state.usuario?.perfil || '').toLowerCase();
   const isManager = ['administrador_principal','administrador','gerente','encarregado'].includes(perfil);
-  const isWorker = ['colaborador'].includes(perfil);
+  const atividades = temAcessoModulo('atividades');
+  const os = temAcessoModulo('os') && isManager;
+  const admin = temAcessoModulo('administracao') && isManager;
 
-  $('btnDashboard')?.classList.remove('hidden');
-  $('btnOS')?.classList.toggle('hidden', !isManager);
-  $('btnConfig')?.classList.toggle('hidden', !isManager);
-  $('btnNovoSetor')?.classList.toggle('hidden', !isManager);
-  $('setoresList')?.classList.remove('hidden');
-
-  // Colaborador e encarregado começam na própria área.
-  // Gerente/admin continuam na visão executiva.
+  $('btnDashboard')?.classList.toggle('hidden', !atividades);
+  $('btnMinhas')?.classList.toggle('hidden', !atividades);
+  $('btnOS')?.classList.toggle('hidden', !os);
+  $('btnConfig')?.classList.toggle('hidden', !admin);
+  $('btnNovoSetor')?.classList.toggle('hidden', !atividades || !isManager);
+  $('setoresList')?.classList.toggle('hidden', !atividades);
+  $('cardAtividades')?.classList.toggle('hidden', !atividades);
+  $('cardOS')?.classList.toggle('hidden', !os);
+  $('cardAdmin')?.classList.toggle('hidden', !admin);
 }
 
 function statusClass(status) {
@@ -169,45 +186,91 @@ function escapeHtml(text) {
   return String(text || '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
 }
 
+function setModule(module) {
+  state.module = module;
+  $('activityMenu')?.classList.toggle('hidden', module !== 'atividades');
+  $('osMenu')?.classList.toggle('hidden', module !== 'os');
+  $('adminMenu')?.classList.toggle('hidden', module !== 'admin');
+  $('btnHome')?.classList.toggle('active', module === 'home');
+  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração' };
+  if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Plataforma Manaíra';
+}
+
 function setView(view) {
   state.view = view;
+  const isHome = view === 'home';
   const isDashboard = view === 'dashboard';
   const isBoard = view === 'board';
   const isOS = view === 'os';
   const isMinhas = view === 'minhas';
   const isConfig = view === 'config';
+  $('homePanel')?.classList.toggle('hidden', !isHome);
   $('dashboard').classList.toggle('hidden', !isDashboard);
   $('board').classList.toggle('hidden', !isBoard);
   $('osPanel')?.classList.toggle('hidden', !isOS);
   $('minhasPanel')?.classList.toggle('hidden', !isMinhas);
   $('configPanel')?.classList.toggle('hidden', !isConfig);
-  $('printFooter').classList.toggle('hidden', false);
+  $('printFooter').classList.toggle('hidden', isHome);
   $('btnDashboard').classList.toggle('active', isDashboard);
   $('btnOS')?.classList.toggle('active', isOS);
   $('btnMinhas')?.classList.toggle('active', isMinhas);
   $('btnConfig')?.classList.toggle('active', isConfig);
   $('btnExcluirSetor').classList.toggle('hidden', !isBoard);
+  $('btnCompartilharSetor')?.classList.toggle('hidden', !isBoard);
   $('btnNovoGrupo').style.display = isBoard ? '' : 'none';
   $('btnNovaTarefa').style.display = isBoard ? '' : 'none';
   $('busca').style.display = isBoard ? '' : 'none';
   $('filtroStatus').style.display = isBoard ? '' : 'none';
   $('filtroPeriodo').style.display = isBoard ? '' : 'none';
   $('btnPdfSetor').style.display = isBoard ? '' : 'none';
+  document.querySelector('.filters')?.classList.toggle('hidden', !isBoard);
+  document.querySelector('.topbar')?.classList.toggle('hidden', isHome);
+}
+
+function abrirHome() {
+  state.setorAtual = null;
+  setModule('home');
+  setView('home');
+  renderSetores();
+  if ($('homeUserName')) $('homeUserName').textContent = (state.usuario?.nome || 'usuário').split(' ')[0];
+  history.replaceState(null, '', '#inicio');
+}
+
+function entrarAtividades() {
+  if (!exigirModulo('atividades', 'Atividades')) return;
+  setModule('atividades');
+  history.replaceState(null, '', '#atividades');
+  return abrirDashboard(true);
+}
+
+function entrarOS() {
+  if (!exigirModulo('os', 'Ordem de Serviço')) return;
+  setModule('os');
+  history.replaceState(null, '', '#ordens-servico');
+  return abrirOS();
+}
+
+function entrarAdmin() {
+  if (!exigirModulo('administracao', 'Administração')) return;
+  setModule('admin');
+  history.replaceState(null, '', '#administracao');
+  return abrirConfig();
 }
 
 async function init() {
   if (!state.token) return showLogin();
   try {
     state.usuario = await api('/api/me');
+    state.modulosAcesso = Array.isArray(state.usuario?.modulos) ? state.usuario.modulos : [];
     $('userName').textContent = state.usuario.nome;
     showApp();
     configurarMenuPorPerfil();
     invalidateDashboard();
     state.cache.quadros.clear();
-    await carregarSetores(false);
-    const perfilAtual = String(state.usuario?.perfil || '').toLowerCase();
+    if (temAcessoModulo('atividades')) await carregarSetores(false);
+    else { state.setores = []; renderSetores(); }
     state.usuarios = await carregarUsuarios();
-    await abrirDashboard(true);
+    abrirHome();
   } catch {
     localStorage.removeItem('mb_token');
     state.token = null;
@@ -267,6 +330,7 @@ function renderSetores() {
 }
 
 async function abrirDashboard(force = false) {
+  setModule('atividades');
   setView('dashboard');
   state.setorAtual = null;
   renderSetores();
@@ -879,6 +943,7 @@ function osStatusClass(status) {
 }
 
 async function abrirOS() {
+  setModule('os');
   setView('os');
   state.setorAtual = null;
   renderSetores();
@@ -1265,6 +1330,7 @@ window.imprimirOSAndamentoPdf = (range = 'all') => {
 
 
 async function abrirMinhas() {
+  setModule('atividades');
   setView('minhas');
   state.setorAtual = null;
   renderSetores();
@@ -1342,6 +1408,8 @@ window.alterarMinhaOS = async (id, status) => {
 };
 
 async function abrirConfig() {
+  if (!exigirModulo('administracao', 'Administração')) return;
+  setModule('admin');
   setView('config');
   state.setorAtual = null;
   renderSetores();
@@ -1359,26 +1427,29 @@ function podeGerenciarUsuario(usuario) {
 window.mudarAbaConfig = async (aba) => {
   state.configTab = aba;
   renderConfig();
-  if (aba === 'setores' && state.usuario?.perfil === 'administrador_principal') await renderConfigSetores();
 };
 
 function renderConfig() {
   const panel = $('configPanel');
   const principal = state.usuario?.perfil === 'administrador_principal';
-  const tab = principal ? state.configTab : 'usuarios';
+  const permitidas = principal ? ['usuarios','acessos','setores','hierarquia'] : ['usuarios','acessos','hierarquia'];
+  if (!permitidas.includes(state.configTab)) state.configTab = 'usuarios';
+  const tab = state.configTab;
   panel.innerHTML = `
     <div class="config-hero">
-      <div><strong>Central de administração</strong><span>Gerencie usuários, hierarquia, proprietários e compartilhamentos.</span></div>
+      <div><strong>Central de administração</strong><span>Gerencie usuários, hierarquia, proprietários e acessos aos módulos.</span></div>
       <div class="config-user-badge">${escapeHtml(perfilLabel(state.usuario?.perfil))}</div>
     </div>
     <div class="config-tabs">
       <button class="${tab==='usuarios'?'active':''}" onclick="mudarAbaConfig('usuarios')">👥 Usuários</button>
+      <button class="${tab==='acessos'?'active':''}" onclick="mudarAbaConfig('acessos')">🔐 Acessos aos módulos</button>
       ${principal ? `<button class="${tab==='setores'?'active':''}" onclick="mudarAbaConfig('setores')">🗂️ Setores e proprietários</button>` : ''}
       <button class="${tab==='hierarquia'?'active':''}" onclick="mudarAbaConfig('hierarquia')">🛡️ Hierarquia</button>
     </div>
     <div id="configConteudo"></div>`;
 
   if (tab === 'usuarios') renderConfigUsuarios();
+  else if (tab === 'acessos') renderConfigAcessos();
   else if (tab === 'setores') renderConfigSetores();
   else renderConfigHierarquia();
 }
@@ -1400,6 +1471,68 @@ function renderConfigUsuarios() {
       </table>
     </section>`;
 }
+
+async function renderConfigAcessos() {
+  const conteudo = $('configConteudo');
+  if (!conteudo) return;
+  conteudo.innerHTML = '<section class="dash-panel wide"><p class="empty">Carregando acessos...</p></section>';
+  try {
+    const data = await api('/api/modulos/acessos');
+    const modulos = data.modulos || [];
+    const usuarios = data.usuarios || [];
+    const principalAtual = state.usuario?.perfil === 'administrador_principal';
+    const nivel = { colaborador:1, encarregado:2, gerente:3, administrador:4, administrador_principal:5 };
+
+    conteudo.innerHTML = `
+      <div class="dashboard-toolbar">
+        <div><strong>Acessos aos módulos</strong><span>O card só aparece na Central de Módulos quando o usuário possui acesso. O backend também bloqueia acessos diretos sem permissão.</span></div>
+      </div>
+      <section class="dash-panel wide">
+        <div class="module-access-list">
+          ${usuarios.map(u => {
+            const protegido = u.administrador_principal || u.perfil === 'administrador_principal';
+            const podeEditar = !protegido && (nivel[u.perfil] || 0) < (nivel[state.usuario?.perfil] || 0);
+            const acessos = Array.isArray(u.modulos) ? u.modulos : [];
+            return `<article class="module-access-row" data-access-user="${u.id}">
+              <div class="module-access-user">
+                <strong>${escapeHtml(u.nome)}${protegido ? ' <span class="principal-tag">Principal</span>' : ''}</strong>
+                <small>${escapeHtml(perfilLabel(u.perfil))} • ${escapeHtml(u.email)}${u.ativo ? '' : ' • Inativo'}</small>
+              </div>
+              <div class="module-access-options">
+                ${modulos.map(m => {
+                  const isAdmin = m.codigo === 'administracao';
+                  const incompatColab = u.perfil === 'colaborador' && (m.codigo === 'os' || isAdmin);
+                  const disabled = protegido || !podeEditar || incompatColab || (isAdmin && !principalAtual);
+                  const checked = protegido || acessos.includes(m.codigo);
+                  const title = incompatColab ? 'Exige perfil de Encarregado ou superior' : (isAdmin && !principalAtual ? 'Somente o Administrador Principal altera este acesso' : '');
+                  return `<label class="module-access-check ${disabled?'disabled':''}" title="${escapeHtml(title)}"><input type="checkbox" data-module="${m.codigo}" ${checked?'checked':''} ${disabled?'disabled':''}><span><strong>${escapeHtml(m.nome)}</strong><small>${escapeHtml(m.descricao || '')}</small></span></label>`;
+                }).join('')}
+              </div>
+              <div class="module-access-action">${podeEditar ? `<button class="primary" onclick="salvarAcessosModulos(${u.id})">Salvar acessos</button>` : '<span class="muted">Protegido pela hierarquia</span>'}</div>
+            </article>`;
+          }).join('') || '<p class="empty">Nenhum usuário cadastrado.</p>'}
+        </div>
+      </section>`;
+  } catch (err) {
+    conteudo.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
+  }
+}
+
+window.salvarAcessosModulos = async (usuarioId) => {
+  const row = document.querySelector(`[data-access-user="${usuarioId}"]`);
+  if (!row) return;
+  const modulos = [...row.querySelectorAll('[data-module]:checked')].map(i => i.dataset.module);
+  const btn = row.querySelector('.module-access-action button');
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+  try {
+    await api(`/api/modulos/usuarios/${usuarioId}`, { method: 'PUT', body: JSON.stringify({ modulos }) });
+    if (btn) btn.textContent = 'Salvo ✓';
+    setTimeout(() => renderConfigAcessos(), 650);
+  } catch (err) {
+    alert(err.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar acessos'; }
+  }
+};
 
 async function renderConfigSetores() {
   const conteudo = $('configConteudo');
@@ -1493,6 +1626,10 @@ $('loginForm').onsubmit = async (e) => {
   }
 };
 $('btnSair').onclick = () => { localStorage.removeItem('mb_token'); location.reload(); };
+$('btnHome').onclick = abrirHome;
+$('cardAtividades').onclick = entrarAtividades;
+$('cardOS').onclick = entrarOS;
+$('cardAdmin').onclick = entrarAdmin;
 $('btnDashboard').onclick = abrirDashboard;
 $('btnOS').onclick = abrirOS;
 $('btnMinhas').onclick = abrirMinhas;

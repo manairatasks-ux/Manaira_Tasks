@@ -1,0 +1,4 @@
+const model=require('./atividades.model'); const {isPrincipal}=require('../../shared/profile.service');
+const PERMISSAO_NIVEL={visualizar:1,criar:2,editar:3,gerenciar:4,proprietario:5};
+async function exigirAcessoSetor(req,res,setorId,minimo='visualizar'){ if(isPrincipal(req)){ const setor=await model.get('SELECT id, proprietario_id FROM setores WHERE id=$1',[setorId]); return setor?{...setor,permissao:setor.proprietario_id===req.user.id?'proprietario':'gerenciar'}:null; } const acesso=await model.obterAcessoSetor(req.user.id,setorId); if(!acesso||(PERMISSAO_NIVEL[acesso.permissao]||0)<PERMISSAO_NIVEL[minimo]){res.status(403).json({error:'Você não possui permissão para esta ação no setor.'});return null;} return acesso; }
+module.exports={PERMISSAO_NIVEL,exigirAcessoSetor,setorIdPorGrupo:model.setorIdPorGrupo,setorIdPorTarefa:model.setorIdPorTarefa};

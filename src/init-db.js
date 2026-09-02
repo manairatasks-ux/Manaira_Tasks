@@ -78,6 +78,35 @@ async function initDb() {
     }
   }
 
+
+
+  // V14: catálogo de módulos e migração segura dos acessos existentes.
+  await query(`
+    INSERT INTO modulos (codigo, nome, descricao, ordem, ativo) VALUES
+      ('atividades', 'Atividades', 'Dashboard, setores, grupos e tarefas.', 10, TRUE),
+      ('os', 'Ordem de Serviço', 'Gestão operacional das ordens de serviço.', 20, TRUE),
+      ('administracao', 'Administração', 'Usuários, hierarquia, setores e acessos.', 30, TRUE)
+    ON CONFLICT (codigo) DO UPDATE SET
+      nome = EXCLUDED.nome,
+      descricao = EXCLUDED.descricao,
+      ordem = EXCLUDED.ordem,
+      ativo = TRUE
+  `);
+
+  // Só aplica padrão a usuários que ainda não possuem nenhuma configuração de módulo.
+  // Assim, uma permissão removida manualmente não volta após reiniciar o servidor.
+  await query(`
+    INSERT INTO usuario_modulos (usuario_id, modulo_id)
+    SELECT u.id, m.id
+    FROM usuarios u
+    JOIN modulos m ON (
+      m.codigo = 'atividades'
+      OR (m.codigo IN ('os','administracao') AND u.perfil IN ('administrador_principal','administrador','gerente','encarregado'))
+    )
+    WHERE NOT EXISTS (SELECT 1 FROM usuario_modulos x WHERE x.usuario_id = u.id)
+    ON CONFLICT DO NOTHING
+  `);
+
   console.log('Banco de dados inicializado com sucesso.');
 }
 

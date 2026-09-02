@@ -1,0 +1,22 @@
+Plataforma Manaíra V12 — Fundação Modular
+
+OBJETIVO
+Separar a experiência da plataforma em módulos independentes, sem perder as regras e dados da V11.
+
+ALTERAÇÕES
+- Nova tela inicial (Hub) exibida após o login.
+- Módulo Atividades: dashboard, setores, grupos, tarefas e "Minhas atividades".
+- Módulo Ordem de Serviço: painel de OS e acesso ao portal de solicitação.
+- Módulo Administração: usuários, hierarquia, setores, proprietários e permissões.
+- Menu lateral agora muda conforme o módulo selecionado, evitando misturar todas as funções em uma única tela.
+- Botão Início retorna ao Hub a qualquer momento.
+- Estrutura visual preparada para inclusão de novos módulos.
+- APIs, banco, hierarquia e regras de permissão da V11 foram preservados para reduzir risco de regressão.
+
+COMPATIBILIDADE
+- Não exige migração destrutiva do banco.
+- schema.sql permanece compatível com a V11.
+- Variáveis .env existentes continuam válidas.
+
+VERSÃO
+V12.0.0
