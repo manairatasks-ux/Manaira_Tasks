@@ -80,12 +80,13 @@ async function initDb() {
 
 
 
-  // V14: catálogo de módulos e migração segura dos acessos existentes.
+  // V15: catálogo de módulos e migração segura dos acessos existentes.
   await query(`
     INSERT INTO modulos (codigo, nome, descricao, ordem, ativo) VALUES
       ('atividades', 'Atividades', 'Dashboard, setores, grupos e tarefas.', 10, TRUE),
       ('os', 'Ordem de Serviço', 'Gestão operacional das ordens de serviço.', 20, TRUE),
-      ('administracao', 'Administração', 'Usuários, hierarquia, setores e acessos.', 30, TRUE)
+      ('administracao', 'Administração', 'Usuários, hierarquia, setores e acessos.', 30, TRUE),
+      ('almoxarifado', 'Almoxarifado', 'Estoque, entradas, saídas e histórico de materiais.', 40, TRUE)
     ON CONFLICT (codigo) DO UPDATE SET
       nome = EXCLUDED.nome,
       descricao = EXCLUDED.descricao,

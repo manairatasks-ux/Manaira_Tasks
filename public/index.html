@@ -56,6 +56,14 @@
         <div class="module-menu-title">ADMINISTRAÇÃO</div>
         <button class="nav-main" id="btnConfig">⚙ Configurações</button>
       </div>
+      <div id="almoxMenu" class="module-menu hidden">
+        <div class="module-menu-title">ALMOXARIFADO</div>
+        <button class="nav-main" id="btnAlmoxDashboard">▦ Dashboard</button>
+        <button class="nav-main" id="btnAlmoxEstoque">▤ Estoque</button>
+        <button class="nav-main" id="btnAlmoxEntrada">＋ Entrada</button>
+        <button class="nav-main" id="btnAlmoxSaida">− Saída</button>
+        <button class="nav-main" id="btnAlmoxHistorico">↺ Histórico</button>
+      </div>
 
       <div class="sidebar-footer">
         <span id="userName"></span>
@@ -120,6 +128,9 @@
           <button class="module-card" id="cardAdmin" type="button">
             <span class="module-icon">⚙</span><span class="module-card-copy"><strong>Administração</strong><small>Usuários, hierarquia, setores, proprietários e permissões.</small></span><span class="module-arrow">→</span>
           </button>
+          <button class="module-card" id="cardAlmoxarifado" type="button">
+            <span class="module-icon">▣</span><span class="module-card-copy"><strong>Almoxarifado</strong><small>Controle simples de estoque, entradas, saídas e histórico.</small></span><span class="module-arrow">→</span>
+          </button>
           <div class="module-card module-card-disabled">
             <span class="module-icon">＋</span><span class="module-card-copy"><strong>Novos módulos</strong><small>Estrutura preparada para expansão da plataforma.</small></span><span class="module-badge">Em breve</span>
           </div>
@@ -130,6 +141,7 @@
       <section id="osPanel" class="os-panel hidden"></section>
       <section id="minhasPanel" class="dashboard hidden"></section>
       <section id="configPanel" class="dashboard hidden"></section>
+      <section id="almoxPanel" class="dashboard hidden"></section>
 
       <section id="printFooter" class="print-footer hidden">
         <button onclick="window.print()">🖨️ Imprimir visão atual</button>

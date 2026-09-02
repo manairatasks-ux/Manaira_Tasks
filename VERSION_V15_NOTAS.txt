@@ -1,0 +1,36 @@
+PLATAFORMA MANAÍRA V15
+======================
+
+Foco desta versão: criar um módulo de Almoxarifado simples, fácil de usar e integrado à arquitetura modular da V14.
+
+NOVO MÓDULO: ALMOXARIFADO
+- Dashboard enxuto com itens cadastrados, itens com saldo, entradas e saídas do mês.
+- Estoque atual com busca por item, categoria ou código de patrimônio.
+- Cadastro e edição de item.
+- Campos simples: descrição, categoria, código do patrimônio opcional, unidade, quantidade inicial e observação.
+- Registro de entrada.
+- Registro de saída com destino e/ou responsável.
+- Histórico completo de movimentações.
+- Saldo atualizado automaticamente a cada entrada/saída.
+- Bloqueio de saída quando não existe estoque suficiente.
+- Quantidade não pode ser alterada diretamente na edição do item, preservando o histórico.
+
+CONTROLE DE ACESSO
+- Novo código de módulo: almoxarifado.
+- O módulo aparece automaticamente na tela Administração > Acessos aos módulos.
+- Administrador Principal possui acesso permanente, como nos demais módulos.
+- Demais usuários só visualizam o card do Almoxarifado quando recebem permissão.
+- As APIs do Almoxarifado também são protegidas no backend.
+
+BANCO DE DADOS
+- almox_itens
+- almox_movimentacoes
+
+ARQUITETURA
+- src/modules/almoxarifado/almoxarifado.routes.js
+- src/modules/almoxarifado/almoxarifado.controller.js
+- src/modules/almoxarifado/almoxarifado.service.js
+- src/modules/almoxarifado/almoxarifado.model.js
+
+OBSERVAÇÃO
+Esta versão foi propositalmente mantida simples. Recursos como solicitações, aprovações, QR Code, termos de responsabilidade e patrimônio avançado não foram adicionados para não dificultar a rotina operacional.

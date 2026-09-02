@@ -22,7 +22,10 @@ const state = {
   pending: { dashboard: null, setor: null },
   renderTimer: null,
   configTab: 'usuarios',
-  modulosAcesso: []
+  modulosAcesso: [],
+  almoxView: 'dashboard',
+  almoxItens: [],
+  almoxHistorico: []
 };
 
 const CACHE_TTL = 60 * 1000;
@@ -114,6 +117,7 @@ function configurarMenuPorPerfil() {
   const atividades = temAcessoModulo('atividades');
   const os = temAcessoModulo('os') && isManager;
   const admin = temAcessoModulo('administracao') && isManager;
+  const almox = temAcessoModulo('almoxarifado');
 
   $('btnDashboard')?.classList.toggle('hidden', !atividades);
   $('btnMinhas')?.classList.toggle('hidden', !atividades);
@@ -124,6 +128,7 @@ function configurarMenuPorPerfil() {
   $('cardAtividades')?.classList.toggle('hidden', !atividades);
   $('cardOS')?.classList.toggle('hidden', !os);
   $('cardAdmin')?.classList.toggle('hidden', !admin);
+  $('cardAlmoxarifado')?.classList.toggle('hidden', !almox);
 }
 
 function statusClass(status) {
@@ -191,8 +196,9 @@ function setModule(module) {
   $('activityMenu')?.classList.toggle('hidden', module !== 'atividades');
   $('osMenu')?.classList.toggle('hidden', module !== 'os');
   $('adminMenu')?.classList.toggle('hidden', module !== 'admin');
+  $('almoxMenu')?.classList.toggle('hidden', module !== 'almoxarifado');
   $('btnHome')?.classList.toggle('active', module === 'home');
-  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração' };
+  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado' };
   if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Plataforma Manaíra';
 }
 
@@ -204,17 +210,22 @@ function setView(view) {
   const isOS = view === 'os';
   const isMinhas = view === 'minhas';
   const isConfig = view === 'config';
+  const isAlmox = view === 'almoxarifado';
   $('homePanel')?.classList.toggle('hidden', !isHome);
   $('dashboard').classList.toggle('hidden', !isDashboard);
   $('board').classList.toggle('hidden', !isBoard);
   $('osPanel')?.classList.toggle('hidden', !isOS);
   $('minhasPanel')?.classList.toggle('hidden', !isMinhas);
   $('configPanel')?.classList.toggle('hidden', !isConfig);
+  $('almoxPanel')?.classList.toggle('hidden', !isAlmox);
   $('printFooter').classList.toggle('hidden', isHome);
   $('btnDashboard').classList.toggle('active', isDashboard);
   $('btnOS')?.classList.toggle('active', isOS);
   $('btnMinhas')?.classList.toggle('active', isMinhas);
   $('btnConfig')?.classList.toggle('active', isConfig);
+  ['btnAlmoxDashboard','btnAlmoxEstoque','btnAlmoxEntrada','btnAlmoxSaida','btnAlmoxHistorico'].forEach(id => $(id)?.classList.remove('active'));
+  const almoxBtn = { dashboard:'btnAlmoxDashboard', estoque:'btnAlmoxEstoque', entrada:'btnAlmoxEntrada', saida:'btnAlmoxSaida', historico:'btnAlmoxHistorico' }[state.almoxView];
+  if (isAlmox && almoxBtn) $(almoxBtn)?.classList.add('active');
   $('btnExcluirSetor').classList.toggle('hidden', !isBoard);
   $('btnCompartilharSetor')?.classList.toggle('hidden', !isBoard);
   $('btnNovoGrupo').style.display = isBoard ? '' : 'none';
@@ -255,6 +266,13 @@ function entrarAdmin() {
   setModule('admin');
   history.replaceState(null, '', '#administracao');
   return abrirConfig();
+}
+
+function entrarAlmoxarifado() {
+  if (!exigirModulo('almoxarifado', 'Almoxarifado')) return;
+  setModule('almoxarifado');
+  history.replaceState(null, '', '#almoxarifado');
+  return abrirAlmoxarifado('dashboard');
 }
 
 async function init() {
@@ -1419,6 +1437,216 @@ async function abrirConfig() {
   renderConfig();
 }
 
+
+async function abrirAlmoxarifado(view = 'dashboard') {
+  if (!exigirModulo('almoxarifado', 'Almoxarifado')) return;
+  state.almoxView = view;
+  setModule('almoxarifado');
+  setView('almoxarifado');
+  const titulos = {
+    dashboard: ['Almoxarifado', 'Visão rápida do estoque e das últimas movimentações.'],
+    estoque: ['Estoque', 'Consulte os itens disponíveis e cadastre novos materiais.'],
+    entrada: ['Registrar entrada', 'Adicione ao estoque o material que chegou ao almoxarifado.'],
+    saida: ['Registrar saída', 'Registre o material entregue e mantenha o saldo atualizado.'],
+    historico: ['Histórico', 'Veja tudo que entrou e saiu do almoxarifado.']
+  };
+  const [titulo, descricao] = titulos[view] || titulos.dashboard;
+  $('setorTitulo').textContent = titulo;
+  $('setorDescricao').textContent = descricao;
+  history.replaceState(null, '', view === 'dashboard' ? '#almoxarifado' : `#almoxarifado/${view}`);
+  if (view === 'dashboard') return renderAlmoxDashboard();
+  if (view === 'estoque') return renderAlmoxEstoque();
+  if (view === 'entrada') return renderAlmoxMovimento('ENTRADA');
+  if (view === 'saida') return renderAlmoxMovimento('SAIDA');
+  return renderAlmoxHistorico();
+}
+
+async function carregarAlmoxItens(busca = '') {
+  const qs = busca ? `?busca=${encodeURIComponent(busca)}` : '';
+  state.almoxItens = await api(`/api/almoxarifado/itens${qs}`);
+  return state.almoxItens;
+}
+
+function almoxTipoBadge(tipo) {
+  return tipo === 'ENTRADA'
+    ? '<span class="almox-mov-badge entrada">Entrada</span>'
+    : '<span class="almox-mov-badge saida">Saída</span>';
+}
+
+async function renderAlmoxDashboard() {
+  const panel = $('almoxPanel');
+  if (!panel) return;
+  panel.innerHTML = '<div class="almox-loading">Carregando almoxarifado...</div>';
+  try {
+    const data = await api('/api/almoxarifado/dashboard');
+    const r = data.resumo || {};
+    panel.innerHTML = `
+      <div class="almox-quick-actions">
+        <button class="primary" onclick="abrirAlmoxarifado('entrada')">＋ Registrar entrada</button>
+        <button onclick="abrirAlmoxarifado('saida')">− Registrar saída</button>
+        <button onclick="abrirAlmoxarifado('estoque')">▤ Ver estoque</button>
+      </div>
+      <div class="almox-summary-grid">
+        <article class="almox-summary-card"><strong>${Number(r.itens_cadastrados || 0)}</strong><span>Itens cadastrados</span></article>
+        <article class="almox-summary-card"><strong>${Number(r.itens_com_saldo || 0)}</strong><span>Itens com saldo</span></article>
+        <article class="almox-summary-card"><strong>${Number(r.entradas_mes || 0)}</strong><span>Entradas no mês</span></article>
+        <article class="almox-summary-card"><strong>${Number(r.saidas_mes || 0)}</strong><span>Saídas no mês</span></article>
+      </div>
+      <section class="dash-panel wide almox-recentes">
+        <div class="dashboard-toolbar"><div><strong>Últimas movimentações</strong><span>Os registros mais recentes do almoxarifado.</span></div><button onclick="abrirAlmoxarifado('historico')">Ver histórico</button></div>
+        <div class="almox-history-list">
+          ${(data.recentes || []).map(m => `
+            <div class="almox-history-row">
+              <div>${almoxTipoBadge(m.tipo)}<strong>${escapeHtml(m.item_descricao)}</strong><small>${fmtDateTime(m.criado_em)}${m.usuario_nome ? ' • por ' + escapeHtml(m.usuario_nome) : ''}</small></div>
+              <div class="almox-history-qty"><strong>${m.tipo === 'SAIDA' ? '−' : '+'}${Number(m.quantidade)}</strong><small>${escapeHtml(m.unidade || 'UND')}</small></div>
+            </div>`).join('') || '<p class="empty">Nenhuma movimentação registrada ainda.</p>'}
+        </div>
+      </section>`;
+  } catch (err) {
+    panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
+  }
+}
+
+async function renderAlmoxEstoque(busca = '') {
+  const panel = $('almoxPanel');
+  if (!panel) return;
+  panel.innerHTML = '<div class="almox-loading">Carregando estoque...</div>';
+  try {
+    const itens = await carregarAlmoxItens(busca);
+    panel.innerHTML = `
+      <div class="dashboard-toolbar almox-toolbar">
+        <div><strong>Estoque atual</strong><span>Quantidade só muda por entrada ou saída.</span></div>
+        <button class="primary" onclick="almoxItemForm()">+ Novo item</button>
+      </div>
+      <div class="almox-search"><input id="almoxBuscaItem" placeholder="Buscar item, categoria ou patrimônio..." value="${escapeHtml(busca)}"><button id="almoxBuscarBtn">Buscar</button></div>
+      <section class="dash-panel wide almox-table-wrap">
+        <table class="dash-table almox-table">
+          <thead><tr><th>Item</th><th>Categoria</th><th>Patrimônio</th><th>Quantidade</th><th>Unidade</th><th></th></tr></thead>
+          <tbody>${itens.map(i => `<tr>
+            <td><strong>${escapeHtml(i.descricao)}</strong>${i.observacao ? `<small class="almox-cell-note">${escapeHtml(i.observacao)}</small>` : ''}</td>
+            <td>${escapeHtml(i.categoria || '-')}</td>
+            <td>${escapeHtml(i.codigo_patrimonio || '-')}</td>
+            <td><span class="almox-stock-number ${Number(i.quantidade_atual) === 0 ? 'zero' : ''}">${Number(i.quantidade_atual)}</span></td>
+            <td>${escapeHtml(i.unidade || 'UND')}</td>
+            <td><button onclick="almoxItemForm(${i.id})">Editar</button></td>
+          </tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhum item cadastrado.</td></tr>'}</tbody>
+        </table>
+      </section>`;
+    $('almoxBuscarBtn').onclick = () => renderAlmoxEstoque($('almoxBuscaItem').value.trim());
+    $('almoxBuscaItem').onkeydown = e => { if (e.key === 'Enter') renderAlmoxEstoque(e.target.value.trim()); };
+  } catch (err) {
+    panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
+  }
+}
+
+window.almoxItemForm = async (id = null) => {
+  if (!state.almoxItens.length) await carregarAlmoxItens();
+  const item = id ? state.almoxItens.find(i => Number(i.id) === Number(id)) : null;
+  const categorias = ['EPI','Fardamento','Eletrônicos','Equipamentos','Ferramentas','Material de escritório','Material de limpeza','Utensílios','Outros'];
+  openModal(item ? 'Editar item' : 'Novo item', `
+    <form id="almoxItemForm">
+      <div class="form-grid">
+        <div class="full"><label>Descrição</label><input name="descricao" value="${escapeHtml(item?.descricao || '')}" placeholder="Ex.: Bota de Segurança em couro preta Nº 40" required></div>
+        <div><label>Categoria</label><input name="categoria" list="almoxCategorias" value="${escapeHtml(item?.categoria || '')}" placeholder="Ex.: EPI"><datalist id="almoxCategorias">${categorias.map(c => `<option value="${c}">`).join('')}</datalist></div>
+        <div><label>Unidade</label><select name="unidade">${['UND','PAR','CX','PCT','KIT','M','KG'].map(u => `<option value="${u}" ${(item?.unidade || 'UND') === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
+        <div class="full"><label>Código do patrimônio <small>(opcional)</small></label><input name="codigo_patrimonio" value="${escapeHtml(item?.codigo_patrimonio || '')}" placeholder="Deixe em branco quando não houver"></div>
+        ${item ? '' : '<div><label>Quantidade inicial</label><input name="quantidade_inicial" type="number" min="0" step="1" value="0"></div>'}
+        <div class="full"><label>Observação <small>(opcional)</small></label><textarea name="observacao" rows="3">${escapeHtml(item?.observacao || '')}</textarea></div>
+      </div>
+      ${item ? '<p class="hint">A quantidade atual não é editada aqui. Use Entrada ou Saída para manter o histórico correto.</p>' : ''}
+      <div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Salvar item</button></div>
+    </form>`);
+  $('almoxItemForm').onsubmit = async e => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target));
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    try {
+      await api(item ? `/api/almoxarifado/itens/${item.id}` : '/api/almoxarifado/itens', { method: item ? 'PUT' : 'POST', body: JSON.stringify(data) });
+      closeModal();
+      await carregarAlmoxItens();
+      renderAlmoxEstoque();
+    } catch (err) { alert(err.message); btn.disabled = false; btn.textContent = 'Salvar item'; }
+  };
+};
+
+async function renderAlmoxMovimento(tipo) {
+  const panel = $('almoxPanel');
+  if (!panel) return;
+  try {
+    await carregarAlmoxItens();
+    const saida = tipo === 'SAIDA';
+    panel.innerHTML = `
+      <div class="almox-form-shell">
+        <div class="almox-form-head"><span class="almox-form-icon">${saida ? '−' : '+'}</span><div><strong>${saida ? 'Registrar saída' : 'Registrar entrada'}</strong><small>${saida ? 'Informe o material que foi entregue.' : 'Informe o material que chegou ao almoxarifado.'}</small></div></div>
+        <form id="almoxMovForm" class="almox-movement-form">
+          <label>Item</label>
+          <select name="item_id" required><option value="">Selecione o item</option>${state.almoxItens.map(i => `<option value="${i.id}">${escapeHtml(i.descricao)} — saldo ${Number(i.quantidade_atual)} ${escapeHtml(i.unidade)}</option>`).join('')}</select>
+          <label>Quantidade</label><input name="quantidade" type="number" min="1" step="1" value="1" required>
+          ${saida ? '<label>Destino</label><input name="destino" placeholder="Ex.: Açougue, RH, Frente de Loja"><label>Responsável</label><input name="responsavel" placeholder="Nome de quem recebeu (opcional)">' : ''}
+          <label>Observação <small>(opcional)</small></label><textarea name="observacao" rows="3" placeholder="Alguma informação importante sobre esta movimentação"></textarea>
+          <div id="almoxMovMsg" class="almox-form-msg"></div>
+          <button class="primary almox-confirm" type="submit">${saida ? 'Confirmar saída' : 'Confirmar entrada'}</button>
+        </form>
+      </div>`;
+    $('almoxMovForm').onsubmit = async e => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target));
+      const btn = e.target.querySelector('button[type="submit"]');
+      const msg = $('almoxMovMsg');
+      btn.disabled = true; btn.textContent = 'Salvando...'; msg.textContent = '';
+      try {
+        await api(saida ? '/api/almoxarifado/saidas' : '/api/almoxarifado/entradas', { method: 'POST', body: JSON.stringify(data) });
+        e.target.reset();
+        msg.textContent = saida ? 'Saída registrada com sucesso.' : 'Entrada registrada com sucesso.';
+        msg.className = 'almox-form-msg success';
+        await carregarAlmoxItens();
+        const select = e.target.querySelector('[name="item_id"]');
+        select.innerHTML = '<option value="">Selecione o item</option>' + state.almoxItens.map(i => `<option value="${i.id}">${escapeHtml(i.descricao)} — saldo ${Number(i.quantidade_atual)} ${escapeHtml(i.unidade)}</option>`).join('');
+      } catch (err) {
+        msg.textContent = err.message; msg.className = 'almox-form-msg error';
+      } finally { btn.disabled = false; btn.textContent = saida ? 'Confirmar saída' : 'Confirmar entrada'; }
+    };
+  } catch (err) {
+    panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
+  }
+}
+
+async function renderAlmoxHistorico(busca = '', tipo = '') {
+  const panel = $('almoxPanel');
+  if (!panel) return;
+  panel.innerHTML = '<div class="almox-loading">Carregando histórico...</div>';
+  try {
+    const params = new URLSearchParams();
+    if (busca) params.set('busca', busca);
+    if (tipo) params.set('tipo', tipo);
+    const data = await api(`/api/almoxarifado/historico?${params.toString()}`);
+    state.almoxHistorico = data;
+    panel.innerHTML = `
+      <div class="almox-history-filters">
+        <input id="almoxHistBusca" placeholder="Buscar item, destino, responsável..." value="${escapeHtml(busca)}">
+        <select id="almoxHistTipo"><option value="">Entradas e saídas</option><option value="ENTRADA" ${tipo==='ENTRADA'?'selected':''}>Entradas</option><option value="SAIDA" ${tipo==='SAIDA'?'selected':''}>Saídas</option></select>
+        <button id="almoxHistBuscar">Filtrar</button>
+      </div>
+      <section class="dash-panel wide">
+        <div class="almox-history-list detailed">
+          ${data.map(m => `<div class="almox-history-row">
+            <div>${almoxTipoBadge(m.tipo)}<strong>${escapeHtml(m.item_descricao)}</strong><small>${fmtDateTime(m.criado_em)}${m.usuario_nome ? ' • registrado por ' + escapeHtml(m.usuario_nome) : ''}</small>${m.destino || m.responsavel || m.observacao ? `<p>${m.destino ? '<b>Destino:</b> '+escapeHtml(m.destino)+' ' : ''}${m.responsavel ? '<b>Responsável:</b> '+escapeHtml(m.responsavel)+' ' : ''}${m.observacao ? '<b>Obs.:</b> '+escapeHtml(m.observacao) : ''}</p>` : ''}</div>
+            <div class="almox-history-qty"><strong>${m.tipo === 'SAIDA' ? '−' : '+'}${Number(m.quantidade)}</strong><small>${escapeHtml(m.unidade || 'UND')} • saldo ${Number(m.saldo_posterior)}</small></div>
+          </div>`).join('') || '<p class="empty">Nenhuma movimentação encontrada.</p>'}
+        </div>
+      </section>`;
+    const filtrar = () => renderAlmoxHistorico($('almoxHistBusca').value.trim(), $('almoxHistTipo').value);
+    $('almoxHistBuscar').onclick = filtrar;
+    $('almoxHistTipo').onchange = filtrar;
+    $('almoxHistBusca').onkeydown = e => { if (e.key === 'Enter') filtrar(); };
+  } catch (err) {
+    panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
+  }
+}
+
+window.abrirAlmoxarifado = abrirAlmoxarifado;
+
 function podeGerenciarUsuario(usuario) {
   const niveis = { colaborador:1, encarregado:2, gerente:3, administrador:4, administrador_principal:5 };
   return !usuario.administrador_principal && (niveis[usuario.perfil] || 0) < (niveis[state.usuario?.perfil] || 0);
@@ -1630,6 +1858,12 @@ $('btnHome').onclick = abrirHome;
 $('cardAtividades').onclick = entrarAtividades;
 $('cardOS').onclick = entrarOS;
 $('cardAdmin').onclick = entrarAdmin;
+$('cardAlmoxarifado').onclick = entrarAlmoxarifado;
+$('btnAlmoxDashboard').onclick = () => abrirAlmoxarifado('dashboard');
+$('btnAlmoxEstoque').onclick = () => abrirAlmoxarifado('estoque');
+$('btnAlmoxEntrada').onclick = () => abrirAlmoxarifado('entrada');
+$('btnAlmoxSaida').onclick = () => abrirAlmoxarifado('saida');
+$('btnAlmoxHistorico').onclick = () => abrirAlmoxarifado('historico');
 $('btnDashboard').onclick = abrirDashboard;
 $('btnOS').onclick = abrirOS;
 $('btnMinhas').onclick = abrirMinhas;

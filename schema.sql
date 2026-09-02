@@ -203,3 +203,40 @@ CREATE TABLE IF NOT EXISTS usuario_modulos (
 
 CREATE INDEX IF NOT EXISTS idx_usuario_modulos_usuario ON usuario_modulos(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_usuario_modulos_modulo ON usuario_modulos(modulo_id);
+
+-- V15: módulo básico de Almoxarifado
+CREATE TABLE IF NOT EXISTS almox_itens (
+  id SERIAL PRIMARY KEY,
+  descricao VARCHAR(180) NOT NULL,
+  categoria VARCHAR(100),
+  codigo_patrimonio VARCHAR(100),
+  unidade VARCHAR(20) NOT NULL DEFAULT 'UND',
+  observacao TEXT,
+  quantidade_atual INTEGER NOT NULL DEFAULT 0 CHECK (quantidade_atual >= 0),
+  ativo BOOLEAN NOT NULL DEFAULT TRUE,
+  criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_almox_itens_descricao ON almox_itens(descricao);
+CREATE INDEX IF NOT EXISTS idx_almox_itens_categoria ON almox_itens(categoria);
+CREATE INDEX IF NOT EXISTS idx_almox_itens_patrimonio ON almox_itens(codigo_patrimonio);
+
+CREATE TABLE IF NOT EXISTS almox_movimentacoes (
+  id SERIAL PRIMARY KEY,
+  item_id INTEGER NOT NULL REFERENCES almox_itens(id) ON DELETE RESTRICT,
+  tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('ENTRADA', 'SAIDA')),
+  quantidade INTEGER NOT NULL CHECK (quantidade > 0),
+  destino VARCHAR(160),
+  responsavel VARCHAR(160),
+  observacao TEXT,
+  usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  saldo_anterior INTEGER NOT NULL,
+  saldo_posterior INTEGER NOT NULL,
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_almox_mov_item ON almox_movimentacoes(item_id);
+CREATE INDEX IF NOT EXISTS idx_almox_mov_tipo ON almox_movimentacoes(tipo);
+CREATE INDEX IF NOT EXISTS idx_almox_mov_data ON almox_movimentacoes(criado_em DESC);

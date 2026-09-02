@@ -1,3 +1,8 @@
+
+## V15 — Módulo Almoxarifado
+
+A V15 adiciona um módulo operacional simples de Almoxarifado, integrado ao controle de acesso por módulos. O foco é substituir a planilha do dia a dia sem criar complexidade desnecessária: cadastro de itens, estoque atual, entradas, saídas e histórico.
+
 # Plataforma Manaíra V14
 
 Versão modular da Plataforma Manaíra com backend organizado por domínio e camadas **Route → Controller → Service → Model**, além de controle de acesso por módulo.

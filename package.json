@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "6.0.0",
-  "description": "Plataforma Manaíra V14 - arquitetura modular com controle de acesso por módulo",
+  "version": "7.0.0",
+  "description": "Plataforma Manaíra V15 - módulo básico de Almoxarifado integrado ao controle de acessos",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",

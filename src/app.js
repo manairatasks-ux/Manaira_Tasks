@@ -7,6 +7,7 @@ const usuarioRoutes=require('./modules/usuarios/usuario.routes');
 const atividadesRoutes=require('./modules/atividades/atividades.routes');
 const osRoutes=require('./modules/os/os.routes');
 const moduloRoutes=require('./modules/modulos/modulo.routes');
+const almoxarifadoRoutes=require('./modules/almoxarifado/almoxarifado.routes');
 
 const app=express();
 app.use(cors());
@@ -19,6 +20,7 @@ app.get('/api/health',async(req,res)=>{try{await query('SELECT 1');res.json({ok:
 app.use('/api',authRoutes);
 app.use('/api',moduloRoutes);
 app.use('/api/usuarios',usuarioRoutes);
+app.use('/api/almoxarifado',almoxarifadoRoutes);
 app.use('/',atividadesRoutes);
 app.use('/',osRoutes);
 app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'..','public','index.html')));
