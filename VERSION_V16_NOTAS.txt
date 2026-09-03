@@ -1,0 +1,51 @@
+PLATAFORMA MANAÍRA V16 - MÓDULO GALPÃO
+
+Objetivo
+- Trazer o antigo Controle de Galpão em Python/Tkinter para dentro da Plataforma Manaíra.
+- Preservar a regra central do sistema antigo: estoque por Produto + Validade + Unidades por Embalagem.
+- Preparar a migração do banco SQLite controle_estoque.db usado atualmente no computador do Galpão.
+
+NOVO MÓDULO: GALPÃO
+- Dashboard
+- Produtos
+- Estoque
+- Entrada
+- Saída
+- Histórico
+- Validades
+- Importar banco antigo (somente Administrador Principal)
+
+REGRAS IMPORTANTES
+1. Um mesmo produto pode possuir vários lotes por validade e/ou Unid/Emb.
+2. Saída exige a escolha de um lote existente e bloqueia saldo negativo.
+3. Validade é opcional.
+4. Total de unidades = quantidade de embalagens x unidades por embalagem.
+5. O histórico importado do Python é preservado como origem SQLITE.
+6. O saldo atual é importado diretamente da tabela estoque do SQLite; ele não é recalculado pelo histórico antigo.
+
+MIGRAÇÃO DO PYTHON
+- O importador lê um arquivo .db SQLite compatível com o projeto antigo.
+- Antes de importar, a tela mostra os totais encontrados: produtos, lotes, entradas e saídas.
+- Se já houver dados no módulo Galpão, a importação só continua quando o Administrador Principal marcar explicitamente a opção de substituir os dados atuais.
+- A execução exige uma confirmação interna e grava hash SHA-256 do arquivo importado.
+- Na implantação real, usar o controle_estoque.db ATUAL do colega. O banco enviado durante o desenvolvimento contém dados antigos de teste.
+
+BANCO POSTGRESQL
+Novas tabelas:
+- galpao_produtos
+- galpao_estoque
+- galpao_movimentacoes
+- galpao_importacoes
+
+DEPENDÊNCIA NOVA
+- sql.js: usada somente para ler o SQLite enviado pelo navegador sem depender de Python no servidor.
+- Após atualizar a versão local, execute npm install antes de iniciar a V16.
+
+PERMISSÕES
+- Código do módulo: galpao
+- O Administrador Principal possui acesso permanente.
+- Demais usuários recebem acesso pela Administração > Acessos aos módulos.
+- Importação do banco antigo é exclusiva do Administrador Principal.
+
+OBSERVAÇÃO
+O console de inicialização foi corrigido para exibir V16.

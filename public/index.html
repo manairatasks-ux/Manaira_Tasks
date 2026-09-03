@@ -64,6 +64,21 @@
         <button class="nav-main" id="btnAlmoxSaida">− Saída</button>
         <button class="nav-main" id="btnAlmoxHistorico">↺ Histórico</button>
       </div>
+      <div id="galpaoMenu" class="module-menu hidden">
+        <div class="module-menu-title">GALPÃO</div>
+
+        <button class="nav-main" id="btnGalpaoDashboard">
+          ▦ Dashboard
+        </button>
+
+        <button class="nav-main" id="btnGalpaoValidades">
+          ◷ Validades
+        </button>
+
+        <button class="nav-main" id="btnGalpaoImportar">
+          ⇧ Importar banco
+        </button>
+      </div>
 
       <div class="sidebar-footer">
         <span id="userName"></span>
@@ -120,19 +135,34 @@
         </div>
         <div class="module-grid">
           <button class="module-card" id="cardAtividades" type="button">
-            <span class="module-icon">✓</span><span class="module-card-copy"><strong>Atividades</strong><small>Dashboard, setores, grupos, tarefas e acompanhamento.</small></span><span class="module-arrow">→</span>
+            <span class="module-icon">✓</span><span
+              class="module-card-copy"><strong>Atividades</strong><small>Dashboard, setores, grupos, tarefas e
+                acompanhamento.</small></span><span class="module-arrow">→</span>
           </button>
           <button class="module-card" id="cardOS" type="button">
-            <span class="module-icon">🛠</span><span class="module-card-copy"><strong>Ordem de Serviço</strong><small>Recebimento, execução, pendências e histórico de OS.</small></span><span class="module-arrow">→</span>
+            <span class="module-icon">🛠</span><span class="module-card-copy"><strong>Ordem de
+                Serviço</strong><small>Recebimento, execução, pendências e histórico de OS.</small></span><span
+              class="module-arrow">→</span>
           </button>
           <button class="module-card" id="cardAdmin" type="button">
-            <span class="module-icon">⚙</span><span class="module-card-copy"><strong>Administração</strong><small>Usuários, hierarquia, setores, proprietários e permissões.</small></span><span class="module-arrow">→</span>
+            <span class="module-icon">⚙</span><span
+              class="module-card-copy"><strong>Administração</strong><small>Usuários, hierarquia, setores, proprietários
+                e permissões.</small></span><span class="module-arrow">→</span>
           </button>
           <button class="module-card" id="cardAlmoxarifado" type="button">
-            <span class="module-icon">▣</span><span class="module-card-copy"><strong>Almoxarifado</strong><small>Controle simples de estoque, entradas, saídas e histórico.</small></span><span class="module-arrow">→</span>
+            <span class="module-icon">▣</span><span
+              class="module-card-copy"><strong>Almoxarifado</strong><small>Controle simples de estoque, entradas, saídas
+                e histórico.</small></span><span class="module-arrow">→</span>
+          </button>
+          <button class="module-card" id="cardGalpao" type="button">
+            <span class="module-icon">🏬</span><span class="module-card-copy"><strong>Galpão</strong><small>Produtos,
+                estoque por validade, entradas, saídas e migração do sistema antigo.</small></span><span
+              class="module-arrow">→</span>
           </button>
           <div class="module-card module-card-disabled">
-            <span class="module-icon">＋</span><span class="module-card-copy"><strong>Novos módulos</strong><small>Estrutura preparada para expansão da plataforma.</small></span><span class="module-badge">Em breve</span>
+            <span class="module-icon">＋</span><span class="module-card-copy"><strong>Novos
+                módulos</strong><small>Estrutura preparada para expansão da plataforma.</small></span><span
+              class="module-badge">Em breve</span>
           </div>
         </div>
       </section>
@@ -142,6 +172,7 @@
       <section id="minhasPanel" class="dashboard hidden"></section>
       <section id="configPanel" class="dashboard hidden"></section>
       <section id="almoxPanel" class="dashboard hidden"></section>
+      <section id="galpaoPanel" class="dashboard hidden"></section>
 
       <section id="printFooter" class="print-footer hidden">
         <button onclick="window.print()">🖨️ Imprimir visão atual</button>

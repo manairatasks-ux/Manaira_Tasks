@@ -25,7 +25,9 @@ const state = {
   modulosAcesso: [],
   almoxView: 'dashboard',
   almoxItens: [],
-  almoxHistorico: []
+  almoxHistorico: [],
+  galpaoView: 'dashboard',
+  galpaoProdutos: []
 };
 
 const CACHE_TTL = 60 * 1000;
@@ -88,6 +90,18 @@ function api(path, options = {}) {
   });
 }
 
+function apiForm(path, formData, options = {}) {
+  return fetch(path, {
+    method: options.method || 'POST',
+    headers: { ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}) },
+    body: formData
+  }).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro na requisição');
+    return data;
+  });
+}
+
 function showApp() {
   $('loginScreen').classList.add('hidden');
   $('app').classList.remove('hidden');
@@ -118,6 +132,7 @@ function configurarMenuPorPerfil() {
   const os = temAcessoModulo('os') && isManager;
   const admin = temAcessoModulo('administracao') && isManager;
   const almox = temAcessoModulo('almoxarifado');
+  const galpao = temAcessoModulo('galpao');
 
   $('btnDashboard')?.classList.toggle('hidden', !atividades);
   $('btnMinhas')?.classList.toggle('hidden', !atividades);
@@ -129,6 +144,8 @@ function configurarMenuPorPerfil() {
   $('cardOS')?.classList.toggle('hidden', !os);
   $('cardAdmin')?.classList.toggle('hidden', !admin);
   $('cardAlmoxarifado')?.classList.toggle('hidden', !almox);
+  $('cardGalpao')?.classList.toggle('hidden', !galpao);
+  $('btnGalpaoImportar')?.classList.toggle('hidden', state.usuario?.perfil !== 'administrador_principal');
 }
 
 function statusClass(status) {
@@ -197,8 +214,9 @@ function setModule(module) {
   $('osMenu')?.classList.toggle('hidden', module !== 'os');
   $('adminMenu')?.classList.toggle('hidden', module !== 'admin');
   $('almoxMenu')?.classList.toggle('hidden', module !== 'almoxarifado');
+  $('galpaoMenu')?.classList.toggle('hidden', module !== 'galpao');
   $('btnHome')?.classList.toggle('active', module === 'home');
-  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado' };
+  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão' };
   if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Plataforma Manaíra';
 }
 
@@ -211,6 +229,7 @@ function setView(view) {
   const isMinhas = view === 'minhas';
   const isConfig = view === 'config';
   const isAlmox = view === 'almoxarifado';
+  const isGalpao = view === 'galpao';
   $('homePanel')?.classList.toggle('hidden', !isHome);
   $('dashboard').classList.toggle('hidden', !isDashboard);
   $('board').classList.toggle('hidden', !isBoard);
@@ -218,6 +237,7 @@ function setView(view) {
   $('minhasPanel')?.classList.toggle('hidden', !isMinhas);
   $('configPanel')?.classList.toggle('hidden', !isConfig);
   $('almoxPanel')?.classList.toggle('hidden', !isAlmox);
+  $('galpaoPanel')?.classList.toggle('hidden', !isGalpao);
   $('printFooter').classList.toggle('hidden', isHome);
   $('btnDashboard').classList.toggle('active', isDashboard);
   $('btnOS')?.classList.toggle('active', isOS);
@@ -226,6 +246,21 @@ function setView(view) {
   ['btnAlmoxDashboard', 'btnAlmoxEstoque', 'btnAlmoxEntrada', 'btnAlmoxSaida', 'btnAlmoxHistorico'].forEach(id => $(id)?.classList.remove('active'));
   const almoxBtn = { dashboard: 'btnAlmoxDashboard', estoque: 'btnAlmoxEstoque', entrada: 'btnAlmoxEntrada', saida: 'btnAlmoxSaida', historico: 'btnAlmoxHistorico' }[state.almoxView];
   if (isAlmox && almoxBtn) $(almoxBtn)?.classList.add('active');
+
+  ['btnGalpaoDashboard', 'btnGalpaoValidades', 'btnGalpaoImportar']
+    .forEach(id => $(id)?.classList.remove('active'));
+
+  const galpaoBtn = {
+    dashboard: 'btnGalpaoDashboard',
+    validades: 'btnGalpaoValidades',
+    importar: 'btnGalpaoImportar'
+  }[state.galpaoView];
+
+  if (isGalpao && galpaoBtn) {
+    $(galpaoBtn)?.classList.add('active');
+  }
+
+
   $('btnExcluirSetor').classList.toggle('hidden', !isBoard);
   $('btnCompartilharSetor')?.classList.toggle('hidden', !isBoard);
   $('btnNovoGrupo').style.display = isBoard ? '' : 'none';
@@ -1647,6 +1682,1813 @@ async function renderAlmoxHistorico(busca = '', tipo = '') {
 
 window.abrirAlmoxarifado = abrirAlmoxarifado;
 
+
+// =========================
+// V16 - Módulo Galpão
+// =========================
+function entrarGalpao() {
+  if (!exigirModulo('galpao', 'Galpão')) return;
+  setModule('galpao');
+  history.replaceState(null, '', '#galpao');
+  return abrirGalpao('dashboard');
+}
+
+async function carregarGalpaoProdutos(busca = '') {
+  const qs = busca ? `?busca=${encodeURIComponent(busca)}` : '';
+  state.galpaoProdutos = await api(`/api/galpao/produtos${qs}`);
+  return state.galpaoProdutos;
+}
+
+function galpaoValidadeLabel(v) { return v ? fmtDate(v) : 'Sem validade'; }
+function galpaoTipoBadge(tipo) { return tipo === 'ENTRADA' ? '<span class="galpao-badge entrada">Entrada</span>' : '<span class="galpao-badge saida">Saída</span>'; }
+
+function galpaoFluxoBar(view = state.galpaoView) {
+  const etapas = [
+    ['produtos', 'Cadastro', '1'],
+    ['entrada', 'Entrada', '2'],
+    ['saida', 'Saída', '3'],
+    ['estoque', 'Estoque atual', '4'],
+    ['historico_entradas', 'Histórico entradas', '5'],
+    ['historico_saidas', 'Histórico saídas', '6']
+  ];
+  return `<nav class="galpao-flow" aria-label="Fluxo operacional do Galpão">
+    <div class="galpao-flow-label"><strong>Fluxo operacional</strong><span>Siga a mesma sequência do sistema antigo</span></div>
+    <div class="galpao-flow-steps">${etapas.map(([codigo, label, n]) => `<button type="button" class="galpao-flow-step ${view === codigo ? 'active' : ''}" onclick="abrirGalpao('${codigo}')"><span class="galpao-flow-number">${n}</span><span>${label}</span></button>`).join('<span class="galpao-flow-arrow">›</span>')}</div>
+  </nav>`;
+}
+function galpaoDiasBadge(dias) {
+  const n = Number(dias);
+  if (n < 0) return `<span class="galpao-expiry danger">Vencido há ${Math.abs(n)} dia(s)</span>`;
+  if (n <= 30) return `<span class="galpao-expiry warning">${n} dia(s)</span>`;
+  return `<span class="galpao-expiry ok">${n} dia(s)</span>`;
+}
+
+async function abrirGalpao(view = 'dashboard') {
+  if (!exigirModulo('galpao', 'Galpão')) return;
+  state.galpaoView = view;
+  setModule('galpao');
+  setView('galpao');
+  const metas = {
+    dashboard: ['Galpão', 'Visão geral do estoque e das validades.'],
+    produtos: ['Produtos do Galpão', 'Cadastro base por código de barras.'],
+    estoque: ['Estoque do Galpão', 'Saldo separado por produto, validade e unidades por embalagem.'],
+    entrada: ['Entrada no Galpão', 'Registre o recebimento de mercadorias.'],
+    saida: ['Saída do Galpão', 'Retire mercadorias do lote correto.'],
+    historico: ['Histórico do Galpão', 'Entradas e saídas registradas no sistema.'],
+    historico_entradas: ['Histórico de Entradas', 'Todas as entradas registradas no Galpão.'],
+    historico_saidas: ['Histórico de Saídas', 'Todas as saídas registradas no Galpão.'],
+    validades: ['Validades', 'Acompanhe lotes vencidos ou próximos do vencimento.'],
+    importar: ['Importar sistema antigo', 'Migre o controle_estoque.db do projeto Python para o PostgreSQL.']
+  };
+  const [titulo, descricao] = metas[view] || metas.dashboard;
+  $('setorTitulo').textContent = titulo; $('setorDescricao').textContent = descricao;
+  history.replaceState(null, '', view === 'dashboard' ? '#galpao' : `#galpao/${view}`);
+  if (view === 'dashboard') return renderGalpaoDashboard();
+  if (view === 'produtos') return renderGalpaoProdutos();
+  if (view === 'estoque') return renderGalpaoEstoque();
+  if (view === 'entrada') return renderGalpaoMovimento('ENTRADA');
+  if (view === 'saida') return renderGalpaoMovimento('SAIDA');
+  if (view === 'historico') return renderGalpaoHistorico();
+  if (view === 'historico_entradas') return renderGalpaoHistorico('', 'ENTRADA', true);
+  if (view === 'historico_saidas') return renderGalpaoHistorico('', 'SAIDA', true);
+  if (view === 'validades') return renderGalpaoValidades();
+  if (view === 'importar') return renderGalpaoImportar();
+}
+
+async function renderGalpaoDashboard() {
+  const panel = $('galpaoPanel'); panel.innerHTML = '<div class="almox-loading">Carregando Galpão...</div>';
+  try {
+    const data = await api('/api/galpao/dashboard'); const r = data.resumo || {};
+    panel.innerHTML = `
+      ${galpaoFluxoBar('dashboard')}
+      
+      <div class="almox-summary-grid galpao-summary-grid">
+        <article class="almox-summary-card"><strong>${Number(r.produtos || 0).toLocaleString('pt-BR')}</strong><span>Produtos cadastrados</span></article>
+        <article class="almox-summary-card"><strong>${Number(r.lotes_com_saldo || 0).toLocaleString('pt-BR')}</strong><span>Lotes com saldo</span></article>
+        <article class="almox-summary-card"><strong>${Number(r.embalagens_estoque || 0).toLocaleString('pt-BR')}</strong><span>Embalagens em estoque</span></article>
+        <article class="almox-summary-card"><strong>${Number(r.unidades_estoque || 0).toLocaleString('pt-BR')}</strong><span>Unidades totais</span></article>
+        <article class="almox-summary-card alert"><strong>${Number(r.vencem_60_dias || 0)}</strong><span>Vencem em até 60 dias</span></article>
+        <article class="almox-summary-card danger"><strong>${Number(r.vencidos || 0)}</strong><span>Lotes vencidos</span></article>
+      </div>
+      <section class="dash-panel wide">
+        <div class="dashboard-toolbar"><div><strong>Movimentações recentes</strong><span>Últimos registros do Galpão.</span></div><button onclick="abrirGalpao('historico')">Ver histórico</button></div>
+        <div class="almox-history-list">${(data.recentes || []).map(m => `<div class="almox-history-row"><div>${galpaoTipoBadge(m.tipo)}<strong>${escapeHtml(m.descricao)}</strong><small>${fmtDate(m.data_movimento)} • ${galpaoValidadeLabel(m.validade)} • ${Number(m.unidades_por_embalagem)} unid/emb${m.usuario_nome ? ' • ' + escapeHtml(m.usuario_nome) : ''}</small></div><div class="almox-history-qty"><strong>${m.tipo === 'SAIDA' ? '−' : '+'}${Number(m.quantidade)}</strong><small>embalagem(ns)</small></div></div>`).join('') || '<p class="empty">Nenhuma movimentação registrada.</p>'}</div>
+      </section>`;
+  } catch (err) { panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`; }
+}
+
+async function renderGalpaoProdutos(busca = '') {
+  const panel = $('galpaoPanel'); panel.innerHTML = '<div class="almox-loading">Carregando produtos...</div>';
+  try {
+    const produtos = await carregarGalpaoProdutos(busca);
+    panel.innerHTML = `${galpaoFluxoBar('produtos')}<div class="dashboard-toolbar almox-toolbar"><div><strong>${produtos.length.toLocaleString('pt-BR')} produto(s)</strong><span>O código de barras identifica o produto em entradas e saídas.</span></div><button class="primary" onclick="galpaoProdutoForm()">+ Novo produto</button></div>
+      <div class="almox-search"><input id="galpaoBuscaProduto" placeholder="Buscar código ou descrição..." value="${escapeHtml(busca)}"><button id="galpaoBuscarProduto">Buscar</button></div>
+      <section class="dash-panel wide almox-table-wrap"><table class="dash-table galpao-table"><thead><tr><th>Código</th><th>Descrição</th><th>Lotes</th><th>Emb.</th><th>Total unid.</th><th>Ação</th></tr></thead><tbody>${produtos.map(p => `<tr><td class="mono">${escapeHtml(p.codigo_barra)}</td><td><strong>${escapeHtml(p.descricao)}</strong></td><td>${Number(p.lotes)}</td><td>${Number(p.embalagens).toLocaleString('pt-BR')}</td><td>${Number(p.unidades).toLocaleString('pt-BR')}</td><td><button onclick="galpaoProdutoForm(${p.id})">Editar</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhum produto encontrado.</td></tr>'}</tbody></table></section>`;
+    const buscar = () => renderGalpaoProdutos($('galpaoBuscaProduto').value.trim()); $('galpaoBuscarProduto').onclick = buscar; $('galpaoBuscaProduto').onkeydown = e => { if (e.key === 'Enter') buscar(); };
+  } catch (err) { panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`; }
+}
+
+window.galpaoProdutoForm = async (id = null) => {
+  if (!state.galpaoProdutos.length) await carregarGalpaoProdutos(); const p = id ? state.galpaoProdutos.find(x => Number(x.id) === Number(id)) : null;
+  openModal(p ? 'Editar produto' : 'Novo produto', `<form id="galpaoProdutoForm"><div class="form-grid"><div><label>Código de barras</label><input name="codigo_barra" value="${escapeHtml(p?.codigo_barra || '')}" required autofocus></div><div class="full"><label>Descrição</label><input name="descricao" value="${escapeHtml(p?.descricao || '')}" required></div></div><div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Salvar produto</button></div></form>`);
+  $('galpaoProdutoForm').onsubmit = async e => { e.preventDefault(); const data = Object.fromEntries(new FormData(e.target)); try { await api(p ? `/api/galpao/produtos/${p.id}` : '/api/galpao/produtos', { method: p ? 'PUT' : 'POST', body: JSON.stringify(data) }); closeModal(); await renderGalpaoProdutos(); } catch (err) { alert(err.message); } };
+};
+
+async function renderGalpaoEstoque(busca = '', validade = '') {
+  const panel = $('galpaoPanel');
+  panel.innerHTML = '<div class="almox-loading">Carregando estoque...</div>';
+
+  try {
+    const qs = new URLSearchParams();
+
+    if (busca) {
+      qs.set('busca', busca);
+    }
+
+    if (validade) {
+      qs.set('validade', validade);
+    }
+
+    const dados = await api(`/api/galpao/estoque?${qs}`);
+
+    // Estoque atual mostra somente lotes com saldo.
+    const estoque = dados.filter(
+      item => Number(item.quantidade) > 0
+    );
+
+    // Agrupa os lotes pelo produto.
+    const grupos = new Map();
+
+    estoque.forEach(item => {
+      const chave = String(item.produto_id);
+
+      if (!grupos.has(chave)) {
+        grupos.set(chave, {
+          produto_id: item.produto_id,
+          codigo_barra: item.codigo_barra,
+          descricao: item.descricao,
+          lotes: []
+        });
+      }
+
+      grupos.get(chave).lotes.push(item);
+    });
+
+    const gruposArray = [...grupos.values()];
+
+    // Resumo do resultado exibido.
+    const resumo = gruposArray.reduce(
+      (acc, grupo) => {
+        acc.produtos += 1;
+        acc.lotes += grupo.lotes.length;
+
+        grupo.lotes.forEach(item => {
+          acc.embalagens += Number(
+            item.quantidade || 0
+          );
+
+          acc.unidades += Number(
+            item.total_unidades || 0
+          );
+        });
+
+        return acc;
+      },
+      {
+        produtos: 0,
+        lotes: 0,
+        embalagens: 0,
+        unidades: 0
+      }
+    );
+
+    // Define o destaque visual da validade.
+    function validadeEstoqueHtml(valor) {
+      if (!valor) {
+        return `
+          <span class="galpao-stock-validade sem-validade">
+            Sem validade
+          </span>
+        `;
+      }
+
+      const dataTexto = String(valor).slice(0, 10);
+      const partes = dataTexto
+        .split('-')
+        .map(Number);
+
+      if (
+        partes.length !== 3 ||
+        partes.some(Number.isNaN)
+      ) {
+        return `
+          <span class="galpao-stock-validade">
+            ${escapeHtml(
+          galpaoValidadeLabel(valor)
+        )}
+          </span>
+        `;
+      }
+
+      const hoje = new Date();
+
+      const hojeUtc = Date.UTC(
+        hoje.getFullYear(),
+        hoje.getMonth(),
+        hoje.getDate()
+      );
+
+      const validadeUtc = Date.UTC(
+        partes[0],
+        partes[1] - 1,
+        partes[2]
+      );
+
+      const dias = Math.floor(
+        (validadeUtc - hojeUtc) / 86400000
+      );
+
+      let classe = 'ok';
+      let complemento = '';
+
+      if (dias < 0) {
+        classe = 'vencido';
+        complemento = 'Vencido';
+      } else if (dias <= 30) {
+        classe = 'urgente';
+        complemento = `${dias}d`;
+      } else if (dias <= 60) {
+        classe = 'atencao';
+        complemento = `${dias}d`;
+      }
+
+      return `
+        <span class="galpao-stock-validade ${classe}">
+          <span>
+            ${escapeHtml(
+        galpaoValidadeLabel(valor)
+      )}
+          </span>
+
+          ${complemento
+          ? `<small>${complemento}</small>`
+          : ''
+        }
+        </span>
+      `;
+    }
+
+    // Monta os grupos de produtos.
+    const linhas = gruposArray
+      .map((grupo, grupoIndex) => {
+        let totalEmbalagens = 0;
+        let totalUnidades = 0;
+
+        const lotes = grupo.lotes
+          .map((item, loteIndex) => {
+            const quantidade = Number(
+              item.quantidade || 0
+            );
+
+            const unidades = Number(
+              item.total_unidades || 0
+            );
+
+            const primeiroLote =
+              loteIndex === 0;
+
+            const multiplo =
+              grupo.lotes.length > 1;
+
+            totalEmbalagens += quantidade;
+            totalUnidades += unidades;
+
+            return `
+              <tr
+                class="
+                  galpao-stock-row
+                  ${grupoIndex % 2 === 0
+                ? 'grupo-a'
+                : 'grupo-b'
+              }
+                  ${primeiroLote
+                ? 'produto-inicio'
+                : 'produto-continuacao'
+              }
+                "
+              >
+
+                <td class="mono galpao-stock-code">
+                  ${primeiroLote
+                ? escapeHtml(
+                  item.codigo_barra
+                )
+                : ''
+              }
+                </td>
+
+                <td class="galpao-stock-product">
+
+                  ${primeiroLote
+                ? `
+                        <strong>
+                          ${escapeHtml(
+                  item.descricao
+                )}
+                        </strong>
+
+                        ${multiplo
+                  ? `
+                              <small>
+                                ${grupo.lotes
+                    .length
+                  }
+                                lotes em estoque
+                              </small>
+                            `
+                  : ''
+                }
+                      `
+                : `
+                        <span
+                          class="galpao-lote-continuacao"
+                        >
+                          ↳ Outro lote
+                        </span>
+                      `
+              }
+
+                </td>
+
+                <td>
+                  ${validadeEstoqueHtml(
+                item.validade
+              )}
+                </td>
+
+                <td
+                  class="galpao-stock-number-cell"
+                >
+                  ${Number(
+                item.unidades_por_embalagem
+              ).toLocaleString('pt-BR')}
+                </td>
+
+                <td
+                  class="galpao-stock-number-cell"
+                >
+                  <span
+                    class="almox-stock-number"
+                  >
+                    ${quantidade.toLocaleString(
+                'pt-BR'
+              )}
+                  </span>
+                </td>
+
+                <td
+                  class="
+                    galpao-stock-number-cell
+                    galpao-stock-total-unid
+                  "
+                >
+                  ${unidades.toLocaleString(
+                'pt-BR'
+              )}
+                </td>
+
+              </tr>
+            `;
+          })
+          .join('');
+
+        // Só mostra TOTAL quando houver
+        // mais de um lote.
+        const total =
+          grupo.lotes.length > 1
+            ? `
+              <tr
+                class="
+                  galpao-product-total
+                  ${grupoIndex % 2 === 0
+              ? 'grupo-a'
+              : 'grupo-b'
+            }
+                "
+              >
+
+                <td></td>
+
+                <td colspan="3">
+
+                  <span
+                    class="galpao-total-label"
+                  >
+                    Total do produto
+                  </span>
+
+                  <strong>
+                    ${escapeHtml(
+              grupo.descricao
+            )}
+                  </strong>
+
+                </td>
+
+                <td
+                  class="galpao-stock-number-cell"
+                >
+                  <strong>
+                    ${totalEmbalagens.toLocaleString(
+              'pt-BR'
+            )}
+                  </strong>
+                </td>
+
+                <td
+                  class="galpao-stock-number-cell"
+                >
+                  <strong>
+                    ${totalUnidades.toLocaleString(
+              'pt-BR'
+            )}
+                  </strong>
+                </td>
+
+              </tr>
+            `
+            : '';
+
+        return `
+          <tbody class="galpao-stock-group">
+
+            ${lotes}
+
+            ${total}
+
+          </tbody>
+        `;
+      })
+      .join('');
+
+    panel.innerHTML = `
+
+      ${galpaoFluxoBar('estoque')}
+
+      <div
+        class="
+          dashboard-toolbar
+          galpao-stock-toolbar
+        "
+      >
+
+        <div>
+
+          <strong>
+            Estoque por produto e lote
+          </strong>
+
+          <span>
+            Cada produto fica agrupado.
+            Quando há mais de um lote,
+            o total aparece ao final do grupo.
+          </span>
+
+        </div>
+
+        <button
+          class="primary"
+          onclick="abrirGalpao('entrada')"
+        >
+          + Entrada
+        </button>
+
+      </div>
+
+
+      <div class="galpao-stock-summary">
+
+        <div>
+          <span>Produtos</span>
+
+          <strong>
+            ${resumo.produtos.toLocaleString(
+      'pt-BR'
+    )}
+          </strong>
+        </div>
+
+        <div>
+          <span>Lotes</span>
+
+          <strong>
+            ${resumo.lotes.toLocaleString(
+      'pt-BR'
+    )}
+          </strong>
+        </div>
+
+        <div>
+          <span>Embalagens</span>
+
+          <strong>
+            ${resumo.embalagens.toLocaleString(
+      'pt-BR'
+    )}
+          </strong>
+        </div>
+
+        <div>
+          <span>Unidades</span>
+
+          <strong>
+            ${resumo.unidades.toLocaleString(
+      'pt-BR'
+    )}
+          </strong>
+        </div>
+
+      </div>
+
+
+      <div
+        class="
+          galpao-filters
+          galpao-stock-filters
+        "
+      >
+
+        <div class="galpao-stock-search">
+
+          <span>⌕</span>
+
+          <input
+            id="galpaoEstoqueBusca"
+            placeholder="
+              Digite o código ou nome do produto...
+            "
+            value="${escapeHtml(busca)}"
+            autocomplete="off"
+          >
+
+        </div>
+
+
+        <select id="galpaoEstoqueValidade">
+
+          <option
+            value=""
+            ${!validade
+        ? 'selected'
+        : ''
+      }
+          >
+            Todos os lotes
+          </option>
+
+          <option
+            value="saldo"
+            ${validade === 'saldo'
+        ? 'selected'
+        : ''
+      }
+          >
+            Somente com saldo
+          </option>
+
+          <option
+            value="60"
+            ${validade === '60'
+        ? 'selected'
+        : ''
+      }
+          >
+            Vence em até 60 dias
+          </option>
+
+          <option
+            value="vencidos"
+            ${validade === 'vencidos'
+        ? 'selected'
+        : ''
+      }
+          >
+            Vencidos
+          </option>
+
+          <option
+            value="sem"
+            ${validade === 'sem'
+        ? 'selected'
+        : ''
+      }
+          >
+            Sem validade
+          </option>
+
+        </select>
+
+
+        <button id="galpaoEstoqueFiltrar">
+          Filtrar
+        </button>
+
+      </div>
+
+
+      <section
+        class="
+          dash-panel
+          wide
+          almox-table-wrap
+          galpao-stock-shell
+        "
+      >
+
+        <table
+          class="
+            dash-table
+            galpao-table
+            galpao-stock-table
+          "
+        >
+
+          <thead>
+
+            <tr>
+
+              <th>
+                Código
+              </th>
+
+              <th>
+                Produto
+              </th>
+
+              <th>
+                Validade
+              </th>
+
+              <th class="number">
+                Unid/Emb.
+              </th>
+
+              <th class="number">
+                Emb.
+              </th>
+
+              <th class="number">
+                Total unid.
+              </th>
+
+            </tr>
+
+          </thead>
+
+
+          ${linhas ||
+      `
+              <tbody>
+
+                <tr>
+
+                  <td
+                    colspan="6"
+                    class="empty"
+                  >
+                    Nenhum produto
+                    com saldo encontrado.
+                  </td>
+
+                </tr>
+
+              </tbody>
+            `
+      }
+
+        </table>
+
+      </section>
+    `;
+
+
+    const filtrar = () => {
+      renderGalpaoEstoque(
+        $('galpaoEstoqueBusca')
+          .value
+          .trim(),
+
+        $('galpaoEstoqueValidade')
+          .value
+      );
+    };
+
+
+    $('galpaoEstoqueFiltrar').onclick =
+      filtrar;
+
+
+    $('galpaoEstoqueValidade').onchange =
+      filtrar;
+
+
+    $('galpaoEstoqueBusca').onkeydown =
+      e => {
+        if (e.key === 'Enter') {
+          filtrar();
+        }
+      };
+
+
+  } catch (err) {
+
+    panel.innerHTML = `
+      <section
+        class="dash-panel wide"
+      >
+
+        <p class="empty">
+          ${escapeHtml(err.message)}
+        </p>
+
+      </section>
+    `;
+
+  }
+}
+
+async function renderGalpaoMovimento(tipo) {
+  const panel = $('galpaoPanel');
+  panel.innerHTML = '<div class="almox-loading">Carregando produtos...</div>';
+
+  try {
+    const produtos = await carregarGalpaoProdutos();
+    const saida = tipo === 'SAIDA';
+
+    panel.innerHTML = `
+      ${galpaoFluxoBar(saida ? 'saida' : 'entrada')}
+
+      <section class="dash-panel wide galpao-form-panel">
+
+        <div class="dashboard-toolbar">
+          <div>
+            <strong>${saida ? 'Registrar saída' : 'Registrar entrada'}</strong>
+            <span>
+              ${saida
+        ? 'Digite ou bip o código do produto e selecione o lote que será retirado.'
+        : 'Digite ou bip o código do produto para continuar.'}
+            </span>
+          </div>
+        </div>
+
+        <form id="galpaoMovForm">
+
+          <div class="form-grid">
+
+            <div class="full">
+              <label>Código do produto</label>
+
+              <input
+                id="galpaoCodigoProduto"
+                type="text"
+                inputmode="numeric"
+                autocomplete="off"
+                placeholder="Digite ou bip o código..."
+                autofocus
+              >
+
+              <input
+                type="hidden"
+                name="produto_id"
+                id="galpaoMovProduto"
+              >
+
+              <div id="galpaoProdutoEncontrado"></div>
+            </div>
+
+            ${saida
+        ? `
+                  <div
+                    class="full hidden"
+                    id="galpaoLoteArea"
+                  >
+                    <label>Lote / validade / Unid/Emb.</label>
+
+                    <select
+                      id="galpaoMovLote"
+                      required
+                    >
+                      <option value="">
+                        Selecione o lote...
+                      </option>
+                    </select>
+                  </div>
+                `
+        : `
+                  <div>
+                    <label>Validade</label>
+                    <input
+                      name="validade"
+                      type="date"
+                    >
+                  </div>
+
+                  <div>
+                    <label>Unidades por embalagem</label>
+                    <input
+                      name="unidades_por_embalagem"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value="1"
+                      required
+                    >
+                  </div>
+                `
+      }
+
+            <div>
+              <label>Quantidade de embalagens</label>
+              <input
+                name="quantidade"
+                type="number"
+                min="1"
+                step="1"
+                required
+              >
+            </div>
+
+            <div>
+              <label>Data</label>
+              <input
+                name="data_movimento"
+                type="date"
+                value="${new Date().toISOString().slice(0, 10)}"
+                required
+              >
+            </div>
+
+            <div class="full">
+              <label>Observação (opcional)</label>
+
+              <input
+                name="observacao"
+                placeholder="Informação complementar..."
+              >
+            </div>
+
+          </div>
+
+          <div class="modal-actions galpao-form-actions">
+            <button
+              type="button"
+              onclick="abrirGalpao('estoque')"
+            >
+              Cancelar
+            </button>
+
+            <button
+              class="primary"
+              type="submit"
+            >
+              ${saida ? 'Registrar saída' : 'Registrar entrada'}
+            </button>
+          </div>
+
+        </form>
+      </section>
+    `;
+
+    const codigoInput = $('galpaoCodigoProduto');
+    const produtoIdInput = $('galpaoMovProduto');
+    const resultado = $('galpaoProdutoEncontrado');
+
+    let produtoAtual = null;
+    let timerBusca = null;
+
+    async function buscarProdutoPorCodigo() {
+      const codigo = codigoInput.value.trim();
+
+      produtoAtual = null;
+      produtoIdInput.value = '';
+
+      if (saida) {
+        $('galpaoLoteArea')?.classList.add('hidden');
+
+        if ($('galpaoMovLote')) {
+          $('galpaoMovLote').innerHTML =
+            '<option value="">Selecione o lote...</option>';
+        }
+      }
+
+      if (!codigo) {
+        resultado.innerHTML = '';
+        return;
+      }
+
+      const produto = produtos.find(
+        p => String(p.codigo_barra || '').trim() === codigo
+      );
+
+      if (!produto) {
+        resultado.innerHTML = `
+          <div class="galpao-produto-status nao-encontrado">
+            <strong>Produto não encontrado</strong>
+            <span>Confira o código informado.</span>
+          </div>
+        `;
+        return;
+      }
+
+      produtoAtual = produto;
+      produtoIdInput.value = produto.id;
+
+      resultado.innerHTML = `
+        <div class="galpao-produto-status encontrado">
+          <span class="galpao-produto-ok">✓</span>
+
+          <div>
+            <strong>${escapeHtml(produto.descricao)}</strong>
+            <small>
+              Código: ${escapeHtml(produto.codigo_barra)}
+            </small>
+          </div>
+        </div>
+      `;
+
+      if (saida) {
+        const loteArea = $('galpaoLoteArea');
+        const loteSelect = $('galpaoMovLote');
+
+        loteArea.classList.remove('hidden');
+        loteSelect.disabled = true;
+
+        loteSelect.innerHTML =
+          '<option value="">Carregando lotes...</option>';
+
+        try {
+          const lotes = await api(
+            `/api/galpao/produtos/${produto.id}/estoque`
+          );
+
+          const disponiveis = lotes.filter(
+            lote => Number(lote.quantidade) > 0
+          );
+
+          if (!disponiveis.length) {
+            loteSelect.innerHTML = `
+              <option value="">
+                Produto sem estoque disponível
+              </option>
+            `;
+
+            resultado.innerHTML += `
+              <div class="galpao-produto-alerta">
+                Este produto não possui saldo disponível.
+              </div>
+            `;
+
+            return;
+          }
+
+          loteSelect.innerHTML =
+            '<option value="">Selecione o lote...</option>' +
+            disponiveis.map(lote => `
+              <option
+                value="${lote.validade || ''}|${lote.unidades_por_embalagem}"
+              >
+                ${galpaoValidadeLabel(lote.validade)}
+                • ${lote.unidades_por_embalagem} unid/emb
+                • saldo ${Number(lote.quantidade).toLocaleString('pt-BR')} emb.
+              </option>
+            `).join('');
+
+          loteSelect.disabled = false;
+
+        } catch (err) {
+          loteSelect.innerHTML = `
+            <option value="">
+              Erro ao carregar lotes
+            </option>
+          `;
+        }
+      }
+    }
+
+    codigoInput.addEventListener('input', () => {
+      clearTimeout(timerBusca);
+
+      timerBusca = setTimeout(() => {
+        buscarProdutoPorCodigo();
+      }, 250);
+    });
+
+    codigoInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        clearTimeout(timerBusca);
+        buscarProdutoPorCodigo();
+      }
+    });
+
+    $('galpaoMovForm').onsubmit = async e => {
+      e.preventDefault();
+
+      if (!produtoAtual || !produtoIdInput.value) {
+        alert('Digite um código de produto válido.');
+        codigoInput.focus();
+        return;
+      }
+
+      const raw = Object.fromEntries(
+        new FormData(e.target)
+      );
+
+      if (saida) {
+        const lote = $('galpaoMovLote').value;
+
+        if (!lote) {
+          alert('Selecione o lote.');
+          return;
+        }
+
+        const [validade, unidades] = lote.split('|');
+
+        raw.validade = validade;
+        raw.unidades_por_embalagem = Number(unidades);
+      }
+
+      try {
+        await api(
+          saida
+            ? '/api/galpao/saidas'
+            : '/api/galpao/entradas',
+          {
+            method: 'POST',
+            body: JSON.stringify(raw)
+          }
+        );
+
+        alert(
+          `${saida ? 'Saída' : 'Entrada'} registrada com sucesso.`
+        );
+
+        await abrirGalpao('estoque');
+
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+
+    codigoInput.focus();
+
+  } catch (err) {
+    panel.innerHTML = `
+      <section class="dash-panel wide">
+        <p class="empty">
+          ${escapeHtml(err.message)}
+        </p>
+      </section>
+    `;
+  }
+}
+
+async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
+  const panel = $('galpaoPanel');
+
+  panel.innerHTML =
+    '<div class="almox-loading">Carregando histórico...</div>';
+
+  try {
+    const qs = new URLSearchParams({
+      limite: '500'
+    });
+
+    if (busca) {
+      qs.set('busca', busca);
+    }
+
+    if (tipo) {
+      qs.set('tipo', tipo);
+    }
+
+    const data = await api(
+      `/api/galpao/historico?${qs}`
+    );
+
+    const viewAtual =
+      tipo === 'ENTRADA' && fixo
+        ? 'historico_entradas'
+        : tipo === 'SAIDA' && fixo
+          ? 'historico_saidas'
+          : 'historico';
+
+    const titulo =
+      tipo === 'ENTRADA'
+        ? 'Histórico de entradas'
+        : tipo === 'SAIDA'
+          ? 'Histórico de saídas'
+          : 'Histórico completo';
+
+    panel.innerHTML = `
+      ${galpaoFluxoBar(viewAtual)}
+
+      <div class="dashboard-toolbar almox-toolbar">
+        <div>
+          <strong>${titulo}</strong>
+
+          <span>
+            ${data.length.toLocaleString('pt-BR')}
+            registro(s) exibido(s).
+          </span>
+        </div>
+
+        ${fixo
+        ? `
+              <div class="galpao-copy-actions">
+
+                <span id="galpaoSelecionadosContador">
+                  0 selecionado(s)
+                </span>
+
+                <button
+                  id="galpaoLimparSelecao"
+                  type="button"
+                  disabled
+                >
+                  Limpar seleção
+                </button>
+
+                <button
+                  id="galpaoCopiarSelecionados"
+                  class="primary"
+                  type="button"
+                  disabled
+                >
+                  Copiar selecionados
+                </button>
+
+              </div>
+            `
+        : ''
+      }
+      </div>
+
+
+      <div
+        class="
+          galpao-filters
+          ${fixo ? 'galpao-filters-simple' : ''}
+        "
+      >
+
+        <input
+          id="galpaoHistBusca"
+          placeholder="Código, produto ou observação..."
+          value="${escapeHtml(busca)}"
+          autocomplete="off"
+        >
+
+        ${fixo
+        ? ''
+        : `
+              <select id="galpaoHistTipo">
+
+                <option value="">
+                  Entradas e saídas
+                </option>
+
+                <option
+                  value="ENTRADA"
+                  ${tipo === 'ENTRADA'
+          ? 'selected'
+          : ''
+        }
+                >
+                  Entradas
+                </option>
+
+                <option
+                  value="SAIDA"
+                  ${tipo === 'SAIDA'
+          ? 'selected'
+          : ''
+        }
+                >
+                  Saídas
+                </option>
+
+              </select>
+            `
+      }
+
+        <button id="galpaoHistFiltrar">
+          Filtrar
+        </button>
+
+      </div>
+
+
+      <section
+        class="
+          dash-panel
+          wide
+          almox-table-wrap
+        "
+      >
+
+        <table
+          class="
+            dash-table
+            galpao-table
+            galpao-history-table
+            ${fixo ? 'galpao-history-selectable' : ''}
+          "
+        >
+
+          <thead>
+
+            <tr>
+
+              ${fixo
+        ? `
+                    <th
+                      class="galpao-select-col"
+                      title="Selecionar todos"
+                    >
+                      <input
+                        id="galpaoSelecionarTodos"
+                        class="galpao-history-checkbox"
+                        type="checkbox"
+                        aria-label="Selecionar todos os registros"
+                      >
+                    </th>
+                  `
+        : ''
+      }
+
+              <th>Data</th>
+              <th>Código</th>
+              <th>Produto</th>
+              <th>Validade</th>
+              <th>Unid/Emb.</th>
+              <th>Quantidade</th>
+              <th>Usuário / observação</th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody>
+
+            ${data.map(m => {
+
+        const quantidade = Number(
+          m.quantidade || 0
+        );
+
+        const dataFormatada =
+          fmtDate(m.data_movimento);
+
+        return `
+                  <tr
+                    ${fixo
+            ? `data-galpao-history-row="${m.id}"`
+            : ''
+          }
+                  >
+
+                    ${fixo
+            ? `
+                          <td class="galpao-select-col">
+
+                            <input
+                              type="checkbox"
+                              class="
+                                galpao-history-checkbox
+                                galpao-history-item-check
+                              "
+                              data-id="${m.id}"
+                              data-data="${escapeHtml(
+              dataFormatada
+            )}"
+                              data-codigo="${escapeHtml(
+              m.codigo_barra
+            )}"
+                              data-quantidade="${quantidade}"
+                              aria-label="Selecionar ${escapeHtml(
+              m.descricao
+            )}"
+                            >
+
+                          </td>
+                        `
+            : ''
+          }
+
+                    <td>
+                      ${dataFormatada}
+                    </td>
+
+                    <td class="mono">
+                      ${escapeHtml(
+            m.codigo_barra
+          )}
+                    </td>
+
+                    <td>
+
+                      <strong>
+                        ${escapeHtml(
+            m.descricao
+          )}
+                      </strong>
+
+                      ${!fixo
+            ? `
+                            <small
+                              class="almox-cell-note"
+                            >
+                              ${m.tipo === 'ENTRADA'
+              ? 'Entrada'
+              : 'Saída'
+            }
+                            </small>
+                          `
+            : ''
+          }
+
+                    </td>
+
+                    <td>
+                      ${galpaoValidadeLabel(
+            m.validade
+          )}
+                    </td>
+
+                    <td>
+                      ${Number(
+            m.unidades_por_embalagem
+          ).toLocaleString('pt-BR')}
+                    </td>
+
+                    <td>
+
+                      <strong
+                        class="
+                          galpao-history-qty
+                          ${m.tipo === 'SAIDA'
+            ? 'saida'
+            : 'entrada'
+          }
+                        "
+                      >
+
+                        ${m.tipo === 'SAIDA'
+            ? '−'
+            : '+'
+          }
+
+                        ${quantidade.toLocaleString(
+            'pt-BR'
+          )}
+
+                      </strong>
+
+                    </td>
+
+                    <td>
+
+                      <span>
+                        ${m.usuario_nome
+            ? escapeHtml(
+              m.usuario_nome
+            )
+            : m.origem === 'SQLITE'
+              ? 'Importado do Python'
+              : '—'
+          }
+                      </span>
+
+                      ${m.observacao
+            ? `
+                            <small
+                              class="almox-cell-note"
+                            >
+                              ${escapeHtml(
+              m.observacao
+            )}
+                            </small>
+                          `
+            : ''
+          }
+
+                    </td>
+
+                  </tr>
+                `;
+      }).join('')
+      ||
+      `
+                <tr>
+                  <td
+                    colspan="${fixo ? 8 : 7}"
+                    class="empty"
+                  >
+                    Nenhuma movimentação encontrada.
+                  </td>
+                </tr>
+              `
+      }
+
+          </tbody>
+
+        </table>
+
+      </section>
+    `;
+
+
+    // ============================
+    // FILTRO
+    // ============================
+
+    const filtrar = () => {
+      const novaBusca =
+        $('galpaoHistBusca')
+          .value
+          .trim();
+
+      const novoTipo =
+        fixo
+          ? tipo
+          : $('galpaoHistTipo').value;
+
+      renderGalpaoHistorico(
+        novaBusca,
+        novoTipo,
+        fixo
+      );
+    };
+
+
+    $('galpaoHistFiltrar').onclick =
+      filtrar;
+
+
+    if (!fixo) {
+      $('galpaoHistTipo').onchange =
+        filtrar;
+    }
+
+
+    $('galpaoHistBusca').onkeydown =
+      e => {
+        if (e.key === 'Enter') {
+          filtrar();
+        }
+      };
+
+
+    // ============================
+    // SELEÇÃO E CÓPIA
+    // ============================
+
+    if (fixo) {
+
+      const selecionarTodos =
+        $('galpaoSelecionarTodos');
+
+      const btnCopiar =
+        $('galpaoCopiarSelecionados');
+
+      const btnLimpar =
+        $('galpaoLimparSelecao');
+
+      const contador =
+        $('galpaoSelecionadosContador');
+
+
+      const checkboxes = () =>
+        [
+          ...document.querySelectorAll(
+            '.galpao-history-item-check'
+          )
+        ];
+
+
+      function atualizarSelecao() {
+
+        const itens = checkboxes();
+
+        const selecionados =
+          itens.filter(
+            checkbox => checkbox.checked
+          );
+
+        contador.textContent =
+          `${selecionados.length} selecionado(s)`;
+
+        btnCopiar.disabled =
+          selecionados.length === 0;
+
+        btnLimpar.disabled =
+          selecionados.length === 0;
+
+
+        // Destaca visualmente a linha.
+        itens.forEach(checkbox => {
+
+          const row =
+            checkbox.closest('tr');
+
+          row?.classList.toggle(
+            'galpao-history-row-selected',
+            checkbox.checked
+          );
+
+        });
+
+
+        if (itens.length === 0) {
+
+          selecionarTodos.checked =
+            false;
+
+          selecionarTodos.indeterminate =
+            false;
+
+          return;
+        }
+
+
+        if (
+          selecionados.length ===
+          itens.length
+        ) {
+
+          selecionarTodos.checked =
+            true;
+
+          selecionarTodos.indeterminate =
+            false;
+
+        } else if (
+          selecionados.length > 0
+        ) {
+
+          selecionarTodos.checked =
+            false;
+
+          selecionarTodos.indeterminate =
+            true;
+
+        } else {
+
+          selecionarTodos.checked =
+            false;
+
+          selecionarTodos.indeterminate =
+            false;
+
+        }
+
+      }
+
+
+      selecionarTodos.onchange = () => {
+
+        const marcado =
+          selecionarTodos.checked;
+
+        checkboxes().forEach(
+          checkbox => {
+            checkbox.checked = marcado;
+          }
+        );
+
+        atualizarSelecao();
+
+      };
+
+
+      checkboxes().forEach(
+        checkbox => {
+
+          checkbox.onchange = () => {
+            atualizarSelecao();
+          };
+
+          // Também permite clicar na linha.
+          const row =
+            checkbox.closest('tr');
+
+          row?.addEventListener(
+            'click',
+            e => {
+
+              if (
+                e.target.closest(
+                  'input, button, a'
+                )
+              ) {
+                return;
+              }
+
+              checkbox.checked =
+                !checkbox.checked;
+
+              atualizarSelecao();
+
+            }
+          );
+
+        }
+      );
+
+
+      btnLimpar.onclick = () => {
+
+        checkboxes().forEach(
+          checkbox => {
+            checkbox.checked = false;
+          }
+        );
+
+        atualizarSelecao();
+
+      };
+
+
+      btnCopiar.onclick = async () => {
+
+        const selecionados =
+          checkboxes().filter(
+            checkbox => checkbox.checked
+          );
+
+
+        if (!selecionados.length) {
+          return;
+        }
+
+
+
+
+
+
+
+
+
+        // Formato:
+        // CODIGO QUANTIDADE
+        const texto =
+          selecionados
+            .map(checkbox => {
+
+              const codigo =
+                checkbox.dataset.codigo || '';
+
+              const quantidade =
+                Number(
+                  checkbox.dataset.quantidade || 0
+                );
+
+              return `${codigo} ${quantidade}`;
+
+            })
+            .join('\n');
+
+        try {
+
+          // Método moderno.
+          if (
+            navigator.clipboard &&
+            window.isSecureContext
+          ) {
+
+            await navigator.clipboard
+              .writeText(texto);
+
+          } else {
+
+            // Fallback para localhost /
+            // navegadores mais antigos.
+            const textarea =
+              document.createElement(
+                'textarea'
+              );
+
+            textarea.value = texto;
+
+            textarea.style.position =
+              'fixed';
+
+            textarea.style.opacity =
+              '0';
+
+            textarea.style.pointerEvents =
+              'none';
+
+            document.body.appendChild(
+              textarea
+            );
+
+            textarea.focus();
+            textarea.select();
+
+            document.execCommand(
+              'copy'
+            );
+
+            textarea.remove();
+
+          }
+
+
+          const quantidadeCopiada =
+            selecionados.length;
+
+
+          const textoOriginal =
+            btnCopiar.textContent;
+
+
+          btnCopiar.textContent =
+            `✓ ${quantidadeCopiada} copiado(s)`;
+
+
+          setTimeout(() => {
+
+            if (
+              document.body.contains(
+                btnCopiar
+              )
+            ) {
+              btnCopiar.textContent =
+                textoOriginal;
+            }
+
+          }, 1600);
+
+
+        } catch (err) {
+
+          alert(
+            'Não foi possível copiar os registros.'
+          );
+
+        }
+
+      };
+
+
+      atualizarSelecao();
+
+    }
+
+
+  } catch (err) {
+
+    panel.innerHTML = `
+      <section
+        class="dash-panel wide"
+      >
+
+        <p class="empty">
+          ${escapeHtml(err.message)}
+        </p>
+
+      </section>
+    `;
+
+  }
+}
+
+async function renderGalpaoValidades(dias = 90, busca = '') {
+  const panel = $('galpaoPanel'); panel.innerHTML = '<div class="almox-loading">Carregando validades...</div>'; try {
+    const qs = new URLSearchParams({ dias: String(dias) }); if (busca) qs.set('busca', busca); const data = await api(`/api/galpao/validades?${qs}`);
+    panel.innerHTML = `${galpaoFluxoBar('validades')}<div class="dashboard-toolbar"><div><strong>Controle de validades</strong><span>Inclui vencidos e lotes que vencem dentro do período escolhido.</span></div></div><div class="galpao-filters"><input id="galpaoValBusca" placeholder="Código ou descrição..." value="${escapeHtml(busca)}"><select id="galpaoValDias"><option value="30" ${Number(dias) === 30 ? 'selected' : ''}>Próximos 30 dias</option><option value="60" ${Number(dias) === 60 ? 'selected' : ''}>Próximos 60 dias</option><option value="90" ${Number(dias) === 90 ? 'selected' : ''}>Próximos 90 dias</option><option value="180" ${Number(dias) === 180 ? 'selected' : ''}>Próximos 180 dias</option><option value="365" ${Number(dias) === 365 ? 'selected' : ''}>Próximo ano</option></select><button id="galpaoValFiltrar">Filtrar</button></div><section class="dash-panel wide almox-table-wrap"><table class="dash-table galpao-table"><thead><tr><th>Produto</th><th>Validade</th><th>Situação</th><th>Unid/Emb.</th><th>Emb.</th><th>Total unid.</th></tr></thead><tbody>${data.map(x => `<tr><td><strong>${escapeHtml(x.descricao)}</strong><small class="almox-cell-note">${escapeHtml(x.codigo_barra)}</small></td><td>${fmtDate(x.validade)}</td><td>${galpaoDiasBadge(x.dias_restantes)}</td><td>${Number(x.unidades_por_embalagem)}</td><td>${Number(x.quantidade).toLocaleString('pt-BR')}</td><td>${Number(x.total_unidades).toLocaleString('pt-BR')}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhum lote nesse período.</td></tr>'}</tbody></table></section>`;
+    const f = () => renderGalpaoValidades(Number($('galpaoValDias').value), $('galpaoValBusca').value.trim()); $('galpaoValFiltrar').onclick = f; $('galpaoValDias').onchange = f; $('galpaoValBusca').onkeydown = e => { if (e.key === 'Enter') f(); };
+  } catch (err) { panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`; }
+}
+
+async function renderGalpaoImportar() {
+  const panel = $('galpaoPanel'); if (state.usuario?.perfil !== 'administrador_principal') { panel.innerHTML = '<section class="dash-panel wide"><p class="empty">Somente o Administrador Principal pode executar a migração do banco antigo.</p></section>'; return; }
+  panel.innerHTML = `${galpaoFluxoBar('importar')}<section class="dash-panel wide galpao-import"><div class="dashboard-toolbar"><div><strong>Importar controle_estoque.db</strong><span>Use o banco ATUAL que está sendo alimentado no sistema Python no momento da implantação.</span></div></div><div class="galpao-import-warning"><strong>Importante</strong><span>O banco que usamos durante o desenvolvimento possui dados antigos de teste. Na implantação, selecione o arquivo atualizado do computador do Galpão.</span></div><form id="galpaoPreviewForm"><label>Arquivo SQLite (.db)</label><input id="galpaoArquivoDb" name="arquivo" type="file" accept=".db" required><div class="modal-actions"><button class="primary" type="submit">Analisar arquivo</button></div></form><div id="galpaoImportResumo"></div></section>`;
+  $('galpaoPreviewForm').onsubmit = async e => { e.preventDefault(); const file = $('galpaoArquivoDb').files[0]; if (!file) return; const fd = new FormData(); fd.append('arquivo', file); const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Analisando...'; try { const r = await apiForm('/api/galpao/importar/preview', fd); $('galpaoImportResumo').innerHTML = `<div class="galpao-import-summary"><h3>Arquivo válido</h3><div class="galpao-import-counts"><div><strong>${r.produtos}</strong><span>Produtos</span></div><div><strong>${r.estoque}</strong><span>Lotes de estoque</span></div><div><strong>${r.entradas}</strong><span>Entradas</span></div><div><strong>${r.saidas}</strong><span>Saídas</span></div></div>${r.possui_dados_atuais ? '<label class="galpao-replace"><input id="galpaoSubstituir" type="checkbox"> Substituir completamente os dados atuais do módulo Galpão</label>' : '<p class="hint">O módulo Galpão está vazio e pronto para receber esta base.</p>'}<button class="primary" id="galpaoExecutarImport">Importar para a Plataforma</button></div>`; $('galpaoExecutarImport').onclick = () => executarImportacaoGalpao(file, r.possui_dados_atuais); } catch (err) { alert(err.message); } finally { btn.disabled = false; btn.textContent = 'Analisar arquivo'; } };
+}
+
+async function executarImportacaoGalpao(file, possuiDados) {
+  const substituir = possuiDados && Boolean($('galpaoSubstituir')?.checked); if (possuiDados && !substituir) return alert('Como já existem dados no módulo, marque a opção de substituir completamente os dados atuais.');
+  if (!confirm('Confirmar a migração deste banco para o módulo Galpão?' + (substituir ? ' Os dados atuais do Galpão serão substituídos.' : ''))) return;
+  const fd = new FormData(); fd.append('arquivo', file); fd.append('substituir', String(substituir)); fd.append('confirmacao', 'IMPORTAR'); const btn = $('galpaoExecutarImport'); btn.disabled = true; btn.textContent = 'Importando...';
+  try { const r = await apiForm('/api/galpao/importar', fd); const i = r.importacao; alert(`Migração concluída.\nProdutos: ${i.produtos_importados}\nEstoque: ${i.estoque_importado}\nEntradas: ${i.entradas_importadas}\nSaídas: ${i.saidas_importadas}`); state.galpaoProdutos = []; await abrirGalpao('dashboard'); } catch (err) { alert(err.message); btn.disabled = false; btn.textContent = 'Importar para a Plataforma'; }
+}
+
+window.abrirGalpao = abrirGalpao;
+
 function podeGerenciarUsuario(usuario) {
   const niveis = { colaborador: 1, encarregado: 2, gerente: 3, administrador: 4, administrador_principal: 5 };
   return !usuario.administrador_principal && (niveis[usuario.perfil] || 0) < (niveis[state.usuario?.perfil] || 0);
@@ -1703,185 +3545,46 @@ function renderConfigUsuarios() {
 async function renderConfigAcessos() {
   const conteudo = $('configConteudo');
   if (!conteudo) return;
-
-  conteudo.innerHTML =
-    '<section class="dash-panel wide"><p class="empty">Carregando acessos...</p></section>';
-
+  conteudo.innerHTML = '<section class="dash-panel wide"><p class="empty">Carregando acessos...</p></section>';
   try {
     const data = await api('/api/modulos/acessos');
-
     const modulos = data.modulos || [];
     const usuarios = data.usuarios || [];
-
-    const principalAtual =
-      state.usuario?.perfil === 'administrador_principal';
-
-    const nivel = {
-      colaborador: 1,
-      encarregado: 2,
-      gerente: 3,
-      administrador: 4,
-      administrador_principal: 5
-    };
+    const principalAtual = state.usuario?.perfil === 'administrador_principal';
+    const nivel = { colaborador: 1, encarregado: 2, gerente: 3, administrador: 4, administrador_principal: 5 };
 
     conteudo.innerHTML = `
       <div class="dashboard-toolbar">
-        <div>
-          <strong>Acessos aos módulos</strong>
-          <span>
-            O card só aparece na Central de Módulos quando o usuário possui acesso.
-            O backend também bloqueia acessos diretos sem permissão.
-          </span>
-        </div>
+        <div><strong>Acessos aos módulos</strong><span>O card só aparece na Central de Módulos quando o usuário possui acesso. O backend também bloqueia acessos diretos sem permissão.</span></div>
       </div>
-
       <section class="dash-panel wide">
-
         <div class="module-access-list">
-
           ${usuarios.map(u => {
-
-      const protegido =
-        u.administrador_principal ||
-        u.perfil === 'administrador_principal';
-
-      const podeEditar =
-        !protegido &&
-        (nivel[u.perfil] || 0) <
-        (nivel[state.usuario?.perfil] || 0);
-
-      const acessos =
-        Array.isArray(u.modulos)
-          ? u.modulos
-          : [];
-
-      return `
-              <article
-                class="module-access-row"
-                data-access-user="${u.id}"
-              >
-
-                <div class="module-access-user">
-
-                  <strong>
-                    ${escapeHtml(u.nome)}
-
-                    ${protegido
-          ? ' <span class="principal-tag">Principal</span>'
-          : ''
-        }
-                  </strong>
-
-                  <small>
-                    ${escapeHtml(perfilLabel(u.perfil))}
-                    •
-                    ${escapeHtml(u.email)}
-                    ${u.ativo ? '' : ' • Inativo'}
-                  </small>
-
-                </div>
-
-
-                <div class="module-access-options">
-
-                  ${modulos.map(m => {
-
-          const isAdmin =
-            m.codigo === 'administracao';
-
-          const incompatColab =
-            u.perfil === 'colaborador' &&
-            (
-              m.codigo === 'os' ||
-              isAdmin
-            );
-
-          const disabled =
-            protegido ||
-            !podeEditar ||
-            incompatColab ||
-            (isAdmin && !principalAtual);
-
-          const checked =
-            protegido ||
-            acessos.includes(m.codigo);
-
-          const title =
-            incompatColab
-              ? 'Exige perfil de Encarregado ou superior'
-              : (
-                isAdmin && !principalAtual
-                  ? 'Somente o Administrador Principal altera este acesso'
-                  : ''
-              );
-
-          return `
-                      <label
-                        class="module-access-check ${disabled ? 'disabled' : ''}"
-                        title="${escapeHtml(title || m.descricao || '')}"
-                      >
-
-                        <input
-                          type="checkbox"
-                          data-module="${m.codigo}"
-                          ${checked ? 'checked' : ''}
-                          ${disabled ? 'disabled' : ''}
-                        >
-
-                        <span>
-                          <strong>
-                            ${escapeHtml(m.nome)}
-                          </strong>
-                        </span>
-
-                      </label>
-                    `;
-
-        }).join('')}
-
-                </div>
-
-
-                <div class="module-access-action">
-
-                  ${podeEditar
-          ? `
-                        <button
-                          class="primary"
-                          onclick="salvarAcessosModulos(${u.id})"
-                        >
-                          Salvar acessos
-                        </button>
-                      `
-          : `
-                        <span class="muted">
-                          Protegido pela hierarquia
-                        </span>
-                      `
-        }
-
-                </div>
-
-              </article>
-            `;
-
+      const protegido = u.administrador_principal || u.perfil === 'administrador_principal';
+      const podeEditar = !protegido && (nivel[u.perfil] || 0) < (nivel[state.usuario?.perfil] || 0);
+      const acessos = Array.isArray(u.modulos) ? u.modulos : [];
+      return `<article class="module-access-row" data-access-user="${u.id}">
+              <div class="module-access-user">
+                <strong>${escapeHtml(u.nome)}${protegido ? ' <span class="principal-tag">Principal</span>' : ''}</strong>
+                <small>${escapeHtml(perfilLabel(u.perfil))} • ${escapeHtml(u.email)}${u.ativo ? '' : ' • Inativo'}</small>
+              </div>
+              <div class="module-access-options">
+                ${modulos.map(m => {
+        const isAdmin = m.codigo === 'administracao';
+        const incompatColab = u.perfil === 'colaborador' && (m.codigo === 'os' || isAdmin);
+        const disabled = protegido || !podeEditar || incompatColab || (isAdmin && !principalAtual);
+        const checked = protegido || acessos.includes(m.codigo);
+        const title = incompatColab ? 'Exige perfil de Encarregado ou superior' : (isAdmin && !principalAtual ? 'Somente o Administrador Principal altera este acesso' : '');
+        return `<label class="module-access-check ${disabled ? 'disabled' : ''}" title="${escapeHtml(title || m.descricao || '')}"><input type="checkbox" data-module="${m.codigo}" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span><strong>${escapeHtml(m.nome)}</strong></span></label>`;
+      }).join('')}
+              </div>
+              <div class="module-access-action">${podeEditar ? `<button class="primary" onclick="salvarAcessosModulos(${u.id})">Salvar acessos</button>` : '<span class="muted">Protegido pela hierarquia</span>'}</div>
+            </article>`;
     }).join('') || '<p class="empty">Nenhum usuário cadastrado.</p>'}
-
         </div>
-
-      </section>
-    `;
-
+      </section>`;
   } catch (err) {
-
-    conteudo.innerHTML = `
-      <section class="dash-panel wide">
-        <p class="empty">
-          ${escapeHtml(err.message)}
-        </p>
-      </section>
-    `;
-
+    conteudo.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
   }
 }
 
@@ -1998,6 +3701,15 @@ $('cardAtividades').onclick = entrarAtividades;
 $('cardOS').onclick = entrarOS;
 $('cardAdmin').onclick = entrarAdmin;
 $('cardAlmoxarifado').onclick = entrarAlmoxarifado;
+$('cardGalpao').onclick = entrarGalpao;
+$('btnGalpaoDashboard').onclick = () => abrirGalpao('dashboard');
+$('btnGalpaoProdutos').onclick = () => abrirGalpao('produtos');
+$('btnGalpaoEstoque').onclick = () => abrirGalpao('estoque');
+$('btnGalpaoEntrada').onclick = () => abrirGalpao('entrada');
+$('btnGalpaoSaida').onclick = () => abrirGalpao('saida');
+$('btnGalpaoHistorico').onclick = () => abrirGalpao('historico');
+$('btnGalpaoValidades').onclick = () => abrirGalpao('validades');
+$('btnGalpaoImportar').onclick = () => abrirGalpao('importar');
 $('btnAlmoxDashboard').onclick = () => abrirAlmoxarifado('dashboard');
 $('btnAlmoxEstoque').onclick = () => abrirAlmoxarifado('estoque');
 $('btnAlmoxEntrada').onclick = () => abrirAlmoxarifado('entrada');

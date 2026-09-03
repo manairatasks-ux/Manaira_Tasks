@@ -1,0 +1,27 @@
+PLATAFORMA MANAÍRA V16 - AJUSTE DE FLUXO DO GALPÃO
+
+Objetivo:
+Preservar no módulo web o fluxo operacional simples que existia no sistema Python original.
+
+Nova barra superior persistente no módulo Galpão:
+1. Cadastro
+2. Entrada
+3. Saída
+4. Estoque atual
+5. Histórico entradas
+6. Histórico saídas
+
+A barra aparece nas telas do Galpão e destaca a etapa atual, permitindo navegar diretamente entre as etapas.
+
+Históricos:
+- Histórico de Entradas e Histórico de Saídas agora possuem acessos separados no fluxo.
+- O Histórico geral continua disponível no menu lateral para consultas combinadas.
+- Os históricos foram organizados em tabela para leitura mais rápida.
+
+Recursos administrativos preservados:
+- Dashboard
+- Validades
+- Importação do banco SQLite
+- Controle de acesso por módulo
+
+Nenhuma regra de estoque, importação ou banco de dados foi removida neste ajuste.

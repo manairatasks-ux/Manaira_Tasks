@@ -240,3 +240,63 @@ CREATE TABLE IF NOT EXISTS almox_movimentacoes (
 CREATE INDEX IF NOT EXISTS idx_almox_mov_item ON almox_movimentacoes(item_id);
 CREATE INDEX IF NOT EXISTS idx_almox_mov_tipo ON almox_movimentacoes(tipo);
 CREATE INDEX IF NOT EXISTS idx_almox_mov_data ON almox_movimentacoes(criado_em DESC);
+
+-- V16: módulo Galpão - migração do antigo sistema Python/SQLite
+CREATE TABLE IF NOT EXISTS galpao_produtos (
+  id SERIAL PRIMARY KEY,
+  codigo_barra VARCHAR(80) NOT NULL UNIQUE,
+  descricao VARCHAR(220) NOT NULL,
+  ativo BOOLEAN NOT NULL DEFAULT TRUE,
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_galpao_produtos_descricao ON galpao_produtos(descricao);
+
+CREATE TABLE IF NOT EXISTS galpao_estoque (
+  id SERIAL PRIMARY KEY,
+  produto_id INTEGER NOT NULL REFERENCES galpao_produtos(id) ON DELETE RESTRICT,
+  validade DATE,
+  unidades_por_embalagem INTEGER NOT NULL DEFAULT 1 CHECK (unidades_por_embalagem > 0),
+  quantidade INTEGER NOT NULL DEFAULT 0 CHECK (quantidade >= 0),
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_galpao_estoque_lote
+ON galpao_estoque (produto_id, COALESCE(validade, DATE '0001-01-01'), unidades_por_embalagem);
+CREATE INDEX IF NOT EXISTS idx_galpao_estoque_produto ON galpao_estoque(produto_id);
+CREATE INDEX IF NOT EXISTS idx_galpao_estoque_validade ON galpao_estoque(validade);
+
+CREATE TABLE IF NOT EXISTS galpao_movimentacoes (
+  id SERIAL PRIMARY KEY,
+  produto_id INTEGER NOT NULL REFERENCES galpao_produtos(id) ON DELETE RESTRICT,
+  tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('ENTRADA','SAIDA')),
+  validade DATE,
+  unidades_por_embalagem INTEGER NOT NULL DEFAULT 1 CHECK (unidades_por_embalagem > 0),
+  quantidade INTEGER NOT NULL CHECK (quantidade > 0),
+  data_movimento DATE NOT NULL DEFAULT CURRENT_DATE,
+  observacao TEXT,
+  usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  saldo_anterior INTEGER,
+  saldo_posterior INTEGER,
+  origem VARCHAR(20) NOT NULL DEFAULT 'WEB',
+  legacy_id INTEGER,
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_galpao_mov_produto ON galpao_movimentacoes(produto_id);
+CREATE INDEX IF NOT EXISTS idx_galpao_mov_data ON galpao_movimentacoes(data_movimento DESC);
+CREATE INDEX IF NOT EXISTS idx_galpao_mov_tipo ON galpao_movimentacoes(tipo);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_galpao_mov_legacy
+ON galpao_movimentacoes(origem,tipo,legacy_id) WHERE legacy_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS galpao_importacoes (
+  id SERIAL PRIMARY KEY,
+  nome_arquivo VARCHAR(255),
+  arquivo_hash VARCHAR(64) NOT NULL,
+  produtos_importados INTEGER NOT NULL DEFAULT 0,
+  estoque_importado INTEGER NOT NULL DEFAULT 0,
+  entradas_importadas INTEGER NOT NULL DEFAULT 0,
+  saidas_importadas INTEGER NOT NULL DEFAULT 0,
+  usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_galpao_import_hash ON galpao_importacoes(arquivo_hash);

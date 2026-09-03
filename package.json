@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "7.0.0",
-  "description": "Plataforma Manaíra V15 - módulo básico de Almoxarifado integrado ao controle de acessos",
+  "version": "8.0.0",
+  "description": "Plataforma Manaíra V16 - módulo Galpão com estoque por lote/validade e importação do SQLite legado",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
@@ -17,7 +17,8 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
     "pg": "^8.11.5",
-    "pdfkit": "^0.15.0"
+    "pdfkit": "^0.15.0",
+    "sql.js": "^1.13.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
