@@ -1,0 +1,7 @@
+
+V18 - Fluxo do Almoxarifado
+- Sidebar do Almoxarifado simplificada: somente Dashboard.
+- Fluxo operacional persistente no topo: Estoque > Entrada > Saída > Histórico.
+- Removidos atalhos duplicados do Dashboard.
+- Revisados listeners para evitar erro ao referenciar botões removidos.
+- Revisadas rotas e sintaxe do módulo Almoxarifado.

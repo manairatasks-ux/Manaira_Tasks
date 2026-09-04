@@ -251,9 +251,8 @@ function setView(view) {
   $('btnOS')?.classList.toggle('active', isOS);
   $('btnMinhas')?.classList.toggle('active', isMinhas);
   $('btnConfig')?.classList.toggle('active', isConfig);
-  ['btnAlmoxDashboard', 'btnAlmoxEstoque', 'btnAlmoxEntrada', 'btnAlmoxSaida', 'btnAlmoxHistorico'].forEach(id => $(id)?.classList.remove('active'));
-  const almoxBtn = { dashboard: 'btnAlmoxDashboard', estoque: 'btnAlmoxEstoque', entrada: 'btnAlmoxEntrada', saida: 'btnAlmoxSaida', historico: 'btnAlmoxHistorico' }[state.almoxView];
-  if (isAlmox && almoxBtn) $(almoxBtn)?.classList.add('active');
+  $('btnAlmoxDashboard')?.classList.remove('active');
+  if (isAlmox) $('btnAlmoxDashboard')?.classList.add('active');
 
   ['btnGalpaoDashboard', 'btnGalpaoValidades', 'btnGalpaoImportar']
     .forEach(id => $(id)?.classList.remove('active'));
@@ -1523,6 +1522,26 @@ async function carregarAlmoxItens(busca = '') {
   return state.almoxItens;
 }
 
+function almoxFluxoBar(view = '') {
+  const etapas = [
+    ['estoque', '1', 'Estoque'],
+    ['entrada', '2', 'Entrada'],
+    ['saida', '3', 'Saída'],
+    ['historico', '4', 'Histórico']
+  ];
+  return `
+    <div class="almox-flow">
+      <div class="almox-flow-label"><strong>Fluxo do Almoxarifado</strong><span>Selecione uma etapa</span></div>
+      <div class="almox-flow-steps">
+        ${etapas.map(([codigo, numero, label], i) => `
+          <button type="button" class="almox-flow-step ${view === codigo ? 'active' : ''}" onclick="abrirAlmoxarifado('${codigo}')">
+            <span class="almox-flow-number">${numero}</span>${label}
+          </button>${i < etapas.length - 1 ? '<span class="almox-flow-arrow">›</span>' : ''}
+        `).join('')}
+      </div>
+    </div>`;
+}
+
 function almoxTipoBadge(tipo) {
   return tipo === 'ENTRADA'
     ? '<span class="almox-mov-badge entrada">Entrada</span>'
@@ -1537,11 +1556,7 @@ async function renderAlmoxDashboard() {
     const data = await api('/api/almoxarifado/dashboard');
     const r = data.resumo || {};
     panel.innerHTML = `
-      <div class="almox-quick-actions">
-        <button class="primary" onclick="abrirAlmoxarifado('entrada')">＋ Registrar entrada</button>
-        <button onclick="abrirAlmoxarifado('saida')">− Registrar saída</button>
-        <button onclick="abrirAlmoxarifado('estoque')">▤ Ver estoque</button>
-      </div>
+      ${almoxFluxoBar('')}
       <div class="almox-summary-grid">
         <article class="almox-summary-card"><strong>${Number(r.itens_cadastrados || 0)}</strong><span>Itens cadastrados</span></article>
         <article class="almox-summary-card"><strong>${Number(r.itens_com_saldo || 0)}</strong><span>Itens com saldo</span></article>
@@ -1549,7 +1564,7 @@ async function renderAlmoxDashboard() {
         <article class="almox-summary-card"><strong>${Number(r.saidas_mes || 0)}</strong><span>Saídas no mês</span></article>
       </div>
       <section class="dash-panel wide almox-recentes">
-        <div class="dashboard-toolbar"><div><strong>Últimas movimentações</strong><span>Os registros mais recentes do almoxarifado.</span></div><button onclick="abrirAlmoxarifado('historico')">Ver histórico</button></div>
+        <div class="dashboard-toolbar"><div><strong>Últimas movimentações</strong><span>Os registros mais recentes do almoxarifado.</span></div></div>
         <div class="almox-history-list">
           ${(data.recentes || []).map(m => `
             <div class="almox-history-row">
@@ -1570,6 +1585,7 @@ async function renderAlmoxEstoque(busca = '') {
   try {
     const itens = await carregarAlmoxItens(busca);
     panel.innerHTML = `
+      ${almoxFluxoBar('estoque')}
       <div class="dashboard-toolbar almox-toolbar">
         <div><strong>Estoque atual</strong><span>Quantidade só muda por entrada ou saída.</span></div>
         <button class="primary" onclick="almoxItemForm()">+ Novo item</button>
@@ -1633,6 +1649,7 @@ async function renderAlmoxMovimento(tipo) {
     await carregarAlmoxItens();
     const saida = tipo === 'SAIDA';
     panel.innerHTML = `
+      ${almoxFluxoBar(saida ? 'saida' : 'entrada')}
       <div class="almox-form-shell">
         <div class="almox-form-head"><span class="almox-form-icon">${saida ? '−' : '+'}</span><div><strong>${saida ? 'Registrar saída' : 'Registrar entrada'}</strong><small>${saida ? 'Informe o material que foi entregue.' : 'Informe o material que chegou ao almoxarifado.'}</small></div></div>
         <form id="almoxMovForm" class="almox-movement-form">
@@ -1679,6 +1696,7 @@ async function renderAlmoxHistorico(busca = '', tipo = '') {
     const data = await api(`/api/almoxarifado/historico?${params.toString()}`);
     state.almoxHistorico = data;
     panel.innerHTML = `
+      ${almoxFluxoBar('historico')}
       <div class="almox-history-filters">
         <input id="almoxHistBusca" placeholder="Buscar item, destino, responsável..." value="${escapeHtml(busca)}">
         <select id="almoxHistTipo"><option value="">Entradas e saídas</option><option value="ENTRADA" ${tipo === 'ENTRADA' ? 'selected' : ''}>Entradas</option><option value="SAIDA" ${tipo === 'SAIDA' ? 'selected' : ''}>Saídas</option></select>
@@ -3733,11 +3751,7 @@ $('btnRhDashboard')?.addEventListener('click', () => abrirRH('dashboard'));
 $('btnRhSolicitacoes')?.addEventListener('click', () => abrirRH('solicitacoes'));
 $('btnRhTipos')?.addEventListener('click', () => abrirRH('tipos'));
 $('btnRhNovaPublica')?.addEventListener('click', () => window.open('/solicitar-rh.html','_blank'));
-$('btnAlmoxDashboard').onclick = () => abrirAlmoxarifado('dashboard');
-$('btnAlmoxEstoque').onclick = () => abrirAlmoxarifado('estoque');
-$('btnAlmoxEntrada').onclick = () => abrirAlmoxarifado('entrada');
-$('btnAlmoxSaida').onclick = () => abrirAlmoxarifado('saida');
-$('btnAlmoxHistorico').onclick = () => abrirAlmoxarifado('historico');
+$('btnAlmoxDashboard')?.addEventListener('click', () => abrirAlmoxarifado('dashboard'));
 $('btnDashboard').onclick = abrirDashboard;
 $('btnOS').onclick = abrirOS;
 $('btnMinhas').onclick = abrirMinhas;
