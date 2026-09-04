@@ -87,7 +87,8 @@ async function initDb() {
       ('os', 'Ordem de Serviço', 'Gestão operacional das ordens de serviço.', 20, TRUE),
       ('administracao', 'Administração', 'Usuários, hierarquia, setores e acessos.', 30, TRUE),
       ('almoxarifado', 'Almoxarifado', 'Estoque, entradas, saídas e histórico de materiais.', 40, TRUE),
-      ('galpao', 'Galpão', 'Produtos, estoque por validade, entradas, saídas e histórico.', 50, TRUE)
+      ('galpao', 'Galpão', 'Produtos, estoque por validade, entradas, saídas e histórico.', 50, TRUE),
+      ('rh', 'RH', 'Chamados, pedidos e futuras rotinas de Recursos Humanos.', 60, TRUE)
     ON CONFLICT (codigo) DO UPDATE SET
       nome = EXCLUDED.nome,
       descricao = EXCLUDED.descricao,
@@ -107,6 +108,26 @@ async function initDb() {
     )
     WHERE NOT EXISTS (SELECT 1 FROM usuario_modulos x WHERE x.usuario_id = u.id)
     ON CONFLICT DO NOTHING
+  `);
+
+
+  // V17: tipos iniciais de solicitações do RH. O RH pode editar/inativar depois.
+  await query(`
+    INSERT INTO rh_tipos_solicitacao (nome, descricao, ordem, ativo) VALUES
+      ('2ª via de contracheque', 'Solicitação de segunda via de contracheque.', 10, TRUE),
+      ('Informe de rendimentos', 'Solicitação relacionada ao informe de rendimentos.', 20, TRUE),
+      ('Declaração de vínculo', 'Declaração ou comprovante de vínculo empregatício.', 30, TRUE),
+      ('Atualização de dados cadastrais', 'Alteração de dados pessoais ou cadastrais.', 40, TRUE),
+      ('Alteração de conta bancária', 'Atualização dos dados bancários para pagamento.', 50, TRUE),
+      ('Férias', 'Dúvidas e solicitações relacionadas a férias.', 60, TRUE),
+      ('Benefícios', 'Solicitações relacionadas a benefícios.', 70, TRUE),
+      ('Vale-transporte', 'Solicitações relacionadas ao vale-transporte.', 80, TRUE),
+      ('Plano de saúde', 'Solicitações relacionadas ao plano de saúde.', 90, TRUE),
+      ('Dúvidas sobre pagamento', 'Dúvidas sobre folha ou pagamento.', 100, TRUE),
+      ('Correção de ponto', 'Solicitação relacionada a divergências de ponto.', 110, TRUE),
+      ('Atestado / documento', 'Entrega, registro ou dúvida sobre atestado/documento.', 120, TRUE),
+      ('Outros', 'Outras solicitações ao RH.', 999, TRUE)
+    ON CONFLICT (nome) DO NOTHING
   `);
 
   console.log('Banco de dados inicializado com sucesso.');

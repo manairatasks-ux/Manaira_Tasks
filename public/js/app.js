@@ -27,7 +27,10 @@ const state = {
   almoxItens: [],
   almoxHistorico: [],
   galpaoView: 'dashboard',
-  galpaoProdutos: []
+  galpaoProdutos: [],
+  rhView: 'dashboard',
+  rhTipos: [],
+  rhResponsaveis: []
 };
 
 const CACHE_TTL = 60 * 1000;
@@ -133,6 +136,7 @@ function configurarMenuPorPerfil() {
   const admin = temAcessoModulo('administracao') && isManager;
   const almox = temAcessoModulo('almoxarifado');
   const galpao = temAcessoModulo('galpao');
+  const rh = temAcessoModulo('rh');
 
   $('btnDashboard')?.classList.toggle('hidden', !atividades);
   $('btnMinhas')?.classList.toggle('hidden', !atividades);
@@ -145,6 +149,7 @@ function configurarMenuPorPerfil() {
   $('cardAdmin')?.classList.toggle('hidden', !admin);
   $('cardAlmoxarifado')?.classList.toggle('hidden', !almox);
   $('cardGalpao')?.classList.toggle('hidden', !galpao);
+  $('cardRH')?.classList.toggle('hidden', !rh);
   $('btnGalpaoImportar')?.classList.toggle('hidden', state.usuario?.perfil !== 'administrador_principal');
 }
 
@@ -215,8 +220,9 @@ function setModule(module) {
   $('adminMenu')?.classList.toggle('hidden', module !== 'admin');
   $('almoxMenu')?.classList.toggle('hidden', module !== 'almoxarifado');
   $('galpaoMenu')?.classList.toggle('hidden', module !== 'galpao');
+  $('rhMenu')?.classList.toggle('hidden', module !== 'rh');
   $('btnHome')?.classList.toggle('active', module === 'home');
-  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão' };
+  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', rh: 'Módulo Recursos Humanos' };
   if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Plataforma Manaíra';
 }
 
@@ -230,6 +236,7 @@ function setView(view) {
   const isConfig = view === 'config';
   const isAlmox = view === 'almoxarifado';
   const isGalpao = view === 'galpao';
+  const isRH = view === 'rh';
   $('homePanel')?.classList.toggle('hidden', !isHome);
   $('dashboard').classList.toggle('hidden', !isDashboard);
   $('board').classList.toggle('hidden', !isBoard);
@@ -238,6 +245,7 @@ function setView(view) {
   $('configPanel')?.classList.toggle('hidden', !isConfig);
   $('almoxPanel')?.classList.toggle('hidden', !isAlmox);
   $('galpaoPanel')?.classList.toggle('hidden', !isGalpao);
+  $('rhPanel')?.classList.toggle('hidden', !isRH);
   $('printFooter').classList.toggle('hidden', isHome);
   $('btnDashboard').classList.toggle('active', isDashboard);
   $('btnOS')?.classList.toggle('active', isOS);
@@ -258,6 +266,19 @@ function setView(view) {
 
   if (isGalpao && galpaoBtn) {
     $(galpaoBtn)?.classList.add('active');
+  }
+
+  ['btnRhDashboard','btnRhSolicitacoes','btnRhTipos']
+    .forEach(id => $(id)?.classList.remove('active'));
+
+  const rhBtn = {
+    dashboard: 'btnRhDashboard',
+    solicitacoes: 'btnRhSolicitacoes',
+    tipos: 'btnRhTipos'
+  }[state.rhView];
+
+  if (isRH && rhBtn) {
+    $(rhBtn)?.classList.add('active');
   }
 
 
@@ -2755,177 +2776,122 @@ async function renderGalpaoMovimento(tipo) {
 
 async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
   const panel = $('galpaoPanel');
-
-  panel.innerHTML =
-    '<div class="almox-loading">Carregando histórico...</div>';
+  panel.innerHTML = '<div class="almox-loading">Carregando histórico...</div>';
 
   try {
-    const qs = new URLSearchParams({
-      limite: '500'
-    });
+    const qs = new URLSearchParams({ limite: '500' });
+    if (busca) qs.set('busca', busca);
+    if (tipo) qs.set('tipo', tipo);
 
-    if (busca) {
-      qs.set('busca', busca);
-    }
-
-    if (tipo) {
-      qs.set('tipo', tipo);
-    }
-
-    const data = await api(
-      `/api/galpao/historico?${qs}`
-    );
+    const data = await api(`/api/galpao/historico?${qs}`);
 
     const viewAtual =
       tipo === 'ENTRADA' && fixo
         ? 'historico_entradas'
-        : tipo === 'SAIDA' && fixo
-          ? 'historico_saidas'
-          : 'historico';
+        : (
+            tipo === 'SAIDA' && fixo
+              ? 'historico_saidas'
+              : 'historico'
+          );
 
     const titulo =
       tipo === 'ENTRADA'
         ? 'Histórico de entradas'
-        : tipo === 'SAIDA'
-          ? 'Histórico de saídas'
-          : 'Histórico completo';
+        : (
+            tipo === 'SAIDA'
+              ? 'Histórico de saídas'
+              : 'Histórico completo'
+          );
+
+    const podeCopiar = fixo && (tipo === 'ENTRADA' || tipo === 'SAIDA');
 
     panel.innerHTML = `
       ${galpaoFluxoBar(viewAtual)}
 
-      <div class="dashboard-toolbar almox-toolbar">
+      <div class="dashboard-toolbar almox-toolbar galpao-history-head">
         <div>
           <strong>${titulo}</strong>
-
-          <span>
-            ${data.length.toLocaleString('pt-BR')}
-            registro(s) exibido(s).
-          </span>
+          <span>${data.length.toLocaleString('pt-BR')} registro(s) exibido(s).</span>
         </div>
 
-        ${fixo
-        ? `
-              <div class="galpao-copy-actions">
+        ${podeCopiar ? `
+          <div class="galpao-copy-actions">
+            <span id="galpaoCopyCount">0 selecionado(s)</span>
 
-                <span id="galpaoSelecionadosContador">
-                  0 selecionado(s)
-                </span>
+            <button
+              type="button"
+              id="galpaoCopiarSelecionados"
+              class="primary"
+              disabled
+            >
+              Copiar selecionados
+            </button>
 
-                <button
-                  id="galpaoLimparSelecao"
-                  type="button"
-                  disabled
-                >
-                  Limpar seleção
-                </button>
-
-                <button
-                  id="galpaoCopiarSelecionados"
-                  class="primary"
-                  type="button"
-                  disabled
-                >
-                  Copiar selecionados
-                </button>
-
-              </div>
-            `
-        : ''
-      }
+            <button
+              type="button"
+              id="galpaoLimparSelecao"
+              disabled
+            >
+              Limpar seleção
+            </button>
+          </div>
+        ` : ''}
       </div>
 
-
-      <div
-        class="
-          galpao-filters
-          ${fixo ? 'galpao-filters-simple' : ''}
-        "
-      >
-
+      <div class="galpao-filters ${fixo ? 'galpao-filters-simple' : ''}">
         <input
           id="galpaoHistBusca"
           placeholder="Código, produto ou observação..."
           value="${escapeHtml(busca)}"
-          autocomplete="off"
         >
 
         ${fixo
-        ? ''
-        : `
-              <select id="galpaoHistTipo">
-
-                <option value="">
-                  Entradas e saídas
-                </option>
-
-                <option
-                  value="ENTRADA"
-                  ${tipo === 'ENTRADA'
-          ? 'selected'
-          : ''
+          ? ''
+          : `
+            <select id="galpaoHistTipo">
+              <option value="">Entradas e saídas</option>
+              <option value="ENTRADA" ${tipo === 'ENTRADA' ? 'selected' : ''}>
+                Entradas
+              </option>
+              <option value="SAIDA" ${tipo === 'SAIDA' ? 'selected' : ''}>
+                Saídas
+              </option>
+            </select>
+          `
         }
-                >
-                  Entradas
-                </option>
-
-                <option
-                  value="SAIDA"
-                  ${tipo === 'SAIDA'
-          ? 'selected'
-          : ''
-        }
-                >
-                  Saídas
-                </option>
-
-              </select>
-            `
-      }
 
         <button id="galpaoHistFiltrar">
           Filtrar
         </button>
-
       </div>
 
+      ${podeCopiar ? `
+        <div class="galpao-copy-hint">
+          Marque os registros do carregamento e clique em
+          <strong>Copiar selecionados</strong>.
+          O texto será copiado no formato:
+          <span>código quantidade</span>
+        </div>
+      ` : ''}
 
-      <section
-        class="
-          dash-panel
-          wide
-          almox-table-wrap
-        "
-      >
-
-        <table
-          class="
-            dash-table
-            galpao-table
-            galpao-history-table
-            ${fixo ? 'galpao-history-selectable' : ''}
-          "
-        >
-
+      <section class="dash-panel wide almox-table-wrap">
+        <table class="dash-table galpao-table galpao-history-table ${podeCopiar ? 'galpao-history-selectable' : ''}">
           <thead>
-
             <tr>
-
-              ${fixo
-        ? `
-                    <th
-                      class="galpao-select-col"
-                      title="Selecionar todos"
+              ${podeCopiar ? `
+                <th class="galpao-select-col">
+                  <label
+                    class="galpao-history-check"
+                    title="Selecionar todos os registros exibidos"
+                  >
+                    <input
+                      type="checkbox"
+                      id="galpaoSelecionarTodos"
+                      aria-label="Selecionar todos"
                     >
-                      <input
-                        id="galpaoSelecionarTodos"
-                        class="galpao-history-checkbox"
-                        type="checkbox"
-                        aria-label="Selecionar todos os registros"
-                      >
-                    </th>
-                  `
-        : ''
-      }
+                  </label>
+                </th>
+              ` : ''}
 
               <th>Data</th>
               <th>Código</th>
@@ -2934,196 +2900,99 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
               <th>Unid/Emb.</th>
               <th>Quantidade</th>
               <th>Usuário / observação</th>
-
             </tr>
-
           </thead>
 
-
           <tbody>
-
-            ${data.map(m => {
-
-        const quantidade = Number(
-          m.quantidade || 0
-        );
-
-        const dataFormatada =
-          fmtDate(m.data_movimento);
-
-        return `
-                  <tr
-                    ${fixo
-            ? `data-galpao-history-row="${m.id}"`
-            : ''
-          }
-                  >
-
-                    ${fixo
-            ? `
-                          <td class="galpao-select-col">
-
-                            <input
-                              type="checkbox"
-                              class="
-                                galpao-history-checkbox
-                                galpao-history-item-check
-                              "
-                              data-id="${m.id}"
-                              data-data="${escapeHtml(
-              dataFormatada
-            )}"
-                              data-codigo="${escapeHtml(
-              m.codigo_barra
-            )}"
-                              data-quantidade="${quantidade}"
-                              aria-label="Selecionar ${escapeHtml(
-              m.descricao
-            )}"
-                            >
-
-                          </td>
-                        `
-            : ''
-          }
-
-                    <td>
-                      ${dataFormatada}
-                    </td>
-
-                    <td class="mono">
-                      ${escapeHtml(
-            m.codigo_barra
-          )}
-                    </td>
-
-                    <td>
-
-                      <strong>
-                        ${escapeHtml(
-            m.descricao
-          )}
-                      </strong>
-
-                      ${!fixo
-            ? `
-                            <small
-                              class="almox-cell-note"
-                            >
-                              ${m.tipo === 'ENTRADA'
-              ? 'Entrada'
-              : 'Saída'
-            }
-                            </small>
-                          `
-            : ''
-          }
-
-                    </td>
-
-                    <td>
-                      ${galpaoValidadeLabel(
-            m.validade
-          )}
-                    </td>
-
-                    <td>
-                      ${Number(
-            m.unidades_por_embalagem
-          ).toLocaleString('pt-BR')}
-                    </td>
-
-                    <td>
-
-                      <strong
-                        class="
-                          galpao-history-qty
-                          ${m.tipo === 'SAIDA'
-            ? 'saida'
-            : 'entrada'
-          }
-                        "
+            ${data.map((m, index) => `
+              <tr
+                class="${podeCopiar ? 'galpao-history-select-row' : ''}"
+                ${podeCopiar ? `data-copy-index="${index}"` : ''}
+              >
+                ${podeCopiar ? `
+                  <td class="galpao-select-col">
+                    <label class="galpao-history-check">
+                      <input
+                        type="checkbox"
+                        class="galpaoHistCheck"
+                        data-index="${index}"
+                        aria-label="Selecionar ${escapeHtml(m.descricao)}"
                       >
-
-                        ${m.tipo === 'SAIDA'
-            ? '−'
-            : '+'
-          }
-
-                        ${quantidade.toLocaleString(
-            'pt-BR'
-          )}
-
-                      </strong>
-
-                    </td>
-
-                    <td>
-
-                      <span>
-                        ${m.usuario_nome
-            ? escapeHtml(
-              m.usuario_nome
-            )
-            : m.origem === 'SQLITE'
-              ? 'Importado do Python'
-              : '—'
-          }
-                      </span>
-
-                      ${m.observacao
-            ? `
-                            <small
-                              class="almox-cell-note"
-                            >
-                              ${escapeHtml(
-              m.observacao
-            )}
-                            </small>
-                          `
-            : ''
-          }
-
-                    </td>
-
-                  </tr>
-                `;
-      }).join('')
-      ||
-      `
-                <tr>
-                  <td
-                    colspan="${fixo ? 8 : 7}"
-                    class="empty"
-                  >
-                    Nenhuma movimentação encontrada.
+                    </label>
                   </td>
-                </tr>
-              `
-      }
+                ` : ''}
 
+                <td>${fmtDate(m.data_movimento)}</td>
+
+                <td class="mono">
+                  ${escapeHtml(m.codigo_barra)}
+                </td>
+
+                <td>
+                  <strong>${escapeHtml(m.descricao)}</strong>
+                  ${!fixo
+                    ? `
+                      <small class="almox-cell-note">
+                        ${m.tipo === 'ENTRADA' ? 'Entrada' : 'Saída'}
+                      </small>
+                    `
+                    : ''
+                  }
+                </td>
+
+                <td>${galpaoValidadeLabel(m.validade)}</td>
+
+                <td>${Number(m.unidades_por_embalagem)}</td>
+
+                <td>
+                  <strong
+                    class="galpao-history-qty ${m.tipo === 'SAIDA' ? 'saida' : 'entrada'}"
+                  >
+                    ${m.tipo === 'SAIDA' ? '−' : '+'}${Number(m.quantidade).toLocaleString('pt-BR')}
+                  </strong>
+                </td>
+
+                <td>
+                  <span>
+                    ${
+                      m.usuario_nome
+                        ? escapeHtml(m.usuario_nome)
+                        : (
+                            m.origem === 'SQLITE'
+                              ? 'Importado do Python'
+                              : '—'
+                          )
+                    }
+                  </span>
+
+                  ${m.observacao
+                    ? `
+                      <small class="almox-cell-note">
+                        ${escapeHtml(m.observacao)}
+                      </small>
+                    `
+                    : ''
+                  }
+                </td>
+              </tr>
+            `).join('') || `
+              <tr>
+                <td
+                  colspan="${podeCopiar ? '8' : '7'}"
+                  class="empty"
+                >
+                  Nenhuma movimentação encontrada.
+                </td>
+              </tr>
+            `}
           </tbody>
-
         </table>
-
       </section>
     `;
 
-
-    // ============================
-    // FILTRO
-    // ============================
-
     const filtrar = () => {
-      const novaBusca =
-        $('galpaoHistBusca')
-          .value
-          .trim();
-
-      const novoTipo =
-        fixo
-          ? tipo
-          : $('galpaoHistTipo').value;
+      const novaBusca = $('galpaoHistBusca').value.trim();
+      const novoTipo = fixo ? tipo : $('galpaoHistTipo').value;
 
       renderGalpaoHistorico(
         novaBusca,
@@ -3132,339 +3001,193 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
       );
     };
 
-
-    $('galpaoHistFiltrar').onclick =
-      filtrar;
-
+    $('galpaoHistFiltrar').onclick = filtrar;
 
     if (!fixo) {
-      $('galpaoHistTipo').onchange =
-        filtrar;
+      $('galpaoHistTipo').onchange = filtrar;
     }
 
+    $('galpaoHistBusca').onkeydown = e => {
+      if (e.key === 'Enter') {
+        filtrar();
+      }
+    };
 
-    $('galpaoHistBusca').onkeydown =
-      e => {
-        if (e.key === 'Enter') {
-          filtrar();
-        }
-      };
+    if (podeCopiar) {
+      const checks = [
+        ...document.querySelectorAll('.galpaoHistCheck')
+      ];
 
+      const selecionarTodos = $('galpaoSelecionarTodos');
+      const copiarBtn = $('galpaoCopiarSelecionados');
+      const limparBtn = $('galpaoLimparSelecao');
+      const contador = $('galpaoCopyCount');
 
-    // ============================
-    // SELEÇÃO E CÓPIA
-    // ============================
+      const selecionados = () =>
+        checks.filter(check => check.checked);
 
-    if (fixo) {
-
-      const selecionarTodos =
-        $('galpaoSelecionarTodos');
-
-      const btnCopiar =
-        $('galpaoCopiarSelecionados');
-
-      const btnLimpar =
-        $('galpaoLimparSelecao');
-
-      const contador =
-        $('galpaoSelecionadosContador');
-
-
-      const checkboxes = () =>
-        [
-          ...document.querySelectorAll(
-            '.galpao-history-item-check'
-          )
-        ];
-
-
-      function atualizarSelecao() {
-
-        const itens = checkboxes();
-
-        const selecionados =
-          itens.filter(
-            checkbox => checkbox.checked
-          );
+      const atualizarSelecao = () => {
+        const marcados = selecionados();
+        const quantidade = marcados.length;
 
         contador.textContent =
-          `${selecionados.length} selecionado(s)`;
+          `${quantidade} selecionado(s)`;
 
-        btnCopiar.disabled =
-          selecionados.length === 0;
+        copiarBtn.disabled = quantidade === 0;
+        limparBtn.disabled = quantidade === 0;
 
-        btnLimpar.disabled =
-          selecionados.length === 0;
-
-
-        // Destaca visualmente a linha.
-        itens.forEach(checkbox => {
-
-          const row =
-            checkbox.closest('tr');
-
-          row?.classList.toggle(
-            'galpao-history-row-selected',
-            checkbox.checked
-          );
-
-        });
-
-
-        if (itens.length === 0) {
-
+        if (selecionarTodos) {
           selecionarTodos.checked =
-            false;
+            checks.length > 0 &&
+            quantidade === checks.length;
 
           selecionarTodos.indeterminate =
-            false;
-
-          return;
+            quantidade > 0 &&
+            quantidade < checks.length;
         }
 
-
-        if (
-          selecionados.length ===
-          itens.length
-        ) {
-
-          selecionarTodos.checked =
-            true;
-
-          selecionarTodos.indeterminate =
-            false;
-
-        } else if (
-          selecionados.length > 0
-        ) {
-
-          selecionarTodos.checked =
-            false;
-
-          selecionarTodos.indeterminate =
-            true;
-
-        } else {
-
-          selecionarTodos.checked =
-            false;
-
-          selecionarTodos.indeterminate =
-            false;
-
-        }
-
-      }
-
-
-      selecionarTodos.onchange = () => {
-
-        const marcado =
-          selecionarTodos.checked;
-
-        checkboxes().forEach(
-          checkbox => {
-            checkbox.checked = marcado;
-          }
-        );
-
-        atualizarSelecao();
-
+        document
+          .querySelectorAll('.galpao-history-select-row')
+          .forEach(row => {
+            const check = row.querySelector('.galpaoHistCheck');
+            row.classList.toggle(
+              'selected',
+              Boolean(check?.checked)
+            );
+          });
       };
 
+      checks.forEach(check => {
+        check.addEventListener(
+          'change',
+          atualizarSelecao
+        );
+      });
 
-      checkboxes().forEach(
-        checkbox => {
+      if (selecionarTodos) {
+        selecionarTodos.addEventListener(
+          'change',
+          () => {
+            checks.forEach(check => {
+              check.checked =
+                selecionarTodos.checked;
+            });
 
-          checkbox.onchange = () => {
             atualizarSelecao();
-          };
+          }
+        );
+      }
 
-          // Também permite clicar na linha.
-          const row =
-            checkbox.closest('tr');
+      limparBtn.addEventListener(
+        'click',
+        () => {
+          checks.forEach(check => {
+            check.checked = false;
+          });
 
-          row?.addEventListener(
-            'click',
-            e => {
+          if (selecionarTodos) {
+            selecionarTodos.checked = false;
+            selecionarTodos.indeterminate = false;
+          }
 
-              if (
-                e.target.closest(
-                  'input, button, a'
-                )
-              ) {
-                return;
-              }
-
-              checkbox.checked =
-                !checkbox.checked;
-
-              atualizarSelecao();
-
-            }
-          );
-
+          atualizarSelecao();
         }
       );
 
-
-      btnLimpar.onclick = () => {
-
-        checkboxes().forEach(
-          checkbox => {
-            checkbox.checked = false;
-          }
-        );
-
-        atualizarSelecao();
-
-      };
-
-
-      btnCopiar.onclick = async () => {
-
-        const selecionados =
-          checkboxes().filter(
-            checkbox => checkbox.checked
-          );
-
-
-        if (!selecionados.length) {
+      async function copiarTexto(texto) {
+        if (
+          navigator.clipboard &&
+          window.isSecureContext
+        ) {
+          await navigator.clipboard.writeText(texto);
           return;
         }
 
+        const area = document.createElement('textarea');
+        area.value = texto;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        area.style.pointerEvents = 'none';
 
+        document.body.appendChild(area);
+        area.select();
 
+        const sucesso =
+          document.execCommand('copy');
 
+        area.remove();
 
+        if (!sucesso) {
+          throw new Error(
+            'Não foi possível copiar automaticamente.'
+          );
+        }
+      }
 
+      copiarBtn.addEventListener(
+        'click',
+        async () => {
+          const marcados = selecionados();
 
-
-
-        // Formato:
-        // CODIGO QUANTIDADE
-        const texto =
-          selecionados
-            .map(checkbox => {
-
-              const codigo =
-                checkbox.dataset.codigo || '';
-
-              const quantidade =
-                Number(
-                  checkbox.dataset.quantidade || 0
-                );
-
-              return `${codigo} ${quantidade}`;
-
-            })
-            .join('\n');
-
-        try {
-
-          // Método moderno.
-          if (
-            navigator.clipboard &&
-            window.isSecureContext
-          ) {
-
-            await navigator.clipboard
-              .writeText(texto);
-
-          } else {
-
-            // Fallback para localhost /
-            // navegadores mais antigos.
-            const textarea =
-              document.createElement(
-                'textarea'
-              );
-
-            textarea.value = texto;
-
-            textarea.style.position =
-              'fixed';
-
-            textarea.style.opacity =
-              '0';
-
-            textarea.style.pointerEvents =
-              'none';
-
-            document.body.appendChild(
-              textarea
-            );
-
-            textarea.focus();
-            textarea.select();
-
-            document.execCommand(
-              'copy'
-            );
-
-            textarea.remove();
-
+          if (!marcados.length) {
+            return;
           }
 
+          const linhas = marcados.map(check => {
+            const registro =
+              data[Number(check.dataset.index)];
 
-          const quantidadeCopiada =
-            selecionados.length;
+            const codigo =
+              String(registro.codigo_barra || '').trim();
 
+            const quantidade =
+              String(Number(registro.quantidade || 0));
 
-          const textoOriginal =
-            btnCopiar.textContent;
+            return `${codigo} ${quantidade}`;
+          });
 
+          const texto = linhas.join('\n');
+          const textoOriginal = copiarBtn.textContent;
 
-          btnCopiar.textContent =
-            `✓ ${quantidadeCopiada} copiado(s)`;
+          try {
+            await copiarTexto(texto);
 
+            copiarBtn.textContent =
+              `✓ ${marcados.length} copiado(s)`;
 
-          setTimeout(() => {
+            copiarBtn.classList.add('copiado');
 
-            if (
-              document.body.contains(
-                btnCopiar
-              )
-            ) {
-              btnCopiar.textContent =
+            setTimeout(() => {
+              copiarBtn.textContent =
                 textoOriginal;
-            }
 
-          }, 1600);
+              copiarBtn.classList.remove('copiado');
+            }, 1800);
 
-
-        } catch (err) {
-
-          alert(
-            'Não foi possível copiar os registros.'
-          );
-
+          } catch (err) {
+            alert(
+              'Não foi possível copiar automaticamente. ' +
+              'Tente novamente ou verifique a permissão do navegador.'
+            );
+          }
         }
-
-      };
-
+      );
 
       atualizarSelecao();
-
     }
 
-
   } catch (err) {
-
     panel.innerHTML = `
-      <section
-        class="dash-panel wide"
-      >
-
+      <section class="dash-panel wide">
         <p class="empty">
           ${escapeHtml(err.message)}
         </p>
-
       </section>
     `;
-
   }
 }
+
 
 async function renderGalpaoValidades(dias = 90, busca = '') {
   const panel = $('galpaoPanel'); panel.innerHTML = '<div class="almox-loading">Carregando validades...</div>'; try {
@@ -3488,6 +3211,306 @@ async function executarImportacaoGalpao(file, possuiDados) {
 }
 
 window.abrirGalpao = abrirGalpao;
+
+
+// =========================
+// V17 - Módulo RH
+// =========================
+function rhStatusBadge(status) {
+  const cls = String(status || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replaceAll(' ','-');
+  return `<span class="rh-status rh-status-${cls}">${escapeHtml(status || '-')}</span>`;
+}
+
+function entrarRH() {
+  if (!exigirModulo('rh', 'Recursos Humanos')) return;
+  setModule('rh');
+  history.replaceState(null, '', '#rh');
+  return abrirRH('dashboard');
+}
+
+async function abrirRH(view = 'dashboard') {
+  if (!exigirModulo('rh', 'Recursos Humanos')) return;
+  state.rhView = view;
+  setModule('rh');
+  setView('rh');
+
+  const metas = {
+    dashboard: ['Recursos Humanos', 'Visão geral dos chamados e pedidos recebidos pelo RH.'],
+    solicitacoes: ['Solicitações ao RH', 'Acompanhe, atribua responsáveis e registre o andamento dos pedidos.'],
+    tipos: ['Tipos de solicitação', 'Configure as categorias disponíveis para os colaboradores.']
+  };
+
+  const [titulo, descricao] = metas[view] || metas.dashboard;
+  $('setorTitulo').textContent = titulo;
+  $('setorDescricao').textContent = descricao;
+  history.replaceState(null, '', view === 'dashboard' ? '#rh' : `#rh/${view}`);
+
+  if (view === 'solicitacoes') return renderRhSolicitacoes();
+  if (view === 'tipos') return renderRhTipos();
+  return renderRhDashboard();
+}
+
+async function carregarRhTipos(ativos = false) {
+  const endpoint = ativos ? '/api/rh/public/tipos' : '/api/rh/tipos';
+  state.rhTipos = await api(endpoint);
+  return state.rhTipos;
+}
+
+async function carregarRhResponsaveis() {
+  state.rhResponsaveis = await api('/api/rh/responsaveis');
+  return state.rhResponsaveis;
+}
+
+async function renderRhDashboard() {
+  const panel = $('rhPanel');
+  panel.innerHTML = '<div class="almox-loading">Carregando RH...</div>';
+
+  try {
+    const data = await api('/api/rh/dashboard');
+    const r = data.resumo || {};
+
+    panel.innerHTML = `
+      <div class="rh-toolbar">
+        <div>
+          <strong>Central de solicitações do RH</strong>
+          <span>Pedidos ficam registrados desde a abertura até a conclusão.</span>
+        </div>
+        <div class="rh-toolbar-actions">
+          <button onclick="window.open('/solicitar-rh.html','_blank')">Abrir formulário do colaborador</button>
+          <button class="primary" onclick="abrirRH('solicitacoes')">Ver solicitações</button>
+        </div>
+      </div>
+
+      <div class="almox-summary-grid rh-summary-grid">
+        <article class="almox-summary-card"><strong>${Number(r.abertos || 0)}</strong><span>Em aberto</span></article>
+        <article class="almox-summary-card"><strong>${Number(r.recebidos || 0)}</strong><span>Recebidos</span></article>
+        <article class="almox-summary-card alert"><strong>${Number(r.em_analise || 0)}</strong><span>Em análise</span></article>
+        <article class="almox-summary-card"><strong>${Number(r.aguardando || 0)}</strong><span>Aguardando colaborador</span></article>
+        <article class="almox-summary-card"><strong>${Number(r.em_andamento || 0)}</strong><span>Em andamento</span></article>
+        <article class="almox-summary-card success"><strong>${Number(r.concluidos_mes || 0)}</strong><span>Concluídos no mês</span></article>
+      </div>
+
+      <div class="rh-dashboard-grid">
+        <section class="dash-panel">
+          <h2>Solicitações recentes</h2>
+          <div class="rh-request-list">
+            ${(data.recentes || []).map(s => `
+              <button class="rh-request-card" onclick="verRhSolicitacao(${s.id})">
+                <div><strong>${escapeHtml(s.protocolo)}</strong><span>${escapeHtml(s.tipo_nome)}</span></div>
+                <div><b>${escapeHtml(s.solicitante_nome)}</b><small>${escapeHtml(s.responsavel_nome || 'Sem responsável')}</small></div>
+                ${rhStatusBadge(s.status)}
+              </button>
+            `).join('') || '<p class="empty">Nenhuma solicitação recebida ainda.</p>'}
+          </div>
+        </section>
+
+        <section class="dash-panel">
+          <h2>Demandas em aberto por tipo</h2>
+          <div class="rh-type-list">
+            ${(data.por_tipo || []).map(x => `<div><span>${escapeHtml(x.nome)}</span><strong>${Number(x.total)}</strong></div>`).join('') || '<p class="empty">Sem demandas em aberto.</p>'}
+          </div>
+        </section>
+      </div>
+    `;
+  } catch (err) {
+    panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
+  }
+}
+
+async function renderRhSolicitacoes(busca = '', status = '', tipoId = '') {
+  const panel = $('rhPanel');
+  panel.innerHTML = '<div class="almox-loading">Carregando solicitações...</div>';
+
+  try {
+    const tipos = state.rhTipos.length ? state.rhTipos : await carregarRhTipos(false);
+    const qs = new URLSearchParams();
+    if (busca) qs.set('busca', busca);
+    if (status) qs.set('status', status);
+    if (tipoId) qs.set('tipo_id', tipoId);
+    const data = await api(`/api/rh/solicitacoes?${qs}`);
+
+    panel.innerHTML = `
+      <div class="rh-toolbar">
+        <div><strong>Caixa de solicitações</strong><span>${data.length.toLocaleString('pt-BR')} registro(s) exibido(s).</span></div>
+        <button class="primary" onclick="rhSolicitacaoInternaForm()">+ Nova solicitação</button>
+      </div>
+
+      <div class="rh-filters">
+        <input id="rhBusca" placeholder="Protocolo, colaborador, CPF/matrícula ou descrição..." value="${escapeHtml(busca)}">
+        <select id="rhStatusFiltro">
+          <option value="">Todos os status</option>
+          ${['Recebido','Em análise','Aguardando colaborador','Em andamento','Concluído','Cancelado'].map(s=>`<option value="${s}" ${status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <select id="rhTipoFiltro">
+          <option value="">Todos os tipos</option>
+          ${tipos.map(t=>`<option value="${t.id}" ${String(tipoId)===String(t.id)?'selected':''}>${escapeHtml(t.nome)}</option>`).join('')}
+        </select>
+        <button id="rhFiltrar">Filtrar</button>
+      </div>
+
+      <section class="dash-panel wide almox-table-wrap">
+        <table class="dash-table rh-table">
+          <thead><tr><th>Protocolo</th><th>Solicitante</th><th>Tipo</th><th>Status</th><th>Responsável</th><th>Abertura</th></tr></thead>
+          <tbody>
+            ${data.map(s=>`
+              <tr class="rh-click-row" onclick="verRhSolicitacao(${s.id})">
+                <td class="mono"><strong>${escapeHtml(s.protocolo)}</strong></td>
+                <td><strong>${escapeHtml(s.solicitante_nome)}</strong><small class="almox-cell-note">${escapeHtml(s.identificacao || s.contato || '')}</small></td>
+                <td>${escapeHtml(s.tipo_nome)}</td>
+                <td>${rhStatusBadge(s.status)}</td>
+                <td>${escapeHtml(s.responsavel_nome || 'Não atribuído')}</td>
+                <td>${fmtDateTime(s.criado_em)}</td>
+              </tr>
+            `).join('') || '<tr><td colspan="6" class="empty">Nenhuma solicitação encontrada.</td></tr>'}
+          </tbody>
+        </table>
+      </section>
+    `;
+
+    const filtrar = () => renderRhSolicitacoes(
+      $('rhBusca').value.trim(),
+      $('rhStatusFiltro').value,
+      $('rhTipoFiltro').value
+    );
+
+    $('rhFiltrar').onclick = filtrar;
+    $('rhStatusFiltro').onchange = filtrar;
+    $('rhTipoFiltro').onchange = filtrar;
+    $('rhBusca').onkeydown = e => { if (e.key === 'Enter') filtrar(); };
+  } catch (err) {
+    panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
+  }
+}
+
+window.rhSolicitacaoInternaForm = async () => {
+  const tipos = state.rhTipos.length ? state.rhTipos.filter(t=>t.ativo) : await carregarRhTipos(false);
+  openModal('Nova solicitação ao RH', `
+    <form id="rhNovaSolicitacaoForm">
+      <div class="form-grid">
+        <div class="full"><label>Solicitante</label><input name="solicitante_nome" required></div>
+        <div><label>CPF ou matrícula</label><input name="identificacao"></div>
+        <div><label>Contato</label><input name="contato"></div>
+        <div class="full"><label>Tipo</label><select name="tipo_id" required><option value="">Selecione...</option>${tipos.map(t=>`<option value="${t.id}">${escapeHtml(t.nome)}</option>`).join('')}</select></div>
+        <div class="full"><label>Descrição</label><textarea name="descricao" required></textarea></div>
+      </div>
+      <div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Abrir solicitação</button></div>
+    </form>
+  `);
+
+  $('rhNovaSolicitacaoForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await api('/api/rh/solicitacoes',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.target)))});
+      closeModal();
+      await renderRhSolicitacoes();
+    } catch (err) { alert(err.message); }
+  };
+};
+
+window.verRhSolicitacao = async id => {
+  try {
+    const [data, responsaveis] = await Promise.all([
+      api(`/api/rh/solicitacoes/${id}`),
+      state.rhResponsaveis.length ? Promise.resolve(state.rhResponsaveis) : carregarRhResponsaveis()
+    ]);
+    const s = data.solicitacao;
+
+    openModal(`${s.protocolo} • ${s.tipo_nome}`, `
+      <div class="rh-detail-head">
+        <div><span>Solicitante</span><strong>${escapeHtml(s.solicitante_nome)}</strong><small>${escapeHtml(s.identificacao || '-')} • ${escapeHtml(s.contato || 'sem contato')}</small></div>
+        ${rhStatusBadge(s.status)}
+      </div>
+
+      <div class="rh-detail-description">${escapeHtml(s.descricao)}</div>
+
+      <div class="rh-detail-controls">
+        <div><label>Status</label><select id="rhDetalheStatus">${['Recebido','Em análise','Aguardando colaborador','Em andamento','Concluído','Cancelado'].map(st=>`<option ${s.status===st?'selected':''}>${st}</option>`).join('')}</select></div>
+        <div><label>Responsável</label><select id="rhDetalheResponsavel"><option value="">Não atribuído</option>${responsaveis.map(u=>`<option value="${u.id}" ${String(s.responsavel_id||'')===String(u.id)?'selected':''}>${escapeHtml(u.nome)}</option>`).join('')}</select></div>
+      </div>
+
+      <div class="rh-timeline">
+        <h3>Histórico</h3>
+        ${(data.interacoes || []).map(i=>`
+          <div class="rh-timeline-item ${i.tipo==='EVENTO'?'event':''}">
+            <span></span>
+            <div><strong>${escapeHtml(i.usuario_nome || i.autor_nome || 'Sistema')}</strong><p>${escapeHtml(i.mensagem)}</p><small>${fmtDateTime(i.criado_em)}</small></div>
+          </div>
+        `).join('')}
+      </div>
+
+      <form id="rhComentarioForm" class="rh-comment-form">
+        <label>Registrar comentário interno</label>
+        <textarea name="mensagem" placeholder="Registre uma observação ou atualização do atendimento..." required></textarea>
+        <div class="modal-actions"><button class="primary" type="submit">Adicionar comentário</button></div>
+      </form>
+    `);
+
+    $('rhDetalheStatus').onchange = async e => {
+      try { await api(`/api/rh/solicitacoes/${id}/status`,{method:'PUT',body:JSON.stringify({status:e.target.value})}); await verRhSolicitacao(id); }
+      catch(err){alert(err.message);}
+    };
+    $('rhDetalheResponsavel').onchange = async e => {
+      try { await api(`/api/rh/solicitacoes/${id}/responsavel`,{method:'PUT',body:JSON.stringify({responsavel_id:e.target.value||null})}); await verRhSolicitacao(id); }
+      catch(err){alert(err.message);}
+    };
+    $('rhComentarioForm').onsubmit = async e => {
+      e.preventDefault();
+      try { await api(`/api/rh/solicitacoes/${id}/comentarios`,{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.target)))}); await verRhSolicitacao(id); }
+      catch(err){alert(err.message);}
+    };
+  } catch (err) { alert(err.message); }
+};
+
+async function renderRhTipos() {
+  const panel = $('rhPanel');
+  panel.innerHTML = '<div class="almox-loading">Carregando tipos...</div>';
+  try {
+    const tipos = await carregarRhTipos(false);
+    panel.innerHTML = `
+      <div class="rh-toolbar">
+        <div><strong>Tipos de solicitação</strong><span>Essas opções aparecem no formulário usado pelos colaboradores.</span></div>
+        <button class="primary" onclick="rhTipoForm()">+ Novo tipo</button>
+      </div>
+      <section class="dash-panel wide almox-table-wrap">
+        <table class="dash-table rh-table">
+          <thead><tr><th>Ordem</th><th>Tipo</th><th>Descrição</th><th>Status</th><th>Ação</th></tr></thead>
+          <tbody>${tipos.map(t=>`<tr><td>${Number(t.ordem)}</td><td><strong>${escapeHtml(t.nome)}</strong></td><td>${escapeHtml(t.descricao || '-')}</td><td>${t.ativo?'Ativo':'Inativo'}</td><td><button onclick="rhTipoForm(${t.id})">Editar</button></td></tr>`).join('')}</tbody>
+        </table>
+      </section>
+    `;
+  } catch (err) {
+    panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
+  }
+}
+
+window.rhTipoForm = async (id = null) => {
+  const tipos = state.rhTipos.length ? state.rhTipos : await carregarRhTipos(false);
+  const atual = id ? tipos.find(t=>Number(t.id)===Number(id)) : null;
+  openModal(atual ? 'Editar tipo de solicitação' : 'Novo tipo de solicitação', `
+    <form id="rhTipoForm">
+      <label>Nome</label><input name="nome" value="${escapeHtml(atual?.nome || '')}" required>
+      <label>Descrição</label><textarea name="descricao">${escapeHtml(atual?.descricao || '')}</textarea>
+      <label>Ordem</label><input name="ordem" type="number" value="${Number(atual?.ordem || 0)}">
+      ${atual ? `<label class="rh-active-check"><input name="ativo" type="checkbox" ${atual.ativo?'checked':''}> Tipo ativo</label>` : ''}
+      <div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Salvar</button></div>
+    </form>
+  `);
+  $('rhTipoForm').onsubmit = async e => {
+    e.preventDefault();
+    const body=Object.fromEntries(new FormData(e.target));
+    if(atual) body.ativo=e.target.elements.ativo.checked;
+    try{
+      await api(atual?`/api/rh/tipos/${atual.id}`:'/api/rh/tipos',{method:atual?'PUT':'POST',body:JSON.stringify(body)});
+      closeModal(); state.rhTipos=[]; await renderRhTipos();
+    }catch(err){alert(err.message);}
+  };
+};
+
+window.entrarRH = entrarRH;
+window.abrirRH = abrirRH;
+
 
 function podeGerenciarUsuario(usuario) {
   const niveis = { colaborador: 1, encarregado: 2, gerente: 3, administrador: 4, administrador_principal: 5 };
@@ -3702,14 +3725,14 @@ $('cardOS').onclick = entrarOS;
 $('cardAdmin').onclick = entrarAdmin;
 $('cardAlmoxarifado').onclick = entrarAlmoxarifado;
 $('cardGalpao').onclick = entrarGalpao;
-$('btnGalpaoDashboard').onclick = () => abrirGalpao('dashboard');
-$('btnGalpaoProdutos').onclick = () => abrirGalpao('produtos');
-$('btnGalpaoEstoque').onclick = () => abrirGalpao('estoque');
-$('btnGalpaoEntrada').onclick = () => abrirGalpao('entrada');
-$('btnGalpaoSaida').onclick = () => abrirGalpao('saida');
-$('btnGalpaoHistorico').onclick = () => abrirGalpao('historico');
-$('btnGalpaoValidades').onclick = () => abrirGalpao('validades');
-$('btnGalpaoImportar').onclick = () => abrirGalpao('importar');
+$('cardRH').onclick = entrarRH;
+$('btnGalpaoDashboard')?.addEventListener('click', () => abrirGalpao('dashboard'));
+$('btnGalpaoValidades')?.addEventListener('click', () => abrirGalpao('validades'));
+$('btnGalpaoImportar')?.addEventListener('click', () => abrirGalpao('importar'));
+$('btnRhDashboard')?.addEventListener('click', () => abrirRH('dashboard'));
+$('btnRhSolicitacoes')?.addEventListener('click', () => abrirRH('solicitacoes'));
+$('btnRhTipos')?.addEventListener('click', () => abrirRH('tipos'));
+$('btnRhNovaPublica')?.addEventListener('click', () => window.open('/solicitar-rh.html','_blank'));
 $('btnAlmoxDashboard').onclick = () => abrirAlmoxarifado('dashboard');
 $('btnAlmoxEstoque').onclick = () => abrirAlmoxarifado('estoque');
 $('btnAlmoxEntrada').onclick = () => abrirAlmoxarifado('entrada');

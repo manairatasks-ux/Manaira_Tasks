@@ -1,3 +1,7 @@
+# Plataforma Manaíra V17
+
+A V17 inicia o **Módulo Recursos Humanos** com um sistema de chamados e solicitações dos colaboradores, mantendo a arquitetura modular construída nas versões anteriores. A futura migração do RH Suite (Contracheques, Informe IR e CNAB) permanece planejada como segunda etapa.
+
 # Plataforma Manaíra V16
 
 A V16 adiciona o módulo **Galpão**, migrando a lógica do antigo projeto Python/Tkinter para a plataforma web. O estoque continua separado por produto, validade e unidades por embalagem e há um importador do `controle_estoque.db` legado.

@@ -300,3 +300,53 @@ CREATE TABLE IF NOT EXISTS galpao_importacoes (
   criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_galpao_import_hash ON galpao_importacoes(arquivo_hash);
+
+
+-- V17: Módulo RH - Chamados e Solicitações
+CREATE TABLE IF NOT EXISTS rh_tipos_solicitacao (
+  id SERIAL PRIMARY KEY,
+  nome VARCHAR(140) UNIQUE NOT NULL,
+  descricao TEXT,
+  ordem INTEGER NOT NULL DEFAULT 0,
+  ativo BOOLEAN NOT NULL DEFAULT TRUE,
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS rh_solicitacoes (
+  id SERIAL PRIMARY KEY,
+  protocolo VARCHAR(30) UNIQUE,
+  tipo_id INTEGER NOT NULL REFERENCES rh_tipos_solicitacao(id),
+  solicitante_nome VARCHAR(160) NOT NULL,
+  identificacao VARCHAR(80),
+  contato VARCHAR(160),
+  descricao TEXT NOT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'Recebido',
+  prioridade VARCHAR(30) NOT NULL DEFAULT 'Normal',
+  responsavel_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  origem VARCHAR(20) NOT NULL DEFAULT 'PUBLICO',
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  concluido_em TIMESTAMP,
+  CONSTRAINT chk_rh_status CHECK (status IN ('Recebido','Em análise','Aguardando colaborador','Em andamento','Concluído','Cancelado')),
+  CONSTRAINT chk_rh_prioridade CHECK (prioridade IN ('Baixa','Normal','Alta','Urgente')),
+  CONSTRAINT chk_rh_origem CHECK (origem IN ('PUBLICO','INTERNO'))
+);
+
+CREATE TABLE IF NOT EXISTS rh_solicitacao_interacoes (
+  id SERIAL PRIMARY KEY,
+  solicitacao_id INTEGER NOT NULL REFERENCES rh_solicitacoes(id) ON DELETE CASCADE,
+  usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  autor_nome VARCHAR(160),
+  mensagem TEXT NOT NULL,
+  tipo VARCHAR(20) NOT NULL DEFAULT 'COMENTARIO',
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_rh_interacao_tipo CHECK (tipo IN ('EVENTO','COMENTARIO'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_rh_solicitacoes_status ON rh_solicitacoes(status);
+CREATE INDEX IF NOT EXISTS idx_rh_solicitacoes_tipo ON rh_solicitacoes(tipo_id);
+CREATE INDEX IF NOT EXISTS idx_rh_solicitacoes_responsavel ON rh_solicitacoes(responsavel_id);
+CREATE INDEX IF NOT EXISTS idx_rh_solicitacoes_criado_em ON rh_solicitacoes(criado_em);
+CREATE INDEX IF NOT EXISTS idx_rh_interacoes_solicitacao ON rh_solicitacao_interacoes(solicitacao_id);

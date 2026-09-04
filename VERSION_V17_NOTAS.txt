@@ -1,0 +1,27 @@
+PLATAFORMA MANAÍRA V17 - MÓDULO RH (CHAMADOS E SOLICITAÇÕES)
+
+Objetivo desta versão
+- Iniciar o Módulo RH pela rotina de chamados/pedidos dos colaboradores.
+- Manter preparada a arquitetura para uma segunda etapa com colaboradores, contracheques, Informe IR e pagamentos/CNAB.
+
+Recursos adicionados
+- Novo módulo "RH" no catálogo de módulos e no controle de acessos.
+- Dashboard do RH com indicadores por status e solicitações recentes.
+- Caixa de solicitações com busca e filtros por status e tipo.
+- Detalhe da solicitação com protocolo, solicitante, responsável, status e histórico.
+- Atribuição de responsável.
+- Alteração de status: Recebido, Em análise, Aguardando colaborador, Em andamento, Concluído e Cancelado.
+- Comentários internos e timeline de eventos.
+- Cadastro/editoração/inativação dos tipos de solicitação.
+- Formulário externo /solicitar-rh.html, sem necessidade de login na Plataforma.
+- Protocolo automático RH-000001, RH-000002 etc.
+- Tipos iniciais pré-cadastrados para o RH, todos editáveis/inativáveis.
+
+Observações
+- Esta primeira etapa não migra ainda o RH Suite Python. A migração de Contracheques, Informe IR e CNAB fica preservada para a segunda etapa.
+- Anexos não foram colocados nesta primeira versão. Como a aplicação roda no Render, o armazenamento de documentos precisa ser definido de forma persistente antes de habilitar uploads em produção.
+- Usuários comuns não recebem acesso ao RH automaticamente. O Administrador Principal deve liberar o módulo em Administração > Acessos aos módulos.
+- O Administrador Principal continua com acesso permanente a todos os módulos.
+
+Galpão
+- Mantidos os ajustes mais recentes: menu lateral enxuto, fluxo operacional superior, estoque agrupado, remoção de lote zerado e cópia rápida de código + quantidade nos históricos.

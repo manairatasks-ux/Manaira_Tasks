@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "8.0.0",
-  "description": "Plataforma Manaíra V16 - módulo Galpão com estoque por lote/validade e importação do SQLite legado",
+  "version": "9.0.0",
+  "description": "Plataforma Manaíra V17 - Módulo RH com chamados e solicitações",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",

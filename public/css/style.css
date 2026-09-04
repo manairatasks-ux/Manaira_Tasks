@@ -2345,3 +2345,24 @@ td:last-child {
   }
 }
 
+
+/* V17 - Módulo RH: Chamados e Solicitações */
+.rh-toolbar{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:16px;box-shadow:var(--card-shadow)
+}
+.rh-toolbar>div:first-child{min-width:0}.rh-toolbar strong{display:block;font-size:18px}.rh-toolbar span{display:block;color:var(--gray);font-size:13px;margin-top:3px}
+.rh-toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}.rh-summary-grid{grid-template-columns:repeat(6,minmax(130px,1fr))}
+.rh-summary-grid .success strong{color:var(--green)}
+.rh-dashboard-grid{display:grid;grid-template-columns:1.4fr .8fr;gap:16px}.rh-request-list{display:flex;flex-direction:column;gap:8px}
+.rh-request-card{display:grid;grid-template-columns:1.1fr 1fr auto;align-items:center;gap:14px;width:100%;text-align:left;padding:12px;border:1px solid #e2e8f0;border-radius:12px;background:#fff}
+.rh-request-card:hover{background:#f8fbff;border-color:#bfdbfe}.rh-request-card div{min-width:0}.rh-request-card strong,.rh-request-card b{display:block}.rh-request-card span,.rh-request-card small{display:block;color:var(--gray);font-size:12px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rh-type-list{display:flex;flex-direction:column}.rh-type-list>div{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #eef2f7}.rh-type-list span{color:#334155}.rh-type-list strong{font-size:18px}
+.rh-filters{display:grid;grid-template-columns:minmax(280px,1.5fr) 190px minmax(210px,.9fr) auto;gap:10px;margin-bottom:14px}.rh-table th,.rh-table td{vertical-align:middle}.rh-click-row{cursor:pointer}.rh-click-row:hover td{background:#f8fbff}
+.rh-status{display:inline-flex;align-items:center;justify-content:center;padding:6px 9px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap;background:#eef2f7;color:#475569}
+.rh-status-recebido{background:#dbeafe;color:#1d4ed8}.rh-status-em-analise{background:#fef3c7;color:#92400e}.rh-status-aguardando-colaborador{background:#fce7f3;color:#9d174d}.rh-status-em-andamento{background:#e0f2fe;color:#0369a1}.rh-status-concluido{background:#dcfce7;color:#166534}.rh-status-cancelado{background:#fee2e2;color:#991b1b}
+.rh-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:12px 0}.rh-detail-head>div{min-width:0}.rh-detail-head span:not(.rh-status){display:block;color:var(--gray);font-size:11px;text-transform:uppercase;font-weight:800;letter-spacing:.05em}.rh-detail-head strong{display:block;font-size:20px;margin:3px 0}.rh-detail-head small{color:var(--gray)}
+.rh-detail-description{padding:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;white-space:pre-wrap;line-height:1.5;margin-bottom:12px}.rh-detail-controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.rh-timeline{border-top:1px solid #e2e8f0;padding-top:14px}.rh-timeline h3{margin:0 0 12px}.rh-timeline-item{display:grid;grid-template-columns:12px 1fr;gap:10px;position:relative;padding-bottom:14px}.rh-timeline-item>span{width:10px;height:10px;border-radius:50%;background:#2563eb;margin-top:5px}.rh-timeline-item.event>span{background:#94a3b8}.rh-timeline-item>div{border-left:2px solid #e2e8f0;padding-left:12px;margin-left:-16px}.rh-timeline-item strong{font-size:12px}.rh-timeline-item p{margin:3px 0;font-size:13px}.rh-timeline-item small{color:var(--gray);font-size:11px}.rh-comment-form{border-top:1px solid #e2e8f0;padding-top:12px}.rh-comment-form textarea{min-height:90px}.rh-active-check{display:flex;align-items:center;gap:8px}.rh-active-check input{width:auto}
+@media(max-width:1100px){.rh-summary-grid{grid-template-columns:repeat(3,minmax(130px,1fr))}.rh-dashboard-grid{grid-template-columns:1fr}.rh-filters{grid-template-columns:1fr 1fr}.rh-filters input{grid-column:1/-1}}
+@media(max-width:650px){.rh-summary-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}.rh-request-card{grid-template-columns:1fr}.rh-filters,.rh-detail-controls{grid-template-columns:1fr}.rh-filters input{grid-column:auto}}

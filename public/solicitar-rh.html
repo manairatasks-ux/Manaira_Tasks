@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitação ao RH - Supermercado Manaíra</title>
+  <style>
+    :root {
+      --blue: #2563eb;
+      --text: #172033;
+      --muted: #64748b;
+      --line: #d9e1ec;
+      --bg: #f4f7fb
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text)
+    }
+
+    .page {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 28px 18px 50px
+    }
+
+    .brand {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 22px
+    }
+
+    .mark {
+      width: 46px;
+      height: 46px;
+      border-radius: 14px;
+      background: var(--blue);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-weight: 900;
+      font-size: 18px
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 18px
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 13px
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 14px 40px rgba(15, 23, 42, .06)
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 26px
+    }
+
+    .lead {
+      margin: 0 0 22px;
+      color: var(--muted);
+      line-height: 1.5
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px
+    }
+
+    .full {
+      grid-column: 1/-1
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #475569
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      font: inherit;
+      background: #fff
+    }
+
+    textarea {
+      min-height: 130px;
+      resize: vertical
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 5px
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-weight: 800;
+      cursor: pointer
+    }
+
+    .primary {
+      background: var(--blue);
+      color: #fff
+    }
+
+    .actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 20px
+    }
+
+    .msg {
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 12px;
+      display: none
+    }
+
+    .msg.ok {
+      display: block;
+      background: #ecfdf5;
+      color: #166534;
+      border: 1px solid #bbf7d0
+    }
+
+    .msg.err {
+      display: block;
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca
+    }
+
+    .protocol {
+      font-size: 22px;
+      font-weight: 900;
+      display: block;
+      margin: 6px 0
+    }
+
+    .foot {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 18px
+    }
+
+    @media(max-width:600px) {
+      .grid {
+        grid-template-columns: 1fr
+      }
+
+      .full {
+        grid-column: auto
+      }
+
+      .card {
+        padding: 18px
+      }
+
+      .page {
+        padding: 18px 12px 36px
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <div class="brand">
+      <div class="mark">RH</div>
+      <div><strong>Supermercado Manaíra</strong><span>Canal de solicitações ao Recursos Humanos</span></div>
+    </div>
+    <section class="card">
+      <h1>Nova solicitação ao RH</h1>
+      <p class="lead">Preencha os dados abaixo. Após o envio, você receberá um número de protocolo para identificar o
+        pedido.</p>
+      <form id="formRh">
+        <div class="grid">
+          <div class="full"><label>Nome completo *</label><input name="solicitante_nome" required autocomplete="name">
+          </div>
+          <div><label>CPF ou matrícula</label><input name="identificacao" placeholder="Para facilitar a identificação">
+          </div>
+          <div><label>Contato</label><input name="contato" placeholder="Telefone, WhatsApp ou e-mail"></div>
+          <div class="full"><label>Tipo da solicitação *</label><select id="tipo" name="tipo_id" required>
+              <option value="">Carregando...</option>
+            </select></div>
+          <div class="full"><label>Descreva sua solicitação *</label><textarea name="descricao" required
+              placeholder="Explique o que você precisa e inclua as informações necessárias para o RH analisar."></textarea>
+          </div>
+        </div>
+        <div class="actions"><button class="primary" id="enviar" type="submit">Enviar solicitação</button></div>
+      </form>
+      <div id="msg" class="msg"></div>
+    </section>
+    <div class="foot">Plataforma Manaíra • Recursos Humanos</div>
+  </main>
+  <script>
+    const form = document.getElementById('formRh'), tipo = document.getElementById('tipo'), msg = document.getElementById('msg'), btn = document.getElementById('enviar');
+    async function carregarTipos() {
+      try {
+        const r = await fetch('/api/rh/public/tipos'); const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Erro ao carregar tipos.');
+        tipo.innerHTML = '<option value="">Selecione...</option>' + data.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+      } catch (e) { tipo.innerHTML = '<option value="">Não foi possível carregar</option>'; msg.className = 'msg err'; msg.textContent = e.message; }
+    }
+    form.addEventListener('submit', async e => {
+      e.preventDefault(); btn.disabled = true; btn.textContent = 'Enviando...'; msg.className = 'msg'; msg.textContent = '';
+      try {
+        const body = Object.fromEntries(new FormData(form));
+        const r = await fetch('/api/rh/public/solicitacoes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await r.json(); if (!r.ok) throw new Error(data.error || 'Erro ao enviar.');
+        msg.className = 'msg ok'; msg.innerHTML = `Solicitação enviada com sucesso.<span class="protocol">${data.protocolo}</span>Guarde este protocolo para referência.`;
+        form.reset(); window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (e) { msg.className = 'msg err'; msg.textContent = e.message; }
+      finally { btn.disabled = false; btn.textContent = 'Enviar solicitação'; }
+    });
+    carregarTipos();
+  </script>
+</body>
+
+</html>
