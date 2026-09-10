@@ -1,0 +1,28 @@
+PLATAFORMA MANAÍRA V19 - CONSULTA DE PRODUTOS GZ
+
+Base: V18 - ajuste layout almoxarifado
+
+NOVO MÓDULO
+- Consulta de Produtos, pensado para uso no celular.
+- Consulta somente leitura pela API REST da GZ.
+- Pesquisa por código de barras/EAN, código interno ou descrição.
+- Exibe preço de venda, custo de aquisição, custo da nota, margem, estoque, promoção,
+  unidade, situação, datas de alteração e classificação do produto.
+- Estrutura visual já preparada com abas Resumo, Vendas e Movimentações.
+- Nesta V19 somente a aba Resumo está ativa; Vendas e Movimentações ficam marcadas como em desenvolvimento.
+
+SEGURANÇA
+- O token GZ fica somente no backend, via variável de ambiente GZ_API_TOKEN.
+- O navegador nunca recebe o token da GZ.
+- O módulo usa a permissão consulta_produtos no controle de módulos já existente.
+
+VARIÁVEIS DE AMBIENTE
+GZ_API_BASE=http://10.111.155.113:8083
+GZ_API_TOKEN=SEU_TOKEN_GZ
+GZ_LOJA=1
+
+ATENÇÃO DE REDE
+- O endereço 10.111.155.113 é privado/VPN.
+- Para funcionar, o servidor que executa o Manaíra Board precisa alcançar esse IP.
+- Em execução local dentro da rede/VPN do Manaíra, a consulta pode funcionar normalmente.
+- Em hospedagem externa (ex.: Render), será necessário liberar/conectar a hospedagem à rede/VPN antes da API funcionar.

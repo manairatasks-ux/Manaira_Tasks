@@ -3694,3 +3694,24 @@ td:last-child {
     width: max-content;
   }
 }
+/* =========================
+   V19 - Consulta de Produtos GZ
+   ========================= */
+.prod-gz-shell{max-width:1050px;margin:0 auto;display:grid;gap:18px}
+.prod-gz-search-card,.prod-gz-product,.prod-gz-empty{background:var(--card, #fff);border:1px solid var(--border, #dfe4ea);border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.05)}
+.prod-gz-search-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:14px}
+.prod-gz-search-head strong{font-size:18px;display:block}.prod-gz-search-head span{font-size:13px;color:var(--muted, #667085);display:block;margin-top:4px}
+.prod-gz-search-row{display:grid;grid-template-columns:170px 1fr auto;gap:10px}
+.prod-gz-search-row select,.prod-gz-search-row input{min-height:46px;border:1px solid var(--border, #dfe4ea);border-radius:12px;padding:0 12px;background:var(--surface, #fff);color:inherit;font-size:15px}
+.prod-gz-search-row button{min-height:46px;border:0;border-radius:12px;padding:0 22px;font-weight:700;cursor:pointer;background:var(--primary, #0b5ed7);color:#fff}
+.prod-gz-hint{font-size:12px;color:var(--muted, #667085);margin:10px 2px 0}
+.prod-gz-tabs{display:flex;gap:8px;overflow:auto;padding-bottom:2px}
+.prod-gz-tab{border:1px solid var(--border, #dfe4ea);background:transparent;color:inherit;border-radius:999px;padding:9px 14px;font-weight:700;white-space:nowrap}.prod-gz-tab.active{background:var(--primary, #0b5ed7);color:#fff;border-color:transparent}.prod-gz-tab.disabled{opacity:.55;cursor:not-allowed}
+.prod-gz-product-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid var(--border, #e5e7eb);padding-bottom:16px;margin-bottom:16px}
+.prod-gz-product-title small{display:block;color:var(--muted, #667085);font-size:12px;margin-bottom:5px}.prod-gz-product-title h3{margin:0;font-size:24px}.prod-gz-status{font-size:12px;font-weight:800;border-radius:999px;padding:7px 10px;background:#e8f7ee;color:#18794e}.prod-gz-status.inativo{background:#f3f4f6;color:#667085}
+.prod-gz-highlight-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.prod-gz-highlight{border:1px solid var(--border, #e5e7eb);border-radius:14px;padding:14px}.prod-gz-highlight span{display:block;color:var(--muted,#667085);font-size:12px;margin-bottom:5px}.prod-gz-highlight strong{font-size:21px}
+.prod-gz-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.prod-gz-detail{padding:12px;border-radius:12px;background:rgba(127,127,127,.07)}.prod-gz-detail span{display:block;color:var(--muted,#667085);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.prod-gz-detail strong{font-size:14px;word-break:break-word}
+.prod-gz-results-list{display:grid;gap:10px}.prod-gz-result-item{width:100%;text-align:left;border:1px solid var(--border,#e5e7eb);border-radius:14px;background:transparent;color:inherit;padding:13px 14px;cursor:pointer;display:flex;justify-content:space-between;gap:12px}.prod-gz-result-item:hover{border-color:var(--primary,#0b5ed7)}.prod-gz-result-item strong{display:block}.prod-gz-result-item small{color:var(--muted,#667085)}
+.prod-gz-empty{text-align:center;color:var(--muted,#667085);padding:30px}.prod-gz-loading{text-align:center;padding:24px;color:var(--muted,#667085)}
+@media(max-width:760px){.prod-gz-shell{gap:12px}.prod-gz-search-card,.prod-gz-product{padding:14px;border-radius:15px}.prod-gz-search-row{grid-template-columns:1fr}.prod-gz-search-row button{width:100%}.prod-gz-search-head{display:block}.prod-gz-highlight-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.prod-gz-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.prod-gz-product-head{flex-direction:column}.prod-gz-product-title h3{font-size:20px}.prod-gz-highlight strong{font-size:18px}}
+@media(max-width:430px){.prod-gz-highlight-grid,.prod-gz-detail-grid{grid-template-columns:1fr 1fr}.prod-gz-detail{padding:10px}.prod-gz-search-card{position:sticky;top:0;z-index:2}}

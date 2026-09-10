@@ -1,7 +1,7 @@
 const model = require('./modulo.model');
 const { nivelPerfil, isPrincipal } = require('../../shared/profile.service');
 
-const CODIGOS_VALIDOS = new Set(['atividades', 'os', 'administracao', 'almoxarifado', 'galpao', 'rh']);
+const CODIGOS_VALIDOS = new Set(['atividades', 'os', 'administracao', 'almoxarifado', 'galpao', 'rh', 'consulta_produtos']);
 
 function fail(message, status = 400) { const e = new Error(message); e.status = status; throw e; }
 function principalUser(user) { return String(user?.perfil || '').toLowerCase() === 'administrador_principal' || user?.administrador_principal === true; }

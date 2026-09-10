@@ -10,6 +10,7 @@ const moduloRoutes=require('./modules/modulos/modulo.routes');
 const almoxarifadoRoutes=require('./modules/almoxarifado/almoxarifado.routes');
 const galpaoRoutes=require('./modules/galpao/galpao.routes');
 const rhRoutes=require('./modules/rh/rh.routes');
+const produtosGzRoutes=require('./modules/produtos-gz/produtos-gz.routes');
 
 const app=express();
 app.use(cors());
@@ -25,6 +26,7 @@ app.use('/api/usuarios',usuarioRoutes);
 app.use('/api/almoxarifado',almoxarifadoRoutes);
 app.use('/api/galpao',galpaoRoutes);
 app.use('/api/rh',rhRoutes);
+app.use('/api/produtos-gz',produtosGzRoutes);
 app.use('/',atividadesRoutes);
 app.use('/',osRoutes);
 app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'..','public','index.html')));

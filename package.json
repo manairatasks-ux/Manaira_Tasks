@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "9.0.0",
-  "description": "Plataforma Manaíra V17 - Módulo RH com chamados e solicitações",
+  "version": "10.0.0",
+  "description": "Plataforma Manaíra V19 - Consulta de Produtos via API GZ",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",

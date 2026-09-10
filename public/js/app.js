@@ -30,7 +30,9 @@ const state = {
   galpaoProdutos: [],
   rhView: 'dashboard',
   rhTipos: [],
-  rhResponsaveis: []
+  rhResponsaveis: [],
+  produtosGzResultados: [],
+  produtoGzAtual: null
 };
 
 const CACHE_TTL = 60 * 1000;
@@ -137,6 +139,7 @@ function configurarMenuPorPerfil() {
   const almox = temAcessoModulo('almoxarifado');
   const galpao = temAcessoModulo('galpao');
   const rh = temAcessoModulo('rh');
+  const produtosGz = temAcessoModulo('consulta_produtos');
 
   $('btnDashboard')?.classList.toggle('hidden', !atividades);
   $('btnMinhas')?.classList.toggle('hidden', !atividades);
@@ -150,6 +153,7 @@ function configurarMenuPorPerfil() {
   $('cardAlmoxarifado')?.classList.toggle('hidden', !almox);
   $('cardGalpao')?.classList.toggle('hidden', !galpao);
   $('cardRH')?.classList.toggle('hidden', !rh);
+  $('cardProdutosGz')?.classList.toggle('hidden', !produtosGz);
   $('btnGalpaoImportar')?.classList.toggle('hidden', state.usuario?.perfil !== 'administrador_principal');
 }
 
@@ -221,8 +225,9 @@ function setModule(module) {
   $('almoxMenu')?.classList.toggle('hidden', module !== 'almoxarifado');
   $('galpaoMenu')?.classList.toggle('hidden', module !== 'galpao');
   $('rhMenu')?.classList.toggle('hidden', module !== 'rh');
+  $('produtosGzMenu')?.classList.toggle('hidden', module !== 'produtos-gz');
   $('btnHome')?.classList.toggle('active', module === 'home');
-  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', rh: 'Módulo Recursos Humanos' };
+  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', rh: 'Módulo Recursos Humanos', 'produtos-gz': 'Consulta de Produtos' };
   if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Plataforma Manaíra';
 }
 
@@ -237,6 +242,7 @@ function setView(view) {
   const isAlmox = view === 'almoxarifado';
   const isGalpao = view === 'galpao';
   const isRH = view === 'rh';
+  const isProdutosGz = view === 'produtos-gz';
   $('homePanel')?.classList.toggle('hidden', !isHome);
   $('dashboard').classList.toggle('hidden', !isDashboard);
   $('board').classList.toggle('hidden', !isBoard);
@@ -246,6 +252,7 @@ function setView(view) {
   $('almoxPanel')?.classList.toggle('hidden', !isAlmox);
   $('galpaoPanel')?.classList.toggle('hidden', !isGalpao);
   $('rhPanel')?.classList.toggle('hidden', !isRH);
+  $('produtosGzPanel')?.classList.toggle('hidden', !isProdutosGz);
   $('printFooter').classList.toggle('hidden', isHome);
   $('btnDashboard').classList.toggle('active', isDashboard);
   $('btnOS')?.classList.toggle('active', isOS);
@@ -3231,6 +3238,135 @@ async function executarImportacaoGalpao(file, possuiDados) {
 window.abrirGalpao = abrirGalpao;
 
 
+
+// =========================
+// V19 - Consulta de Produtos GZ
+// =========================
+function entrarProdutosGz() {
+  if (!exigirModulo('consulta_produtos', 'Consulta de Produtos')) return;
+  setModule('produtos-gz');
+  setView('produtos-gz');
+  $('setorTitulo').textContent = 'Consulta de Produtos';
+  $('setorDescricao').textContent = 'Consulte preço, custo, margem e estoque diretamente da GZ.';
+  history.replaceState(null, '', '#consulta-produtos');
+  renderProdutosGz();
+}
+
+function brl(value) {
+  const n = Number(value || 0);
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function numPt(value, casas = 3) {
+  const n = Number(value || 0);
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: casas });
+}
+
+function renderProdutosGz() {
+  const panel = $('produtosGzPanel');
+  const atual = state.produtoGzAtual;
+  panel.innerHTML = `
+    <div class="prod-gz-shell">
+      <section class="prod-gz-search-card">
+        <div class="prod-gz-search-head"><div><strong>Buscar produto</strong><span>Use o código de barras, código interno ou uma parte da descrição.</span></div></div>
+        <form id="prodGzForm" class="prod-gz-search-row">
+          <select id="prodGzTipo">
+            <option value="codigoBarras">Código de barras / EAN</option>
+            <option value="codigoInterno">Código interno</option>
+            <option value="descricao">Descrição</option>
+          </select>
+          <input id="prodGzBusca" autocomplete="off" inputmode="search" placeholder="Ex.: 7894900010398" value="">
+          <button type="submit">Consultar</button>
+        </form>
+        <div class="prod-gz-hint">Consulta somente leitura. Nenhuma informação é alterada na GZ.</div>
+      </section>
+      <div class="prod-gz-tabs">
+        <button class="prod-gz-tab active" type="button">Resumo</button>
+        <button class="prod-gz-tab disabled" type="button" title="Em desenvolvimento">Vendas · em desenvolvimento</button>
+        <button class="prod-gz-tab disabled" type="button" title="Em desenvolvimento">Movimentações · em desenvolvimento</button>
+      </div>
+      <div id="prodGzConteudo">${atual ? produtoGzCard(atual) : '<div class="prod-gz-empty">Pesquise um produto para visualizar as informações.</div>'}</div>
+    </div>`;
+
+  const tipo = $('prodGzTipo');
+  const busca = $('prodGzBusca');
+  tipo.onchange = () => {
+    busca.placeholder = tipo.value === 'codigoBarras' ? 'Ex.: 7894900010398' : tipo.value === 'codigoInterno' ? 'Ex.: 5300' : 'Ex.: coca cola';
+  };
+  $('prodGzForm').onsubmit = async (e) => {
+    e.preventDefault();
+    await consultarProdutoGz(tipo.value, busca.value.trim());
+  };
+  setTimeout(() => busca?.focus(), 50);
+}
+
+async function consultarProdutoGz(tipo, valor) {
+  if (!valor) return alert('Informe um produto para pesquisar.');
+  const conteudo = $('prodGzConteudo');
+  conteudo.innerHTML = '<div class="prod-gz-loading">Consultando a GZ...</div>';
+  try {
+    const params = new URLSearchParams({ [tipo]: valor });
+    const data = await api(`/api/produtos-gz/consulta?${params.toString()}`);
+    state.produtosGzResultados = data.produtos || [];
+    if (!state.produtosGzResultados.length) {
+      state.produtoGzAtual = null;
+      conteudo.innerHTML = '<div class="prod-gz-empty">Nenhum produto encontrado.</div>';
+      return;
+    }
+    if (state.produtosGzResultados.length === 1) {
+      state.produtoGzAtual = state.produtosGzResultados[0];
+      conteudo.innerHTML = produtoGzCard(state.produtoGzAtual);
+      return;
+    }
+    conteudo.innerHTML = `<section class="prod-gz-product"><div class="prod-gz-product-head"><div class="prod-gz-product-title"><small>RESULTADOS</small><h3>${state.produtosGzResultados.length} produtos encontrados</h3></div></div><div class="prod-gz-results-list">${state.produtosGzResultados.map((p,i)=>`<button type="button" class="prod-gz-result-item" onclick="selecionarProdutoGz(${i})"><span><strong>${escapeHtml(p.descricao || p.descpdv || 'Produto')}</strong><small>${escapeHtml(p.codigoEan || p.codigo || '-')}</small></span><span>${brl(p.precoVenda)}</span></button>`).join('')}</div></section>`;
+  } catch (err) {
+    conteudo.innerHTML = `<div class="prod-gz-empty"><strong>Não foi possível consultar.</strong><br>${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function produtoGzCard(p) {
+  const status = String(p.situacao || '').toUpperCase();
+  return `<section class="prod-gz-product">
+    <div class="prod-gz-product-head">
+      <div class="prod-gz-product-title"><small>${escapeHtml(p.codigoEan || p.codigo || '-')}</small><h3>${escapeHtml(p.descricao || p.descpdv || 'Produto')}</h3></div>
+      <span class="prod-gz-status ${status === 'ATIVO' ? '' : 'inativo'}">${escapeHtml(status || '-')}</span>
+    </div>
+    <div class="prod-gz-highlight-grid">
+      <div class="prod-gz-highlight"><span>Preço de venda</span><strong>${brl(p.precoVenda)}</strong></div>
+      <div class="prod-gz-highlight"><span>Custo aquisição</span><strong>${brl(p.valorCustoAquisicao)}</strong></div>
+      <div class="prod-gz-highlight"><span>Margem</span><strong>${numPt(p.percMargemLucro,2)}%</strong></div>
+      <div class="prod-gz-highlight"><span>Estoque</span><strong>${numPt(p.quantidadeEstoque)} ${escapeHtml(p.unidade || '')}</strong></div>
+    </div>
+    <div class="prod-gz-detail-grid">
+      <div class="prod-gz-detail"><span>Código</span><strong>${escapeHtml(p.codigo || '-')}</strong></div>
+      <div class="prod-gz-detail"><span>EAN</span><strong>${escapeHtml(p.codigoEan || '-')}</strong></div>
+      <div class="prod-gz-detail"><span>Unidade</span><strong>${escapeHtml(p.unidade || '-')}</strong></div>
+      <div class="prod-gz-detail"><span>Custo nota fiscal</span><strong>${brl(p.valorCustoNotaFiscal)}</strong></div>
+      <div class="prod-gz-detail"><span>Preço atacado</span><strong>${brl(p.precoAtacado)}</strong></div>
+      <div class="prod-gz-detail"><span>Preço especial</span><strong>${brl(p.precoEspecial)}</strong></div>
+      <div class="prod-gz-detail"><span>Preço promoção</span><strong>${brl(p.precoPromocao)}</strong></div>
+      <div class="prod-gz-detail"><span>Início promoção</span><strong>${fmtDate(p.dataInicioPromocao)}</strong></div>
+      <div class="prod-gz-detail"><span>Término promoção</span><strong>${fmtDate(p.dataTerminoPromocao)}</strong></div>
+      <div class="prod-gz-detail"><span>Cadastro</span><strong>${fmtDate(p.dataCadastro)}</strong></div>
+      <div class="prod-gz-detail"><span>Alteração de preço</span><strong>${fmtDate(p.dataAlteracaoPreco)}</strong></div>
+      <div class="prod-gz-detail"><span>Alteração de estoque</span><strong>${fmtDate(p.dataAlteracaoEstoque)}</strong></div>
+      <div class="prod-gz-detail"><span>Loja</span><strong>${escapeHtml(p.loja ?? '-')}</strong></div>
+      <div class="prod-gz-detail"><span>Departamento</span><strong>${escapeHtml(p.departamento ?? '-')}</strong></div>
+      <div class="prod-gz-detail"><span>Grupo</span><strong>${escapeHtml(p.grupo ?? '-')}</strong></div>
+      <div class="prod-gz-detail"><span>Marca</span><strong>${escapeHtml(p.marca ?? '-')}</strong></div>
+      <div class="prod-gz-detail"><span>Armação</span><strong>${escapeHtml(p.armacao ?? '-')}</strong></div>
+      <div class="prod-gz-detail"><span>Setor</span><strong>${escapeHtml(p.setor ?? '-')}</strong></div>
+    </div>
+  </section>`;
+}
+
+window.selecionarProdutoGz = (index) => {
+  state.produtoGzAtual = state.produtosGzResultados[index] || null;
+  const conteudo = $('prodGzConteudo');
+  if (conteudo && state.produtoGzAtual) conteudo.innerHTML = produtoGzCard(state.produtoGzAtual);
+};
+window.entrarProdutosGz = entrarProdutosGz;
+
 // =========================
 // V17 - Módulo RH
 // =========================
@@ -3744,6 +3880,7 @@ $('cardAdmin').onclick = entrarAdmin;
 $('cardAlmoxarifado').onclick = entrarAlmoxarifado;
 $('cardGalpao').onclick = entrarGalpao;
 $('cardRH').onclick = entrarRH;
+$('cardProdutosGz').onclick = entrarProdutosGz;
 $('btnGalpaoDashboard')?.addEventListener('click', () => abrirGalpao('dashboard'));
 $('btnGalpaoValidades')?.addEventListener('click', () => abrirGalpao('validades'));
 $('btnGalpaoImportar')?.addEventListener('click', () => abrirGalpao('importar'));
@@ -3751,6 +3888,7 @@ $('btnRhDashboard')?.addEventListener('click', () => abrirRH('dashboard'));
 $('btnRhSolicitacoes')?.addEventListener('click', () => abrirRH('solicitacoes'));
 $('btnRhTipos')?.addEventListener('click', () => abrirRH('tipos'));
 $('btnRhNovaPublica')?.addEventListener('click', () => window.open('/solicitar-rh.html','_blank'));
+$('btnProdutosGzConsulta')?.addEventListener('click', entrarProdutosGz);
 $('btnAlmoxDashboard')?.addEventListener('click', () => abrirAlmoxarifado('dashboard'));
 $('btnDashboard').onclick = abrirDashboard;
 $('btnOS').onclick = abrirOS;
