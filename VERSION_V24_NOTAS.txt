@@ -1,0 +1,12 @@
+V24 - Módulo Cartazes (MVP)
+
+- Novo módulo Cartazes com permissão própria (codigo: cartazes).
+- Consulta GZ por EAN, código interno ou descrição usando a Ponte GZ já existente.
+- Modelos iniciais NORMAL e OFERTA com as artes fornecidas.
+- Sugestão automática de modelo quando existe precoPromocao diferente de precoVenda.
+- Edição rápida de descrição e preços.
+- Textos podem ser arrastados na pré-visualização.
+- Fila local de cartazes persistida no navegador.
+- Área de impressão profissional fica propositalmente para a próxima etapa.
+
+IMPORTANTE: executar a inicialização normal do banco para cadastrar o módulo cartazes. Depois conceder a permissão Cartazes aos usuários desejados em Administração.

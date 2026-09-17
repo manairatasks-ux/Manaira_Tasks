@@ -6,7 +6,7 @@ const state = {
   quadro: null,
   view: 'home',
   module: 'home',
-  dashboardFilters: { periodo: '90', setor_id: '', responsavel: '', calendario_mes: new Date().toISOString().slice(0,7) },
+  dashboardFilters: { periodo: '90', setor_id: '', responsavel: '', calendario_mes: new Date().toISOString().slice(0, 7) },
   dashboardData: null,
   osData: null,
   usuarios: [],
@@ -32,7 +32,11 @@ const state = {
   rhTipos: [],
   rhResponsaveis: [],
   produtosGzResultados: [],
-  produtoGzAtual: null
+  produtoGzAtual: null,
+  cartazesView: 'rapido',
+  cartazProduto: null,
+  cartazModelo: 'normal',
+  cartazFila: JSON.parse(localStorage.getItem('mb_cartazes_fila') || '[]')
 };
 
 const CACHE_TTL = 60 * 1000;
@@ -140,6 +144,7 @@ function configurarMenuPorPerfil() {
   const galpao = temAcessoModulo('galpao');
   const rh = temAcessoModulo('rh');
   const produtosGz = temAcessoModulo('consulta_produtos');
+  const cartazes = temAcessoModulo('cartazes');
 
   $('btnDashboard')?.classList.toggle('hidden', !atividades);
   $('btnMinhas')?.classList.toggle('hidden', !atividades);
@@ -154,6 +159,7 @@ function configurarMenuPorPerfil() {
   $('cardGalpao')?.classList.toggle('hidden', !galpao);
   $('cardRH')?.classList.toggle('hidden', !rh);
   $('cardProdutosGz')?.classList.toggle('hidden', !produtosGz);
+  $('cardCartazes')?.classList.toggle('hidden', !cartazes);
   $('btnGalpaoImportar')?.classList.toggle('hidden', state.usuario?.perfil !== 'administrador_principal');
 }
 
@@ -226,8 +232,9 @@ function setModule(module) {
   $('galpaoMenu')?.classList.toggle('hidden', module !== 'galpao');
   $('rhMenu')?.classList.toggle('hidden', module !== 'rh');
   $('produtosGzMenu')?.classList.toggle('hidden', module !== 'produtos-gz');
+  $('cartazesMenu')?.classList.toggle('hidden', module !== 'cartazes');
   $('btnHome')?.classList.toggle('active', module === 'home');
-  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', rh: 'Módulo Recursos Humanos', 'produtos-gz': 'Consulta de Produtos' };
+  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', rh: 'Módulo Recursos Humanos', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes' };
   if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Plataforma Manaíra';
 }
 
@@ -243,6 +250,7 @@ function setView(view) {
   const isGalpao = view === 'galpao';
   const isRH = view === 'rh';
   const isProdutosGz = view === 'produtos-gz';
+  const isCartazes = view === 'cartazes';
   $('homePanel')?.classList.toggle('hidden', !isHome);
   $('dashboard').classList.toggle('hidden', !isDashboard);
   $('board').classList.toggle('hidden', !isBoard);
@@ -253,7 +261,8 @@ function setView(view) {
   $('galpaoPanel')?.classList.toggle('hidden', !isGalpao);
   $('rhPanel')?.classList.toggle('hidden', !isRH);
   $('produtosGzPanel')?.classList.toggle('hidden', !isProdutosGz);
-  $('printFooter').classList.toggle('hidden', isHome);
+  $('cartazesPanel')?.classList.toggle('hidden', !isCartazes);
+  $('printFooter').classList.toggle('hidden', isHome || isCartazes);
   $('btnDashboard').classList.toggle('active', isDashboard);
   $('btnOS')?.classList.toggle('active', isOS);
   $('btnMinhas')?.classList.toggle('active', isMinhas);
@@ -274,7 +283,7 @@ function setView(view) {
     $(galpaoBtn)?.classList.add('active');
   }
 
-  ['btnRhDashboard','btnRhSolicitacoes','btnRhTipos']
+  ['btnRhDashboard', 'btnRhSolicitacoes', 'btnRhTipos']
     .forEach(id => $(id)?.classList.remove('active'));
 
   const rhBtn = {
@@ -636,8 +645,8 @@ function renderTaskTable(items, showStatus = false) {
 }
 
 function nomeMes(ym) {
-  const [y,m] = String(ym || '').split('-').map(Number);
-  return new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(new Date(y,m-1,1)).replace(/^./,c=>c.toUpperCase());
+  const [y, m] = String(ym || '').split('-').map(Number);
+  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(y, m - 1, 1)).replace(/^./, c => c.toUpperCase());
 }
 
 async function carregarMesAgenda() {
@@ -663,53 +672,53 @@ async function carregarMesAgenda() {
 }
 
 window.mudarMesCalendario = async (delta) => {
-  const [y,m] = state.dashboardFilters.calendario_mes.split('-').map(Number);
-  const d = new Date(y,m-1+delta,1);
-  state.dashboardFilters.calendario_mes = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  const [y, m] = state.dashboardFilters.calendario_mes.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  state.dashboardFilters.calendario_mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   await carregarMesAgenda();
 };
 window.irMesAtual = async () => {
-  state.dashboardFilters.calendario_mes = new Date().toISOString().slice(0,7);
+  state.dashboardFilters.calendario_mes = new Date().toISOString().slice(0, 7);
   await carregarMesAgenda();
 };
 
 function renderCalendar(items, ym) {
   const now = new Date();
-  const [year, month1] = String(ym || new Date().toISOString().slice(0,7)).split('-').map(Number);
+  const [year, month1] = String(ym || new Date().toISOString().slice(0, 7)).split('-').map(Number);
   const month = month1 - 1;
   const first = new Date(year, month, 1);
   const last = new Date(year, month + 1, 0);
   const byDay = {};
-  items.forEach(item => { const day=Number(String(item.prazo||'').slice(8,10)); if(day){ (byDay[day] ||= []).push(item); } });
-  const cells=[];
-  for(let i=0;i<first.getDay();i++) cells.push('<div class="cal-cell muted"></div>');
-  for(let day=1;day<=last.getDate();day++){
-    const dayItems=byDay[day]||[];
-    const date=`${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const isToday=day===now.getDate()&&month===now.getMonth()&&year===now.getFullYear();
-    const visibleItems = dayItems.slice(0,3);
-    cells.push(`<div class="cal-cell ${isToday?'today':''}" onclick="novoLancamentoAgenda('${date}', event)"><strong>${day}</strong><div class="cal-items">${visibleItems.map(item=>`<button type="button" class="cal-task ${item.tipo==='lembrete'?'reminder':(isOverdue(item)?'late':'')}" onclick="abrirItemAgenda(${item.id},'${item.tipo}',event)" title="${escapeHtml(item.titulo)}"><span class="cal-task-text">${item.horario_inicio?String(item.horario_inicio).slice(0,5)+' ':''}${escapeHtml(item.titulo)}</span></button>`).join('')}${dayItems.length>3?`<button type="button" class="cal-more" onclick="verItensDoDia('${date}',event)">+${dayItems.length-3} ${dayItems.length-3===1?'item':'itens'}</button>`:''}</div></div>`);
+  items.forEach(item => { const day = Number(String(item.prazo || '').slice(8, 10)); if (day) { (byDay[day] ||= []).push(item); } });
+  const cells = [];
+  for (let i = 0; i < first.getDay(); i++) cells.push('<div class="cal-cell muted"></div>');
+  for (let day = 1; day <= last.getDate(); day++) {
+    const dayItems = byDay[day] || [];
+    const date = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const isToday = day === now.getDate() && month === now.getMonth() && year === now.getFullYear();
+    const visibleItems = dayItems.slice(0, 3);
+    cells.push(`<div class="cal-cell ${isToday ? 'today' : ''}" onclick="novoLancamentoAgenda('${date}', event)"><strong>${day}</strong><div class="cal-items">${visibleItems.map(item => `<button type="button" class="cal-task ${item.tipo === 'lembrete' ? 'reminder' : (isOverdue(item) ? 'late' : '')}" onclick="abrirItemAgenda(${item.id},'${item.tipo}',event)" title="${escapeHtml(item.titulo)}"><span class="cal-task-text">${item.horario_inicio ? String(item.horario_inicio).slice(0, 5) + ' ' : ''}${escapeHtml(item.titulo)}</span></button>`).join('')}${dayItems.length > 3 ? `<button type="button" class="cal-more" onclick="verItensDoDia('${date}',event)">+${dayItems.length - 3} ${dayItems.length - 3 === 1 ? 'item' : 'itens'}</button>` : ''}</div></div>`);
   }
   return `<div class="calendar-wrap"><div class="calendar-week"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div><div class="calendar-grid">${cells.join('')}</div></div>`;
 }
 
 window.verItensDoDia = (data, event) => {
   event?.stopPropagation();
-  const items = (state.dashboardData?.calendario || []).filter(x => String(x.prazo || '').slice(0,10) === data);
-  openModal(`Agenda • ${fmtDate(data)}`, `<div class="day-agenda-list">${items.map(item => `<button type="button" class="day-agenda-item ${item.tipo==='lembrete'?'reminder':''}" onclick="abrirItemAgenda(${item.id},'${item.tipo}',event)"><span><b>${item.horario_inicio?String(item.horario_inicio).slice(0,5):'--:--'}</b> ${escapeHtml(item.titulo)}</span><small>${escapeHtml(item.setor||'Pessoal')} • ${item.tipo==='lembrete'?'Lembrete':escapeHtml(item.status||'Atividade')}</small></button>`).join('') || '<p class="empty">Nenhum lançamento neste dia.</p>'}</div>`);
+  const items = (state.dashboardData?.calendario || []).filter(x => String(x.prazo || '').slice(0, 10) === data);
+  openModal(`Agenda • ${fmtDate(data)}`, `<div class="day-agenda-list">${items.map(item => `<button type="button" class="day-agenda-item ${item.tipo === 'lembrete' ? 'reminder' : ''}" onclick="abrirItemAgenda(${item.id},'${item.tipo}',event)"><span><b>${item.horario_inicio ? String(item.horario_inicio).slice(0, 5) : '--:--'}</b> ${escapeHtml(item.titulo)}</span><small>${escapeHtml(item.setor || 'Pessoal')} • ${item.tipo === 'lembrete' ? 'Lembrete' : escapeHtml(item.status || 'Atividade')}</small></button>`).join('') || '<p class="empty">Nenhum lançamento neste dia.</p>'}</div>`);
 };
 
 window.novoLancamentoAgenda = (data, event) => {
-  if(event?.target?.closest('.cal-task')) return;
+  if (event?.target?.closest('.cal-task')) return;
   openModal('Novo lançamento', `<div class="agenda-choice"><button type="button" class="primary" onclick="novoLembrete('${data}')">Lembrete / compromisso</button><button type="button" onclick="novaAtividadePeloCalendario('${data}')">Atividade</button></div><p class="muted">Escolha se este lançamento é apenas um compromisso da agenda ou uma atividade que precisa ser executada.</p>`);
 };
-window.novaAtividadePeloCalendario = (data) => { closeModal(); if(!state.setorAtual){ alert('Para criar uma atividade, entre primeiro no setor onde ela será lançada. A data escolhida será mantida.'); return; } tarefaForm({prazo:data}); };
+window.novaAtividadePeloCalendario = (data) => { closeModal(); if (!state.setorAtual) { alert('Para criar uma atividade, entre primeiro no setor onde ela será lançada. A data escolhida será mantida.'); return; } tarefaForm({ prazo: data }); };
 window.novoLembrete = (data) => {
-  const setores=state.setores.map(s=>`<option value="${s.id}">${escapeHtml(s.nome)}</option>`).join('');
+  const setores = state.setores.map(s => `<option value="${s.id}">${escapeHtml(s.nome)}</option>`).join('');
   openModal('Novo lembrete', `<form id="lembreteForm"><div class="form-grid"><div class="full"><label>Título</label><input name="titulo" required></div><div><label>Data</label><input type="date" name="data" value="${data}" required></div><div><label>Setor</label><select name="setor_id"><option value="">Pessoal / sem setor</option>${setores}</select></div><div><label>Início</label><input type="time" name="horario_inicio"></div><div><label>Fim</label><input type="time" name="horario_fim"></div><div><label>Visibilidade</label><select name="visibilidade"><option value="setor">Meu setor / setor escolhido</option><option value="pessoal">Somente eu</option><option value="todos">Todos com acesso a Atividades</option></select></div><div class="full"><label>Descrição</label><textarea name="descricao" placeholder="Observações do compromisso"></textarea></div></div><div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Salvar lembrete</button></div></form>`);
-  $('lembreteForm').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));await api('/api/lembretes',{method:'POST',body:JSON.stringify(data)});closeModal();state.cache.dashboard.clear();await abrirDashboard(true);};
+  $('lembreteForm').onsubmit = async e => { e.preventDefault(); const data = Object.fromEntries(new FormData(e.target)); await api('/api/lembretes', { method: 'POST', body: JSON.stringify(data) }); closeModal(); state.cache.dashboard.clear(); await abrirDashboard(true); };
 };
-window.abrirItemAgenda = async (id,tipo,event) => { event?.stopPropagation(); if(tipo==='lembrete'){ const item=(state.dashboardData?.calendario||[]).find(x=>x.tipo==='lembrete'&&Number(x.id)===Number(id)); if(!item)return; openModal('Lembrete',`<div class="task-detail"><h3>${escapeHtml(item.titulo)}</h3><p>${escapeHtml(item.descricao||'Sem descrição.')}</p><div class="detail-grid"><span><b>Data</b>${fmtDate(item.prazo)}</span><span><b>Horário</b>${item.horario_inicio?String(item.horario_inicio).slice(0,5):'-'}${item.horario_fim?' às '+String(item.horario_fim).slice(0,5):''}</span><span><b>Setor</b>${escapeHtml(item.setor||'Pessoal')}</span></div></div>`); } else { const t=(state.dashboardData?.calendario||[]).find(x=>x.tipo==='tarefa'&&Number(x.id)===Number(id)); if(t) alert(`${t.titulo}\nStatus: ${t.status}\nPrazo: ${fmtDate(t.prazo)}`); } };
+window.abrirItemAgenda = async (id, tipo, event) => { event?.stopPropagation(); if (tipo === 'lembrete') { const item = (state.dashboardData?.calendario || []).find(x => x.tipo === 'lembrete' && Number(x.id) === Number(id)); if (!item) return; openModal('Lembrete', `<div class="task-detail"><h3>${escapeHtml(item.titulo)}</h3><p>${escapeHtml(item.descricao || 'Sem descrição.')}</p><div class="detail-grid"><span><b>Data</b>${fmtDate(item.prazo)}</span><span><b>Horário</b>${item.horario_inicio ? String(item.horario_inicio).slice(0, 5) : '-'}${item.horario_fim ? ' às ' + String(item.horario_fim).slice(0, 5) : ''}</span><span><b>Setor</b>${escapeHtml(item.setor || 'Pessoal')}</span></div></div>`); } else { const t = (state.dashboardData?.calendario || []).find(x => x.tipo === 'tarefa' && Number(x.id) === Number(id)); if (t) alert(`${t.titulo}\nStatus: ${t.status}\nPrazo: ${fmtDate(t.prazo)}`); } };
 
 function renderBoard() {
   const board = $('board');
@@ -890,13 +899,13 @@ function tarefaForm(tarefa = {}, grupoId = null) {
         <div><label>Início cronograma</label><input name="cronograma_inicio" type="date" value="${tarefa.cronograma_inicio || ''}"></div>
         <div><label>Fim cronograma</label><input name="cronograma_fim" type="date" value="${tarefa.cronograma_fim || ''}"></div>
         <div class="full"><label>Descrição da atividade</label><textarea name="descricao" placeholder="Explique o que precisa ser feito">${escapeHtml(tarefa.descricao || '')}</textarea></div>
-        <div><label>Horário inicial</label><input name="horario_inicio" type="time" value="${String(tarefa.horario_inicio || '').slice(0,5)}"></div>
-        <div><label>Horário final</label><input name="horario_fim" type="time" value="${String(tarefa.horario_fim || '').slice(0,5)}"></div>
+        <div><label>Horário inicial</label><input name="horario_inicio" type="time" value="${String(tarefa.horario_inicio || '').slice(0, 5)}"></div>
+        <div><label>Horário final</label><input name="horario_fim" type="time" value="${String(tarefa.horario_fim || '').slice(0, 5)}"></div>
         <div><label>Local</label><input name="local_atividade" value="${escapeHtml(tarefa.local_atividade || '')}" placeholder="Ex.: Frente de loja"></div>
         <div><label>Categoria</label><input name="categoria" value="${escapeHtml(tarefa.categoria || '')}" placeholder="Ex.: Precificação"></div>
         <div class="full"><label>Link de referência</label><input name="link_referencia" type="url" value="${escapeHtml(tarefa.link_referencia || '')}" placeholder="https://..."></div>
-        <div><label>Recorrência</label><select name="recorrencia">${['Nenhuma','Diária','Semanal','Mensal'].map(r=>`<option ${tarefa.recorrencia===r?'selected':''}>${r}</option>`).join('')}</select></div>
-        <div class="check-field"><label><input type="checkbox" name="exigir_comprovacao" ${tarefa.exigir_comprovacao?'checked':''}> Exigir comprovação ao concluir</label></div>
+        <div><label>Recorrência</label><select name="recorrencia">${['Nenhuma', 'Diária', 'Semanal', 'Mensal'].map(r => `<option ${tarefa.recorrencia === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+        <div class="check-field"><label><input type="checkbox" name="exigir_comprovacao" ${tarefa.exigir_comprovacao ? 'checked' : ''}> Exigir comprovação ao concluir</label></div>
         <div class="full"><label>Checklist <small>(um item por linha)</small></label><textarea name="checklist" placeholder="Consultar alterações\nEmitir placas\nConferir impressão">${escapeHtml(tarefa.checklist || '')}</textarea></div>
         <div class="full"><label>Observações</label><textarea name="observacoes">${escapeHtml(tarefa.observacoes || '')}</textarea></div>
       </div>
@@ -1020,13 +1029,13 @@ window.aplicarFiltrosDashboard = async () => {
     setor_id: $('dashSetor')?.value || '',
     responsavel: $('dashResponsavel')?.value?.trim() || '',
     periodo: $('dashPeriodo')?.value || '90',
-    calendario_mes: state.dashboardFilters.calendario_mes || new Date().toISOString().slice(0,7)
+    calendario_mes: state.dashboardFilters.calendario_mes || new Date().toISOString().slice(0, 7)
   };
   await abrirDashboard(true);
 };
 
 window.limparFiltrosDashboard = async () => {
-  state.dashboardFilters = { periodo: '90', setor_id: '', responsavel: '', calendario_mes: new Date().toISOString().slice(0,7) };
+  state.dashboardFilters = { periodo: '90', setor_id: '', responsavel: '', calendario_mes: new Date().toISOString().slice(0, 7) };
   await abrirDashboard(true);
 };
 
@@ -1502,10 +1511,10 @@ function mineTaskCard(t) {
     <article class="mine-card mine-card-rich">
       <div class="mine-head"><div><strong>${escapeHtml(t.titulo)}</strong><span>${escapeHtml(t.setor_nome || '-')} • ${escapeHtml(t.grupo_nome || '-')}</span></div><span class="badge ${statusClass(t.status)}">${escapeHtml(t.status)}</span></div>
       ${t.descricao ? `<p class="mine-description">${escapeHtml(t.descricao)}</p>` : ''}
-      <div class="mine-meta"><span class="badge ${priorityClass(t.prioridade)}">${escapeHtml(t.prioridade)}</span><span>Prazo: ${fmtDate(t.prazo)}</span>${t.horario_inicio?`<span>Horário: ${String(t.horario_inicio).slice(0,5)}${t.horario_fim?'–'+String(t.horario_fim).slice(0,5):''}</span>`:''}${t.local_atividade?`<span>Local: ${escapeHtml(t.local_atividade)}</span>`:''}${t.categoria?`<span>Categoria: ${escapeHtml(t.categoria)}</span>`:''}</div>
-      ${t.checklist ? `<div class="mine-checklist"><b>Checklist</b>${String(t.checklist).split('\n').filter(Boolean).map(x=>`<span>□ ${escapeHtml(x)}</span>`).join('')}</div>` : ''}
+      <div class="mine-meta"><span class="badge ${priorityClass(t.prioridade)}">${escapeHtml(t.prioridade)}</span><span>Prazo: ${fmtDate(t.prazo)}</span>${t.horario_inicio ? `<span>Horário: ${String(t.horario_inicio).slice(0, 5)}${t.horario_fim ? '–' + String(t.horario_fim).slice(0, 5) : ''}</span>` : ''}${t.local_atividade ? `<span>Local: ${escapeHtml(t.local_atividade)}</span>` : ''}${t.categoria ? `<span>Categoria: ${escapeHtml(t.categoria)}</span>` : ''}</div>
+      ${t.checklist ? `<div class="mine-checklist"><b>Checklist</b>${String(t.checklist).split('\n').filter(Boolean).map(x => `<span>□ ${escapeHtml(x)}</span>`).join('')}</div>` : ''}
       ${t.observacoes ? `<div class="mine-note"><b>Observações:</b> ${escapeHtml(t.observacoes)}</div>` : ''}
-      <div class="mine-actions"><select onchange="alterarMinhaTarefa(${t.id}, this.value)">${['Não iniciado','Em andamento','Parado','Feito'].map(s=>`<option value="${s}" ${t.status===s?'selected':''}>${s}</option>`).join('')}</select><button type="button" onclick="verMinhaTarefa(${t.id})">Ver atividade</button></div>
+      <div class="mine-actions"><select onchange="alterarMinhaTarefa(${t.id}, this.value)">${['Não iniciado', 'Em andamento', 'Parado', 'Feito'].map(s => `<option value="${s}" ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select><button type="button" onclick="verMinhaTarefa(${t.id})">Ver atividade</button></div>
     </article>`;
 }
 
@@ -1532,9 +1541,9 @@ function renderMinhas() {
   const proximas = ativas.filter(t => !mineDateOnly(t.prazo) || mineDateOnly(t.prazo) > hoje);
   const concluidas = tarefas.filter(t => t.status === 'Feito');
 
-  const byDeadline = (a,b) => (mineDateOnly(a.prazo) || '9999-12-31').localeCompare(mineDateOnly(b.prazo) || '9999-12-31') || Number(b.id)-Number(a.id);
+  const byDeadline = (a, b) => (mineDateOnly(a.prazo) || '9999-12-31').localeCompare(mineDateOnly(b.prazo) || '9999-12-31') || Number(b.id) - Number(a.id);
   atrasadas.sort(byDeadline); paraHoje.sort(byDeadline); proximas.sort(byDeadline);
-  concluidas.sort((a,b) => Number(b.id)-Number(a.id));
+  concluidas.sort((a, b) => Number(b.id) - Number(a.id));
 
   panel.innerHTML = `
     <div class="dashboard-toolbar">
@@ -1577,7 +1586,7 @@ function renderMinhas() {
   `;
 }
 
-window.verMinhaTarefa = async (id) => { const t=(state.minhasData?.tarefas||[]).find(x=>Number(x.id)===Number(id)); if(!t)return; let hist=[]; try{hist=await api(`/api/tarefas/${id}/historico`);}catch{} openModal('Detalhes da atividade',`<div class="task-detail"><h3>${escapeHtml(t.titulo)}</h3><p>${escapeHtml(t.descricao||'Sem descrição detalhada.')}</p><div class="detail-grid"><span><b>Status</b>${escapeHtml(t.status)}</span><span><b>Prioridade</b>${escapeHtml(t.prioridade)}</span><span><b>Prazo</b>${fmtDate(t.prazo)}</span><span><b>Setor</b>${escapeHtml(t.setor_nome||'-')}</span><span><b>Local</b>${escapeHtml(t.local_atividade||'-')}</span><span><b>Categoria</b>${escapeHtml(t.categoria||'-')}</span></div>${t.checklist?`<div class="detail-section"><b>Checklist</b>${String(t.checklist).split('\n').filter(Boolean).map(x=>`<p>□ ${escapeHtml(x)}</p>`).join('')}</div>`:''}${t.observacoes?`<div class="detail-section"><b>Observações</b><p>${escapeHtml(t.observacoes)}</p></div>`:''}<div class="detail-section"><b>Histórico</b>${hist.map(h=>`<p><strong>${escapeHtml(h.acao)}</strong> • ${escapeHtml(h.usuario_nome||'Sistema')} • ${fmtDateTime(h.criado_em)}${h.detalhes?`<br><small>${escapeHtml(h.detalhes)}</small>`:''}</p>`).join('')||'<p>Sem movimentações registradas.</p>'}</div></div>`); };
+window.verMinhaTarefa = async (id) => { const t = (state.minhasData?.tarefas || []).find(x => Number(x.id) === Number(id)); if (!t) return; let hist = []; try { hist = await api(`/api/tarefas/${id}/historico`); } catch { } openModal('Detalhes da atividade', `<div class="task-detail"><h3>${escapeHtml(t.titulo)}</h3><p>${escapeHtml(t.descricao || 'Sem descrição detalhada.')}</p><div class="detail-grid"><span><b>Status</b>${escapeHtml(t.status)}</span><span><b>Prioridade</b>${escapeHtml(t.prioridade)}</span><span><b>Prazo</b>${fmtDate(t.prazo)}</span><span><b>Setor</b>${escapeHtml(t.setor_nome || '-')}</span><span><b>Local</b>${escapeHtml(t.local_atividade || '-')}</span><span><b>Categoria</b>${escapeHtml(t.categoria || '-')}</span></div>${t.checklist ? `<div class="detail-section"><b>Checklist</b>${String(t.checklist).split('\n').filter(Boolean).map(x => `<p>□ ${escapeHtml(x)}</p>`).join('')}</div>` : ''}${t.observacoes ? `<div class="detail-section"><b>Observações</b><p>${escapeHtml(t.observacoes)}</p></div>` : ''}<div class="detail-section"><b>Histórico</b>${hist.map(h => `<p><strong>${escapeHtml(h.acao)}</strong> • ${escapeHtml(h.usuario_nome || 'Sistema')} • ${fmtDateTime(h.criado_em)}${h.detalhes ? `<br><small>${escapeHtml(h.detalhes)}</small>` : ''}</p>`).join('') || '<p>Sem movimentações registradas.</p>'}</div></div>`); };
 
 window.alterarMinhaTarefa = async (id, status) => {
   const atualizada = await api(`/api/minhas-tarefas/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
@@ -2918,19 +2927,19 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
       tipo === 'ENTRADA' && fixo
         ? 'historico_entradas'
         : (
-            tipo === 'SAIDA' && fixo
-              ? 'historico_saidas'
-              : 'historico'
-          );
+          tipo === 'SAIDA' && fixo
+            ? 'historico_saidas'
+            : 'historico'
+        );
 
     const titulo =
       tipo === 'ENTRADA'
         ? 'Histórico de entradas'
         : (
-            tipo === 'SAIDA'
-              ? 'Histórico de saídas'
-              : 'Histórico completo'
-          );
+          tipo === 'SAIDA'
+            ? 'Histórico de saídas'
+            : 'Histórico completo'
+        );
 
     const podeCopiar = fixo && (tipo === 'ENTRADA' || tipo === 'SAIDA');
 
@@ -2975,8 +2984,8 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
         >
 
         ${fixo
-          ? ''
-          : `
+        ? ''
+        : `
             <select id="galpaoHistTipo">
               <option value="">Entradas e saídas</option>
               <option value="ENTRADA" ${tipo === 'ENTRADA' ? 'selected' : ''}>
@@ -2987,7 +2996,7 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
               </option>
             </select>
           `
-        }
+      }
 
         <button id="galpaoHistFiltrar">
           Filtrar
@@ -3060,13 +3069,13 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
                 <td>
                   <strong>${escapeHtml(m.descricao)}</strong>
                   ${!fixo
-                    ? `
+          ? `
                       <small class="almox-cell-note">
                         ${m.tipo === 'ENTRADA' ? 'Entrada' : 'Saída'}
                       </small>
                     `
-                    : ''
-                  }
+          : ''
+        }
                 </td>
 
                 <td>${galpaoValidadeLabel(m.validade)}</td>
@@ -3083,25 +3092,24 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
 
                 <td>
                   <span>
-                    ${
-                      m.usuario_nome
-                        ? escapeHtml(m.usuario_nome)
-                        : (
-                            m.origem === 'SQLITE'
-                              ? 'Importado do Python'
-                              : '—'
-                          )
-                    }
+                    ${m.usuario_nome
+          ? escapeHtml(m.usuario_nome)
+          : (
+            m.origem === 'SQLITE'
+              ? 'Importado do Python'
+              : '—'
+          )
+        }
                   </span>
 
                   ${m.observacao
-                    ? `
+          ? `
                       <small class="almox-cell-note">
                         ${escapeHtml(m.observacao)}
                       </small>
                     `
-                    : ''
-                  }
+          : ''
+        }
                 </td>
               </tr>
             `).join('') || `
@@ -3422,7 +3430,7 @@ async function consultarProdutoGz(tipo, valor) {
       conteudo.innerHTML = produtoGzCard(state.produtoGzAtual);
       return;
     }
-    conteudo.innerHTML = `<section class="prod-gz-product"><div class="prod-gz-product-head"><div class="prod-gz-product-title"><small>RESULTADOS</small><h3>${state.produtosGzResultados.length} produtos encontrados</h3></div></div><div class="prod-gz-results-list">${state.produtosGzResultados.map((p,i)=>`<button type="button" class="prod-gz-result-item" onclick="selecionarProdutoGz(${i})"><span><strong>${escapeHtml(p.descricao || p.descpdv || 'Produto')}</strong><small>${escapeHtml(p.codigoEan || p.codigo || '-')}</small></span><span>${brl(p.precoVenda)}</span></button>`).join('')}</div></section>`;
+    conteudo.innerHTML = `<section class="prod-gz-product"><div class="prod-gz-product-head"><div class="prod-gz-product-title"><small>RESULTADOS</small><h3>${state.produtosGzResultados.length} produtos encontrados</h3></div></div><div class="prod-gz-results-list">${state.produtosGzResultados.map((p, i) => `<button type="button" class="prod-gz-result-item" onclick="selecionarProdutoGz(${i})"><span><strong>${escapeHtml(p.descricao || p.descpdv || 'Produto')}</strong><small>${escapeHtml(p.codigoEan || p.codigo || '-')}</small></span><span>${brl(p.precoVenda)}</span></button>`).join('')}</div></section>`;
   } catch (err) {
     conteudo.innerHTML = `<div class="prod-gz-empty"><strong>Não foi possível consultar.</strong><br>${escapeHtml(err.message)}</div>`;
   }
@@ -3438,7 +3446,7 @@ function produtoGzCard(p) {
     <div class="prod-gz-highlight-grid">
       <div class="prod-gz-highlight"><span>Preço de venda</span><strong>${brl(p.precoVenda)}</strong></div>
       <div class="prod-gz-highlight"><span>Custo aquisição</span><strong>${brl(p.valorCustoAquisicao)}</strong></div>
-      <div class="prod-gz-highlight"><span>Margem</span><strong>${numPt(p.percMargemLucro,2)}%</strong></div>
+      <div class="prod-gz-highlight"><span>Margem</span><strong>${numPt(p.percMargemLucro, 2)}%</strong></div>
       <div class="prod-gz-highlight"><span>Estoque</span><strong>${numPt(p.quantidadeEstoque)} ${escapeHtml(p.unidade || '')}</strong></div>
     </div>
     <div class="prod-gz-detail-grid">
@@ -3476,8 +3484,8 @@ window.entrarProdutosGz = entrarProdutosGz;
 // =========================
 function rhStatusBadge(status) {
   const cls = String(status || '').toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .replaceAll(' ','-');
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replaceAll(' ', '-');
   return `<span class="rh-status rh-status-${cls}">${escapeHtml(status || '-')}</span>`;
 }
 
@@ -3599,11 +3607,11 @@ async function renderRhSolicitacoes(busca = '', status = '', tipoId = '') {
         <input id="rhBusca" placeholder="Protocolo, colaborador, CPF/matrícula ou descrição..." value="${escapeHtml(busca)}">
         <select id="rhStatusFiltro">
           <option value="">Todos os status</option>
-          ${['Recebido','Em análise','Aguardando colaborador','Em andamento','Concluído','Cancelado'].map(s=>`<option value="${s}" ${status===s?'selected':''}>${s}</option>`).join('')}
+          ${['Recebido', 'Em análise', 'Aguardando colaborador', 'Em andamento', 'Concluído', 'Cancelado'].map(s => `<option value="${s}" ${status === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
         <select id="rhTipoFiltro">
           <option value="">Todos os tipos</option>
-          ${tipos.map(t=>`<option value="${t.id}" ${String(tipoId)===String(t.id)?'selected':''}>${escapeHtml(t.nome)}</option>`).join('')}
+          ${tipos.map(t => `<option value="${t.id}" ${String(tipoId) === String(t.id) ? 'selected' : ''}>${escapeHtml(t.nome)}</option>`).join('')}
         </select>
         <button id="rhFiltrar">Filtrar</button>
       </div>
@@ -3612,7 +3620,7 @@ async function renderRhSolicitacoes(busca = '', status = '', tipoId = '') {
         <table class="dash-table rh-table">
           <thead><tr><th>Protocolo</th><th>Solicitante</th><th>Tipo</th><th>Status</th><th>Responsável</th><th>Abertura</th></tr></thead>
           <tbody>
-            ${data.map(s=>`
+            ${data.map(s => `
               <tr class="rh-click-row" onclick="verRhSolicitacao(${s.id})">
                 <td class="mono"><strong>${escapeHtml(s.protocolo)}</strong></td>
                 <td><strong>${escapeHtml(s.solicitante_nome)}</strong><small class="almox-cell-note">${escapeHtml(s.identificacao || s.contato || '')}</small></td>
@@ -3643,14 +3651,14 @@ async function renderRhSolicitacoes(busca = '', status = '', tipoId = '') {
 }
 
 window.rhSolicitacaoInternaForm = async () => {
-  const tipos = state.rhTipos.length ? state.rhTipos.filter(t=>t.ativo) : await carregarRhTipos(false);
+  const tipos = state.rhTipos.length ? state.rhTipos.filter(t => t.ativo) : await carregarRhTipos(false);
   openModal('Nova solicitação ao RH', `
     <form id="rhNovaSolicitacaoForm">
       <div class="form-grid">
         <div class="full"><label>Solicitante</label><input name="solicitante_nome" required></div>
         <div><label>CPF ou matrícula</label><input name="identificacao"></div>
         <div><label>Contato</label><input name="contato"></div>
-        <div class="full"><label>Tipo</label><select name="tipo_id" required><option value="">Selecione...</option>${tipos.map(t=>`<option value="${t.id}">${escapeHtml(t.nome)}</option>`).join('')}</select></div>
+        <div class="full"><label>Tipo</label><select name="tipo_id" required><option value="">Selecione...</option>${tipos.map(t => `<option value="${t.id}">${escapeHtml(t.nome)}</option>`).join('')}</select></div>
         <div class="full"><label>Descrição</label><textarea name="descricao" required></textarea></div>
       </div>
       <div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Abrir solicitação</button></div>
@@ -3660,7 +3668,7 @@ window.rhSolicitacaoInternaForm = async () => {
   $('rhNovaSolicitacaoForm').onsubmit = async e => {
     e.preventDefault();
     try {
-      await api('/api/rh/solicitacoes',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.target)))});
+      await api('/api/rh/solicitacoes', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
       closeModal();
       await renderRhSolicitacoes();
     } catch (err) { alert(err.message); }
@@ -3684,14 +3692,14 @@ window.verRhSolicitacao = async id => {
       <div class="rh-detail-description">${escapeHtml(s.descricao)}</div>
 
       <div class="rh-detail-controls">
-        <div><label>Status</label><select id="rhDetalheStatus">${['Recebido','Em análise','Aguardando colaborador','Em andamento','Concluído','Cancelado'].map(st=>`<option ${s.status===st?'selected':''}>${st}</option>`).join('')}</select></div>
-        <div><label>Responsável</label><select id="rhDetalheResponsavel"><option value="">Não atribuído</option>${responsaveis.map(u=>`<option value="${u.id}" ${String(s.responsavel_id||'')===String(u.id)?'selected':''}>${escapeHtml(u.nome)}</option>`).join('')}</select></div>
+        <div><label>Status</label><select id="rhDetalheStatus">${['Recebido', 'Em análise', 'Aguardando colaborador', 'Em andamento', 'Concluído', 'Cancelado'].map(st => `<option ${s.status === st ? 'selected' : ''}>${st}</option>`).join('')}</select></div>
+        <div><label>Responsável</label><select id="rhDetalheResponsavel"><option value="">Não atribuído</option>${responsaveis.map(u => `<option value="${u.id}" ${String(s.responsavel_id || '') === String(u.id) ? 'selected' : ''}>${escapeHtml(u.nome)}</option>`).join('')}</select></div>
       </div>
 
       <div class="rh-timeline">
         <h3>Histórico</h3>
-        ${(data.interacoes || []).map(i=>`
-          <div class="rh-timeline-item ${i.tipo==='EVENTO'?'event':''}">
+        ${(data.interacoes || []).map(i => `
+          <div class="rh-timeline-item ${i.tipo === 'EVENTO' ? 'event' : ''}">
             <span></span>
             <div><strong>${escapeHtml(i.usuario_nome || i.autor_nome || 'Sistema')}</strong><p>${escapeHtml(i.mensagem)}</p><small>${fmtDateTime(i.criado_em)}</small></div>
           </div>
@@ -3706,17 +3714,17 @@ window.verRhSolicitacao = async id => {
     `);
 
     $('rhDetalheStatus').onchange = async e => {
-      try { await api(`/api/rh/solicitacoes/${id}/status`,{method:'PUT',body:JSON.stringify({status:e.target.value})}); await verRhSolicitacao(id); }
-      catch(err){alert(err.message);}
+      try { await api(`/api/rh/solicitacoes/${id}/status`, { method: 'PUT', body: JSON.stringify({ status: e.target.value }) }); await verRhSolicitacao(id); }
+      catch (err) { alert(err.message); }
     };
     $('rhDetalheResponsavel').onchange = async e => {
-      try { await api(`/api/rh/solicitacoes/${id}/responsavel`,{method:'PUT',body:JSON.stringify({responsavel_id:e.target.value||null})}); await verRhSolicitacao(id); }
-      catch(err){alert(err.message);}
+      try { await api(`/api/rh/solicitacoes/${id}/responsavel`, { method: 'PUT', body: JSON.stringify({ responsavel_id: e.target.value || null }) }); await verRhSolicitacao(id); }
+      catch (err) { alert(err.message); }
     };
     $('rhComentarioForm').onsubmit = async e => {
       e.preventDefault();
-      try { await api(`/api/rh/solicitacoes/${id}/comentarios`,{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.target)))}); await verRhSolicitacao(id); }
-      catch(err){alert(err.message);}
+      try { await api(`/api/rh/solicitacoes/${id}/comentarios`, { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(e.target))) }); await verRhSolicitacao(id); }
+      catch (err) { alert(err.message); }
     };
   } catch (err) { alert(err.message); }
 };
@@ -3734,7 +3742,7 @@ async function renderRhTipos() {
       <section class="dash-panel wide almox-table-wrap">
         <table class="dash-table rh-table">
           <thead><tr><th>Ordem</th><th>Tipo</th><th>Descrição</th><th>Status</th><th>Ação</th></tr></thead>
-          <tbody>${tipos.map(t=>`<tr><td>${Number(t.ordem)}</td><td><strong>${escapeHtml(t.nome)}</strong></td><td>${escapeHtml(t.descricao || '-')}</td><td>${t.ativo?'Ativo':'Inativo'}</td><td><button onclick="rhTipoForm(${t.id})">Editar</button></td></tr>`).join('')}</tbody>
+          <tbody>${tipos.map(t => `<tr><td>${Number(t.ordem)}</td><td><strong>${escapeHtml(t.nome)}</strong></td><td>${escapeHtml(t.descricao || '-')}</td><td>${t.ativo ? 'Ativo' : 'Inativo'}</td><td><button onclick="rhTipoForm(${t.id})">Editar</button></td></tr>`).join('')}</tbody>
         </table>
       </section>
     `;
@@ -3745,24 +3753,24 @@ async function renderRhTipos() {
 
 window.rhTipoForm = async (id = null) => {
   const tipos = state.rhTipos.length ? state.rhTipos : await carregarRhTipos(false);
-  const atual = id ? tipos.find(t=>Number(t.id)===Number(id)) : null;
+  const atual = id ? tipos.find(t => Number(t.id) === Number(id)) : null;
   openModal(atual ? 'Editar tipo de solicitação' : 'Novo tipo de solicitação', `
     <form id="rhTipoForm">
       <label>Nome</label><input name="nome" value="${escapeHtml(atual?.nome || '')}" required>
       <label>Descrição</label><textarea name="descricao">${escapeHtml(atual?.descricao || '')}</textarea>
       <label>Ordem</label><input name="ordem" type="number" value="${Number(atual?.ordem || 0)}">
-      ${atual ? `<label class="rh-active-check"><input name="ativo" type="checkbox" ${atual.ativo?'checked':''}> Tipo ativo</label>` : ''}
+      ${atual ? `<label class="rh-active-check"><input name="ativo" type="checkbox" ${atual.ativo ? 'checked' : ''}> Tipo ativo</label>` : ''}
       <div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Salvar</button></div>
     </form>
   `);
   $('rhTipoForm').onsubmit = async e => {
     e.preventDefault();
-    const body=Object.fromEntries(new FormData(e.target));
-    if(atual) body.ativo=e.target.elements.ativo.checked;
-    try{
-      await api(atual?`/api/rh/tipos/${atual.id}`:'/api/rh/tipos',{method:atual?'PUT':'POST',body:JSON.stringify(body)});
-      closeModal(); state.rhTipos=[]; await renderRhTipos();
-    }catch(err){alert(err.message);}
+    const body = Object.fromEntries(new FormData(e.target));
+    if (atual) body.ativo = e.target.elements.ativo.checked;
+    try {
+      await api(atual ? `/api/rh/tipos/${atual.id}` : '/api/rh/tipos', { method: atual ? 'PUT' : 'POST', body: JSON.stringify(body) });
+      closeModal(); state.rhTipos = []; await renderRhTipos();
+    } catch (err) { alert(err.message); }
   };
 };
 
@@ -3964,6 +3972,253 @@ window.desativarUsuario = async (id) => {
   renderConfig();
 };
 
+
+// =========================
+// V25 - Cartazes Manaíra (layout inteligente + promoção por vigência)
+// =========================
+function entrarCartazes(view = 'rapido') {
+  if (!exigirModulo('cartazes', 'Cartazes')) return;
+  state.cartazesView = view;
+  setModule('cartazes');
+  setView('cartazes');
+  $('setorTitulo').textContent = 'Cartazes';
+  $('setorDescricao').textContent = 'Crie plaquinhas rapidamente com os dados da GZ e ajuste antes de imprimir.';
+  history.replaceState(null, '', '#cartazes');
+  renderCartazes();
+}
+
+function cartazSalvarFila() { localStorage.setItem('mb_cartazes_fila', JSON.stringify(state.cartazFila || [])); }
+function cartazValor(v) { const n = Number(v || 0); return Number.isFinite(n) ? n : 0; }
+function cartazPreco(v) { return cartazValor(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function cartazDescricao(p) { return String(p?.descricao || p?.descpdv || 'PRODUTO').trim().replace(/\s+/g, ' '); }
+function cartazPrecoOferta(p) { return cartazValor(p?.precoEspecial || p?.precoPromocao); }
+
+function cartazDataPartes(v) {
+  if (!v) return null;
+  const raw = String(v).trim().slice(0, 10);
+  let m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return { y: +m[1], m: +m[2], d: +m[3] };
+  m = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return { y: +m[3], m: +m[2], d: +m[1] };
+  return null;
+}
+function cartazDataNumero(v) { const p = cartazDataPartes(v); return p ? p.y * 10000 + p.m * 100 + p.d : null; }
+function cartazHojeNumero() { const d = new Date(); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
+function cartazTemOferta(p) {
+  const especial = cartazPrecoOferta(p), normal = cartazValor(p?.precoVenda);
+  const ini = cartazDataNumero(p?.dataInicioPromocao), fim = cartazDataNumero(p?.dataTerminoPromocao), hoje = cartazHojeNumero();
+  return especial > 0 && especial !== normal && ini !== null && fim !== null && hoje >= ini && hoje <= fim;
+}
+function cartazValidade(p) {
+  const x = cartazDataPartes(p?.dataTerminoPromocao); if (!x) return '';
+  const d = new Date(Date.UTC(x.y, x.m - 1, x.d)); d.setUTCDate(d.getUTCDate() + 1);
+  return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+}
+function cartazPrecoPartes(v) { const txt = cartazPreco(v); const [inteiro = '0', cent = '00'] = txt.split(','); return { inteiro, cent }; }
+
+function renderCartazes() {
+  const panel = $('cartazesPanel');
+  if (!panel) return;
+  if (state.cartazesView === 'fila') return renderCartazesFila();
+  const p = state.cartazProduto;
+  panel.innerHTML = `<div class="cartazes-shell">
+    <section class="cartazes-toolbar">
+      <div><strong>Criação rápida</strong><span>Digite o EAN ou pesquise pela descrição. Enter consulta e prepara o cartaz.</span></div>
+      <button type="button" class="cartaz-fila-btn" id="cartazAbrirFila">Fila <b>${state.cartazFila.length}</b></button>
+    </section>
+    <section class="cartazes-workspace">
+      <aside class="cartazes-controls">
+        <form id="cartazBuscaForm" class="cartaz-search-form">
+          <label>Buscar produto</label>
+          <div class="cartaz-search-line"><select id="cartazBuscaTipo"><option value="codigoBarras">EAN</option><option value="codigoInterno">Código</option><option value="descricao">Descrição</option></select><input id="cartazBusca" autocomplete="off" placeholder="Digite o EAN e pressione Enter"><button class="primary" type="submit">Buscar</button></div>
+        </form>
+        <div id="cartazResultados"></div>
+        ${p ? cartazControlesProduto(p) : '<div class="cartaz-empty-side">Consulte um produto para começar.</div>'}
+      </aside>
+      <main class="cartaz-preview-wrap"><div class="cartaz-preview-head"><strong>Pré-visualização</strong><span>O sistema distribui descrição e preço automaticamente. Arraste somente se precisar.</span></div><div id="cartazPreviewArea">${p ? cartazPreviewHtml(p) : '<div class="cartaz-preview-empty">A plaquinha aparecerá aqui.</div>'}</div></main>
+    </section>
+  </div>`;
+  $('cartazAbrirFila').onclick = () => entrarCartazes('fila');
+  $('cartazBuscaForm').onsubmit = async e => { e.preventDefault(); await buscarProdutoCartaz(); };
+  if (p) ligarEditorCartaz();
+  setTimeout(() => $('cartazBusca')?.focus(), 40);
+}
+
+function cartazControlesProduto(p) {
+  const oferta = state.cartazModelo === 'oferta';
+  const especial = cartazPrecoOferta(p);
+  return `<div class="cartaz-product-box"><small>PRODUTO</small><strong>${escapeHtml(cartazDescricao(p))}</strong><span>${escapeHtml(p.codigoEan || p.codigo || '')}</span></div>
+ <div class="cartaz-form-grid">
+  <label class="full">Descrição<input id="cartazDesc" value="${escapeHtml(cartazDescricao(p))}"></label>
+  <label>Modelo<select id="cartazModelo"><option value="normal" ${!oferta ? 'selected' : ''}>Normal</option><option value="oferta" ${oferta ? 'selected' : ''}>Oferta</option></select></label>
+  <label>Quantidade<input id="cartazQtd" type="number" min="1" max="50" value="1"></label>
+  ${oferta ? `<label>Preço DE<input id="cartazDe" inputmode="decimal" value="${cartazPreco(p.precoVenda)}"></label><label>Preço POR<input id="cartazPor" inputmode="decimal" value="${cartazPreco(especial || p.precoVenda)}"></label><label class="full">Validade da placa<input id="cartazValidade" value="${escapeHtml(cartazValidade(p))}" readonly></label>` : `<label class="full">Preço terminal<input id="cartazPor" inputmode="decimal" value="${cartazPreco(p.precoVenda)}"></label>`}
+ </div>
+ <div class="cartaz-auto-note">${cartazTemOferta(p) ? `Promoção ativa pela GZ. Vigência até ${escapeHtml(fmtDate(p.dataTerminoPromocao))}; na placa a validade é ${escapeHtml(cartazValidade(p))}.` : 'Modelo normal pela vigência atual da GZ.'} Você pode trocar o modelo manualmente.</div>
+ <div class="cartaz-actions"><button type="button" id="cartazReset">Restaurar layout</button><button type="button" class="primary" id="cartazAddFila">＋ Enviar para fila</button></div>`;
+}
+
+function cartazPreviewHtml(p) {
+  const oferta = state.cartazModelo === 'oferta';
+  const desc = escapeHtml(cartazDescricao(p));
+
+  const de = cartazPrecoPartes(p.precoVenda);
+
+  const por = cartazPrecoPartes(
+    oferta
+      ? (cartazPrecoOferta(p) || p.precoVenda)
+      : p.precoVenda
+  );
+
+  return `
+    <div
+      class="cartaz-canvas ${oferta ? 'oferta' : 'normal'}"
+      id="cartazCanvas"
+      style="background-image:url('/img/cartazes/${oferta ? 'oferta' : 'normal'}.jpeg')"
+    >
+
+      <!-- DESCRIÇÃO -->
+      <div
+        class="cartaz-edit cartaz-desc"
+        data-field="desc"
+        tabindex="0"
+      >${desc}</div>
+
+      ${oferta
+      ? `
+            <!-- VALIDADE -->
+            <div
+              class="cartaz-edit cartaz-validade"
+              data-field="validade"
+              tabindex="0"
+            >${escapeHtml(cartazValidade(p))}</div>
+
+            <!-- PREÇO DE -->
+            <div
+              class="cartaz-edit cartaz-de"
+              data-field="de"
+              tabindex="0"
+            >
+              <strong>
+                <span>${de.inteiro}</span><i>,</i><em>${de.cent}</em>
+              </strong>
+            </div>
+          `
+      : ''
+    }
+
+      <!-- PREÇO PRINCIPAL -->
+      <div
+        class="cartaz-edit cartaz-por"
+        data-field="por"
+        tabindex="0"
+      >
+        <strong>
+          <span>${por.inteiro}</span><i>,</i><em>${por.cent}</em>
+        </strong>
+      </div>
+
+    </div>
+  `;
+}
+async function buscarProdutoCartaz() {
+  const tipo = $('cartazBuscaTipo').value, valor = $('cartazBusca').value.trim(); if (!valor) return;
+  const out = $('cartazResultados'); out.innerHTML = '<div class="cartaz-loading">Consultando GZ...</div>';
+  try {
+    const data = await api(`/api/cartazes/consulta?${new URLSearchParams({ [tipo]: valor })}`); const arr = data.produtos || [];
+    if (!arr.length) { out.innerHTML = '<div class="cartaz-search-msg">Nenhum produto encontrado.</div>'; return; }
+    if (arr.length === 1) { selecionarProdutoCartaz(arr[0]); return; }
+    out.innerHTML = `<div class="cartaz-result-list">${arr.slice(0, 40).map((p, i) => `<button type="button" data-i="${i}"><span><strong>${escapeHtml(cartazDescricao(p))}</strong><small>${escapeHtml(p.codigoEan || p.codigo || '')}</small></span><b>${brl(cartazTemOferta(p) ? cartazPrecoOferta(p) : p.precoVenda)}</b></button>`).join('')}</div>`;
+    [...out.querySelectorAll('button[data-i]')].forEach(b => b.onclick = () => selecionarProdutoCartaz(arr[Number(b.dataset.i)]));
+  } catch (err) { out.innerHTML = `<div class="cartaz-search-msg">${escapeHtml(err.message)}</div>`; }
+}
+function selecionarProdutoCartaz(p) { state.cartazProduto = { ...p }; state.cartazModelo = cartazTemOferta(p) ? 'oferta' : 'normal'; renderCartazes(); }
+
+function ligarEditorCartaz() {
+  const modelo = $('cartazModelo');
+  modelo.onchange = () => { state.cartazModelo = modelo.value; renderCartazes(); };
+  const sync = () => { const p = state.cartazProduto; if (!p) return; p.descricao = $('cartazDesc').value; const por = Number(String($('cartazPor').value).replace(/\./g, '').replace(',', '.')) || 0; if (state.cartazModelo === 'oferta') { p.precoVenda = Number(String($('cartazDe').value).replace(/\./g, '').replace(',', '.')) || 0; p.precoEspecial = por; } else p.precoVenda = por; const area = $('cartazPreviewArea'); area.innerHTML = cartazPreviewHtml(p); habilitarDragCartaz(); };
+  ['cartazDesc', 'cartazDe', 'cartazPor'].forEach(id => $(id)?.addEventListener('input', debounce(sync, 120)));
+  $('cartazReset').onclick = () => { renderCartazes(); };
+  $('cartazAddFila').onclick = () => adicionarCartazFila();
+  habilitarDragCartaz();
+}
+
+function cartazAjustarDescricao() {
+  const el = document.querySelector('#cartazCanvas .cartaz-desc'); if (!el) return;
+  const canvas = $('cartazCanvas'); const max = canvas.classList.contains('oferta') ? 62 : 64, min = 22;
+  let size = max; el.style.fontSize = size + 'px';
+  while (size > min && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) { size -= 1; el.style.fontSize = size + 'px'; }
+}
+function habilitarDragCartaz() {
+  const canvas = $('cartazCanvas');
+  if (!canvas) return;
+
+  requestAnimationFrame(cartazAjustarDescricao);
+
+  canvas.querySelectorAll('.cartaz-edit').forEach(el => {
+
+    el.addEventListener('pointerdown', ev => {
+      if (ev.button !== 0) return;
+
+      ev.preventDefault();
+      el.setPointerCapture(ev.pointerId);
+
+      const r = canvas.getBoundingClientRect();
+      const er = el.getBoundingClientRect();
+
+      const ox = ev.clientX - er.left;
+      const oy = ev.clientY - er.top;
+
+      const move = e => {
+
+        // ==========================================
+        // MOVIMENTO LIVRE DENTRO DO CARTAZ
+        // ==========================================
+
+        let x = e.clientX - r.left - ox;
+        let y = e.clientY - r.top - oy;
+
+        // Permite que a CAIXA ultrapasse o canvas,
+        // mas mantém o ponto de referência dentro dele.
+        // Isso elimina a "parede invisível" causada
+        // pelo tamanho grande da caixa do preço.
+        x = Math.max(0, Math.min(r.width, x));
+        y = Math.max(0, Math.min(r.height, y));
+
+        el.style.left = (x / r.width * 100) + '%';
+        el.style.top = (y / r.height * 100) + '%';
+        el.style.transform = 'none';
+      };
+
+      const up = () => {
+        el.removeEventListener('pointermove', move);
+      };
+
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', up, { once: true });
+    });
+
+  });
+}
+
+function adicionarCartazFila() {
+  const p = state.cartazProduto; if (!p) return; const qtd = Math.max(1, Math.min(50, Number($('cartazQtd')?.value) || 1));
+  const canvas = $('cartazCanvas'); const fields = {}; canvas?.querySelectorAll('.cartaz-edit').forEach(el => { fields[el.dataset.field] = { text: el.textContent, left: el.style.left || '', top: el.style.top || '', transform: el.style.transform || '' }; });
+  for (let i = 0; i < qtd; i++) state.cartazFila.push({ id: Date.now() + i, modelo: state.cartazModelo, descricao: cartazDescricao(p), ean: p.codigoEan || p.codigo || '', preco: cartazValor(state.cartazModelo === 'oferta' ? cartazPrecoOferta(p) : p.precoVenda), precoDe: cartazValor(p.precoVenda), validade: state.cartazModelo === 'oferta' ? cartazValidade(p) : '', fields });
+  cartazSalvarFila(); renderCartazes();
+}
+
+function renderCartazesFila() {
+  const panel = $('cartazesPanel'); panel.innerHTML = `<div class="cartazes-shell"><section class="cartazes-toolbar"><div><strong>Fila de cartazes</strong><span>Revise os cartazes preparados antes da etapa de impressão.</span></div><button type="button" id="cartazVoltar">← Criação rápida</button></section>
+ <section class="cartaz-queue">${state.cartazFila.length ? state.cartazFila.map((c, i) => `<article><div class="cartaz-queue-thumb" style="background-image:url('/img/cartazes/${c.modelo}.jpeg')"></div><div><small>${c.modelo === 'oferta' ? 'OFERTA' : 'NORMAL'}</small><strong>${escapeHtml(c.descricao)}</strong><span>${escapeHtml(c.ean)} · ${brl(c.preco)}${c.validade ? ` · validade ${escapeHtml(c.validade)}` : ''}</span></div><button type="button" data-remove="${i}" title="Remover">×</button></article>`).join('') : '<div class="cartaz-preview-empty">A fila está vazia. Gere um cartaz na Criação rápida.</div>'}</section>
+ <div class="cartaz-queue-footer"><span>${state.cartazFila.length} cartaz(es) na fila</span><div><button id="cartazLimpar" type="button" ${!state.cartazFila.length ? 'disabled' : ''}>Limpar fila</button><button class="primary" type="button" disabled title="A área de impressão será a próxima etapa">Área de impressão · próxima etapa</button></div></div></div>`;
+  $('cartazVoltar').onclick = () => entrarCartazes('rapido');
+  panel.querySelectorAll('[data-remove]').forEach(b => b.onclick = () => { state.cartazFila.splice(Number(b.dataset.remove), 1); cartazSalvarFila(); renderCartazesFila(); });
+  $('cartazLimpar')?.addEventListener('click', () => { if (confirm('Limpar toda a fila de cartazes?')) { state.cartazFila = []; cartazSalvarFila(); renderCartazesFila(); } });
+}
+window.entrarCartazes = entrarCartazes;
+
 $('loginForm').onsubmit = async (e) => {
   e.preventDefault();
   $('loginMsg').textContent = '';
@@ -3985,14 +4240,17 @@ $('cardAlmoxarifado').onclick = entrarAlmoxarifado;
 $('cardGalpao').onclick = entrarGalpao;
 $('cardRH').onclick = entrarRH;
 $('cardProdutosGz').onclick = entrarProdutosGz;
+$('cardCartazes').onclick = () => entrarCartazes('rapido');
 $('btnGalpaoDashboard')?.addEventListener('click', () => abrirGalpao('dashboard'));
 $('btnGalpaoValidades')?.addEventListener('click', () => abrirGalpao('validades'));
 $('btnGalpaoImportar')?.addEventListener('click', () => abrirGalpao('importar'));
 $('btnRhDashboard')?.addEventListener('click', () => abrirRH('dashboard'));
 $('btnRhSolicitacoes')?.addEventListener('click', () => abrirRH('solicitacoes'));
 $('btnRhTipos')?.addEventListener('click', () => abrirRH('tipos'));
-$('btnRhNovaPublica')?.addEventListener('click', () => window.open('/solicitar-rh.html','_blank'));
+$('btnRhNovaPublica')?.addEventListener('click', () => window.open('/solicitar-rh.html', '_blank'));
 $('btnProdutosGzConsulta')?.addEventListener('click', entrarProdutosGz);
+$('btnCartazesRapido')?.addEventListener('click', () => entrarCartazes('rapido'));
+$('btnCartazesFila')?.addEventListener('click', () => entrarCartazes('fila'));
 $('btnAlmoxDashboard')?.addEventListener('click', () => abrirAlmoxarifado('dashboard'));
 $('btnDashboard').onclick = abrirDashboard;
 $('btnOS').onclick = abrirOS;
