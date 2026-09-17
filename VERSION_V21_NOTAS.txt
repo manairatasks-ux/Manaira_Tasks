@@ -1,0 +1,9 @@
+V21 - OTIMIZACAO DO MODULO ATIVIDADES
+
+- Navegacao do calendario agora consulta apenas /api/agenda e nao recarrega todo o dashboard.
+- Consulta mensal de tarefas e lembretes executada em paralelo.
+- Calendario limita a 3 itens visiveis por dia para preservar o layout.
+- Dias com mais itens mostram +N itens e abrem uma lista completa.
+- Altura das celulas do calendario estabilizada e titulos usam reticencias.
+- Em telas pequenas o calendario usa rolagem horizontal local, evitando esmagar as colunas.
+- Adicionados indices de banco para prazo, status/prazo, atualizacao e lembretes por usuario/data.

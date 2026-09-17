@@ -350,3 +350,47 @@ CREATE INDEX IF NOT EXISTS idx_rh_solicitacoes_tipo ON rh_solicitacoes(tipo_id);
 CREATE INDEX IF NOT EXISTS idx_rh_solicitacoes_responsavel ON rh_solicitacoes(responsavel_id);
 CREATE INDEX IF NOT EXISTS idx_rh_solicitacoes_criado_em ON rh_solicitacoes(criado_em);
 CREATE INDEX IF NOT EXISTS idx_rh_interacoes_solicitacao ON rh_solicitacao_interacoes(solicitacao_id);
+
+
+-- V20: Agenda e detalhamento de atividades
+ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS descricao TEXT DEFAULT '';
+ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS local_atividade VARCHAR(180) DEFAULT '';
+ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS categoria VARCHAR(100) DEFAULT '';
+ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS link_referencia TEXT DEFAULT '';
+ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS horario_inicio TIME;
+ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS horario_fim TIME;
+ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS recorrencia VARCHAR(40) DEFAULT 'Nenhuma';
+ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS exigir_comprovacao BOOLEAN DEFAULT FALSE;
+ALTER TABLE tarefas ADD COLUMN IF NOT EXISTS checklist TEXT DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS lembretes_agenda (
+  id SERIAL PRIMARY KEY,
+  titulo VARCHAR(200) NOT NULL,
+  descricao TEXT DEFAULT '',
+  data DATE NOT NULL,
+  horario_inicio TIME,
+  horario_fim TIME,
+  setor_id INTEGER REFERENCES setores(id) ON DELETE CASCADE,
+  criado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  visibilidade VARCHAR(30) NOT NULL DEFAULT 'setor',
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_lembretes_agenda_data ON lembretes_agenda(data);
+CREATE INDEX IF NOT EXISTS idx_lembretes_agenda_setor ON lembretes_agenda(setor_id);
+
+CREATE TABLE IF NOT EXISTS tarefa_historico (
+  id SERIAL PRIMARY KEY,
+  tarefa_id INTEGER NOT NULL REFERENCES tarefas(id) ON DELETE CASCADE,
+  usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  acao VARCHAR(120) NOT NULL,
+  detalhes TEXT DEFAULT '',
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_tarefa_historico_tarefa ON tarefa_historico(tarefa_id);
+
+-- V21 - índices para agenda/dashboard
+CREATE INDEX IF NOT EXISTS idx_tarefas_prazo ON tarefas(prazo);
+CREATE INDEX IF NOT EXISTS idx_tarefas_status_prazo ON tarefas(status, prazo);
+CREATE INDEX IF NOT EXISTS idx_tarefas_atualizado_em ON tarefas(atualizado_em DESC);
+CREATE INDEX IF NOT EXISTS idx_lembretes_criado_por_data ON lembretes_agenda(criado_por, data);

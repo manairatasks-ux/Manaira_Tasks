@@ -1,0 +1,11 @@
+MANAÍRA BOARD V20 - AGENDA E ATIVIDADES
+
+- Calendário navegável por mês com setas e botão Hoje.
+- Clique no dia para criar lembrete/compromisso.
+- Lembretes com data, horário, setor, descrição e visibilidade.
+- Atividades com novos campos opcionais: descrição, horários, local, categoria, link, recorrência, comprovação e checklist.
+- Minhas tarefas com cards mais completos e botão Ver atividade.
+- Histórico básico de criação, edição e alteração de status.
+- Migrações seguras via schema.sql (ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS).
+
+Teste inicial: validar agenda, permissões e criação/edição de tarefas antes de expandir anexos, participantes e recorrência automática.

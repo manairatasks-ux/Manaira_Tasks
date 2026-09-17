@@ -6,7 +6,7 @@ const state = {
   quadro: null,
   view: 'home',
   module: 'home',
-  dashboardFilters: { periodo: '90', setor_id: '', responsavel: '' },
+  dashboardFilters: { periodo: '90', setor_id: '', responsavel: '', calendario_mes: new Date().toISOString().slice(0,7) },
   dashboardData: null,
   osData: null,
   usuarios: [],
@@ -589,8 +589,8 @@ function renderDashboard(data) {
       </section>
 
       <section class="dash-panel wide">
-        <h2>Calendário do mês</h2>
-        ${renderCalendar(data.calendario || [])}
+        <div class="calendar-titlebar"><h2>Agenda do mês</h2><div class="calendar-nav"><button type="button" onclick="mudarMesCalendario(-1)" title="Mês anterior">‹</button><strong id="calendarMonthLabel">${nomeMes(state.dashboardFilters.calendario_mes)}</strong><button type="button" onclick="mudarMesCalendario(1)" title="Próximo mês">›</button><button type="button" class="today-btn" onclick="irMesAtual()">Hoje</button></div></div>
+        <div id="calendarContent">${renderCalendar(data.calendario || [], state.dashboardFilters.calendario_mes)}</div>
       </section>
 
       <section class="dash-panel wide">
@@ -635,37 +635,81 @@ function renderTaskTable(items, showStatus = false) {
   </table>`;
 }
 
-function renderCalendar(items) {
+function nomeMes(ym) {
+  const [y,m] = String(ym || '').split('-').map(Number);
+  return new Intl.DateTimeFormat('pt-BR',{month:'long',year:'numeric'}).format(new Date(y,m-1,1)).replace(/^./,c=>c.toUpperCase());
+}
+
+async function carregarMesAgenda() {
+  const content = $('calendarContent');
+  const label = $('calendarMonthLabel');
+  if (!content) return;
+  const mes = state.dashboardFilters.calendario_mes;
+  if (label) label.textContent = nomeMes(mes);
+  content.classList.add('calendar-loading');
+  try {
+    const params = new URLSearchParams({ mes });
+    if (state.dashboardFilters.setor_id) params.set('setor_id', state.dashboardFilters.setor_id);
+    if (state.dashboardFilters.responsavel) params.set('responsavel', state.dashboardFilters.responsavel);
+    const data = await api(`/api/agenda?${params.toString()}`);
+    if (state.dashboardData) state.dashboardData.calendario = data.calendario || [];
+    content.innerHTML = renderCalendar(data.calendario || [], mes);
+  } catch (err) {
+    content.innerHTML = '<p class="empty">Não foi possível carregar este mês.</p>';
+    throw err;
+  } finally {
+    content.classList.remove('calendar-loading');
+  }
+}
+
+window.mudarMesCalendario = async (delta) => {
+  const [y,m] = state.dashboardFilters.calendario_mes.split('-').map(Number);
+  const d = new Date(y,m-1+delta,1);
+  state.dashboardFilters.calendario_mes = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  await carregarMesAgenda();
+};
+window.irMesAtual = async () => {
+  state.dashboardFilters.calendario_mes = new Date().toISOString().slice(0,7);
+  await carregarMesAgenda();
+};
+
+function renderCalendar(items, ym) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
+  const [year, month1] = String(ym || new Date().toISOString().slice(0,7)).split('-').map(Number);
+  const month = month1 - 1;
   const first = new Date(year, month, 1);
   const last = new Date(year, month + 1, 0);
-  const startWeekDay = first.getDay();
   const byDay = {};
-
-  items.forEach(item => {
-    const day = Number(String(item.prazo || '').split('-')[2]);
-    if (!byDay[day]) byDay[day] = [];
-    byDay[day].push(item);
-  });
-
-  const cells = [];
-  for (let i = 0; i < startWeekDay; i++) cells.push('<div class="cal-cell muted"></div>');
-  for (let day = 1; day <= last.getDate(); day++) {
-    const dayItems = byDay[day] || [];
-    cells.push(`<div class="cal-cell ${day === now.getDate() ? 'today' : ''}">
-      <strong>${day}</strong>
-      ${dayItems.slice(0, 3).map(item => `<span class="cal-task ${isOverdue(item) ? 'late' : ''}" title="${escapeHtml(item.titulo)}">${escapeHtml(item.titulo)}</span>`).join('')}
-      ${dayItems.length > 3 ? `<small>+${dayItems.length - 3} tarefas</small>` : ''}
-    </div>`);
+  items.forEach(item => { const day=Number(String(item.prazo||'').slice(8,10)); if(day){ (byDay[day] ||= []).push(item); } });
+  const cells=[];
+  for(let i=0;i<first.getDay();i++) cells.push('<div class="cal-cell muted"></div>');
+  for(let day=1;day<=last.getDate();day++){
+    const dayItems=byDay[day]||[];
+    const date=`${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isToday=day===now.getDate()&&month===now.getMonth()&&year===now.getFullYear();
+    const visibleItems = dayItems.slice(0,3);
+    cells.push(`<div class="cal-cell ${isToday?'today':''}" onclick="novoLancamentoAgenda('${date}', event)"><strong>${day}</strong><div class="cal-items">${visibleItems.map(item=>`<button type="button" class="cal-task ${item.tipo==='lembrete'?'reminder':(isOverdue(item)?'late':'')}" onclick="abrirItemAgenda(${item.id},'${item.tipo}',event)" title="${escapeHtml(item.titulo)}"><span class="cal-task-text">${item.horario_inicio?String(item.horario_inicio).slice(0,5)+' ':''}${escapeHtml(item.titulo)}</span></button>`).join('')}${dayItems.length>3?`<button type="button" class="cal-more" onclick="verItensDoDia('${date}',event)">+${dayItems.length-3} ${dayItems.length-3===1?'item':'itens'}</button>`:''}</div></div>`);
   }
-
-  return `<div class="calendar-wrap">
-    <div class="calendar-week"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div>
-    <div class="calendar-grid">${cells.join('')}</div>
-  </div>`;
+  return `<div class="calendar-wrap"><div class="calendar-week"><span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span></div><div class="calendar-grid">${cells.join('')}</div></div>`;
 }
+
+window.verItensDoDia = (data, event) => {
+  event?.stopPropagation();
+  const items = (state.dashboardData?.calendario || []).filter(x => String(x.prazo || '').slice(0,10) === data);
+  openModal(`Agenda • ${fmtDate(data)}`, `<div class="day-agenda-list">${items.map(item => `<button type="button" class="day-agenda-item ${item.tipo==='lembrete'?'reminder':''}" onclick="abrirItemAgenda(${item.id},'${item.tipo}',event)"><span><b>${item.horario_inicio?String(item.horario_inicio).slice(0,5):'--:--'}</b> ${escapeHtml(item.titulo)}</span><small>${escapeHtml(item.setor||'Pessoal')} • ${item.tipo==='lembrete'?'Lembrete':escapeHtml(item.status||'Atividade')}</small></button>`).join('') || '<p class="empty">Nenhum lançamento neste dia.</p>'}</div>`);
+};
+
+window.novoLancamentoAgenda = (data, event) => {
+  if(event?.target?.closest('.cal-task')) return;
+  openModal('Novo lançamento', `<div class="agenda-choice"><button type="button" class="primary" onclick="novoLembrete('${data}')">Lembrete / compromisso</button><button type="button" onclick="novaAtividadePeloCalendario('${data}')">Atividade</button></div><p class="muted">Escolha se este lançamento é apenas um compromisso da agenda ou uma atividade que precisa ser executada.</p>`);
+};
+window.novaAtividadePeloCalendario = (data) => { closeModal(); if(!state.setorAtual){ alert('Para criar uma atividade, entre primeiro no setor onde ela será lançada. A data escolhida será mantida.'); return; } tarefaForm({prazo:data}); };
+window.novoLembrete = (data) => {
+  const setores=state.setores.map(s=>`<option value="${s.id}">${escapeHtml(s.nome)}</option>`).join('');
+  openModal('Novo lembrete', `<form id="lembreteForm"><div class="form-grid"><div class="full"><label>Título</label><input name="titulo" required></div><div><label>Data</label><input type="date" name="data" value="${data}" required></div><div><label>Setor</label><select name="setor_id"><option value="">Pessoal / sem setor</option>${setores}</select></div><div><label>Início</label><input type="time" name="horario_inicio"></div><div><label>Fim</label><input type="time" name="horario_fim"></div><div><label>Visibilidade</label><select name="visibilidade"><option value="setor">Meu setor / setor escolhido</option><option value="pessoal">Somente eu</option><option value="todos">Todos com acesso a Atividades</option></select></div><div class="full"><label>Descrição</label><textarea name="descricao" placeholder="Observações do compromisso"></textarea></div></div><div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Salvar lembrete</button></div></form>`);
+  $('lembreteForm').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));await api('/api/lembretes',{method:'POST',body:JSON.stringify(data)});closeModal();state.cache.dashboard.clear();await abrirDashboard(true);};
+};
+window.abrirItemAgenda = async (id,tipo,event) => { event?.stopPropagation(); if(tipo==='lembrete'){ const item=(state.dashboardData?.calendario||[]).find(x=>x.tipo==='lembrete'&&Number(x.id)===Number(id)); if(!item)return; openModal('Lembrete',`<div class="task-detail"><h3>${escapeHtml(item.titulo)}</h3><p>${escapeHtml(item.descricao||'Sem descrição.')}</p><div class="detail-grid"><span><b>Data</b>${fmtDate(item.prazo)}</span><span><b>Horário</b>${item.horario_inicio?String(item.horario_inicio).slice(0,5):'-'}${item.horario_fim?' às '+String(item.horario_fim).slice(0,5):''}</span><span><b>Setor</b>${escapeHtml(item.setor||'Pessoal')}</span></div></div>`); } else { const t=(state.dashboardData?.calendario||[]).find(x=>x.tipo==='tarefa'&&Number(x.id)===Number(id)); if(t) alert(`${t.titulo}\nStatus: ${t.status}\nPrazo: ${fmtDate(t.prazo)}`); } };
 
 function renderBoard() {
   const board = $('board');
@@ -845,6 +889,15 @@ function tarefaForm(tarefa = {}, grupoId = null) {
         <div><label>Prazo</label><input name="prazo" type="date" value="${tarefa.prazo || ''}"></div>
         <div><label>Início cronograma</label><input name="cronograma_inicio" type="date" value="${tarefa.cronograma_inicio || ''}"></div>
         <div><label>Fim cronograma</label><input name="cronograma_fim" type="date" value="${tarefa.cronograma_fim || ''}"></div>
+        <div class="full"><label>Descrição da atividade</label><textarea name="descricao" placeholder="Explique o que precisa ser feito">${escapeHtml(tarefa.descricao || '')}</textarea></div>
+        <div><label>Horário inicial</label><input name="horario_inicio" type="time" value="${String(tarefa.horario_inicio || '').slice(0,5)}"></div>
+        <div><label>Horário final</label><input name="horario_fim" type="time" value="${String(tarefa.horario_fim || '').slice(0,5)}"></div>
+        <div><label>Local</label><input name="local_atividade" value="${escapeHtml(tarefa.local_atividade || '')}" placeholder="Ex.: Frente de loja"></div>
+        <div><label>Categoria</label><input name="categoria" value="${escapeHtml(tarefa.categoria || '')}" placeholder="Ex.: Precificação"></div>
+        <div class="full"><label>Link de referência</label><input name="link_referencia" type="url" value="${escapeHtml(tarefa.link_referencia || '')}" placeholder="https://..."></div>
+        <div><label>Recorrência</label><select name="recorrencia">${['Nenhuma','Diária','Semanal','Mensal'].map(r=>`<option ${tarefa.recorrencia===r?'selected':''}>${r}</option>`).join('')}</select></div>
+        <div class="check-field"><label><input type="checkbox" name="exigir_comprovacao" ${tarefa.exigir_comprovacao?'checked':''}> Exigir comprovação ao concluir</label></div>
+        <div class="full"><label>Checklist <small>(um item por linha)</small></label><textarea name="checklist" placeholder="Consultar alterações\nEmitir placas\nConferir impressão">${escapeHtml(tarefa.checklist || '')}</textarea></div>
         <div class="full"><label>Observações</label><textarea name="observacoes">${escapeHtml(tarefa.observacoes || '')}</textarea></div>
       </div>
       <div class="modal-actions">
@@ -856,6 +909,7 @@ function tarefaForm(tarefa = {}, grupoId = null) {
   $('tarefaForm').onsubmit = async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.target));
+    data.exigir_comprovacao = e.target.querySelector('[name="exigir_comprovacao"]')?.checked || false;
     if (tarefa.id) await api(`/api/tarefas/${tarefa.id}`, { method: 'PUT', body: JSON.stringify(data) });
     else await api('/api/tarefas', { method: 'POST', body: JSON.stringify(data) });
     closeModal();
@@ -964,14 +1018,15 @@ window.verTarefa = async (id) => {
 window.aplicarFiltrosDashboard = async () => {
   state.dashboardFilters = {
     setor_id: $('dashSetor')?.value || '',
-    responsavel: $('dashResponsavel')?.value || '',
-    periodo: $('dashPeriodo')?.value || '90'
+    responsavel: $('dashResponsavel')?.value?.trim() || '',
+    periodo: $('dashPeriodo')?.value || '90',
+    calendario_mes: state.dashboardFilters.calendario_mes || new Date().toISOString().slice(0,7)
   };
   await abrirDashboard(true);
 };
 
 window.limparFiltrosDashboard = async () => {
-  state.dashboardFilters = { periodo: '90', setor_id: '', responsavel: '' };
+  state.dashboardFilters = { periodo: '90', setor_id: '', responsavel: '', calendario_mes: new Date().toISOString().slice(0,7) };
   await abrirDashboard(true);
 };
 
@@ -1426,60 +1481,109 @@ async function abrirMinhas() {
   renderMinhas();
 }
 
+function mineDateOnly(value) {
+  if (!value) return null;
+  const raw = String(value).slice(0, 10);
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return `${m[1]}-${m[2]}-${m[3]}`;
+}
+
+function mineTodayKey() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function mineTaskCard(t) {
+  return `
+    <article class="mine-card mine-card-rich">
+      <div class="mine-head"><div><strong>${escapeHtml(t.titulo)}</strong><span>${escapeHtml(t.setor_nome || '-')} • ${escapeHtml(t.grupo_nome || '-')}</span></div><span class="badge ${statusClass(t.status)}">${escapeHtml(t.status)}</span></div>
+      ${t.descricao ? `<p class="mine-description">${escapeHtml(t.descricao)}</p>` : ''}
+      <div class="mine-meta"><span class="badge ${priorityClass(t.prioridade)}">${escapeHtml(t.prioridade)}</span><span>Prazo: ${fmtDate(t.prazo)}</span>${t.horario_inicio?`<span>Horário: ${String(t.horario_inicio).slice(0,5)}${t.horario_fim?'–'+String(t.horario_fim).slice(0,5):''}</span>`:''}${t.local_atividade?`<span>Local: ${escapeHtml(t.local_atividade)}</span>`:''}${t.categoria?`<span>Categoria: ${escapeHtml(t.categoria)}</span>`:''}</div>
+      ${t.checklist ? `<div class="mine-checklist"><b>Checklist</b>${String(t.checklist).split('\n').filter(Boolean).map(x=>`<span>□ ${escapeHtml(x)}</span>`).join('')}</div>` : ''}
+      ${t.observacoes ? `<div class="mine-note"><b>Observações:</b> ${escapeHtml(t.observacoes)}</div>` : ''}
+      <div class="mine-actions"><select onchange="alterarMinhaTarefa(${t.id}, this.value)">${['Não iniciado','Em andamento','Parado','Feito'].map(s=>`<option value="${s}" ${t.status===s?'selected':''}>${s}</option>`).join('')}</select><button type="button" onclick="verMinhaTarefa(${t.id})">Ver atividade</button></div>
+    </article>`;
+}
+
+function mineTaskSection(title, subtitle, tarefas, kind) {
+  return `
+    <section class="mine-group mine-group-${kind}">
+      <div class="mine-group-head">
+        <div><h3>${title} <span>${tarefas.length}</span></h3>${subtitle ? `<p>${subtitle}</p>` : ''}</div>
+      </div>
+      <div class="mine-list">
+        ${tarefas.map(mineTaskCard).join('') || '<p class="mine-group-empty">Nenhuma atividade nesta categoria.</p>'}
+      </div>
+    </section>`;
+}
+
 function renderMinhas() {
   const panel = $('minhasPanel');
   const tarefas = state.minhasData?.tarefas || [];
   const ordens = state.minhasData?.os || [];
+  const hoje = mineTodayKey();
+  const ativas = tarefas.filter(t => t.status !== 'Feito');
+  const atrasadas = ativas.filter(t => mineDateOnly(t.prazo) && mineDateOnly(t.prazo) < hoje);
+  const paraHoje = ativas.filter(t => mineDateOnly(t.prazo) === hoje);
+  const proximas = ativas.filter(t => !mineDateOnly(t.prazo) || mineDateOnly(t.prazo) > hoje);
+  const concluidas = tarefas.filter(t => t.status === 'Feito');
+
+  const byDeadline = (a,b) => (mineDateOnly(a.prazo) || '9999-12-31').localeCompare(mineDateOnly(b.prazo) || '9999-12-31') || Number(b.id)-Number(a.id);
+  atrasadas.sort(byDeadline); paraHoje.sort(byDeadline); proximas.sort(byDeadline);
+  concluidas.sort((a,b) => Number(b.id)-Number(a.id));
 
   panel.innerHTML = `
     <div class="dashboard-toolbar">
       <div>
         <strong>Minha área</strong>
-        <span>Você vê apenas as tarefas e OS vinculadas ao seu usuário.</span>
+        <span>Primeiro o que exige sua atenção: atrasadas, atividades de hoje e próximas entregas.</span>
       </div>
     </div>
 
-    <div class="dash-grid">
-      <section class="dash-panel wide">
-        <h2>Minhas tarefas (${tarefas.length})</h2>
-        <div class="mine-list">
-          ${tarefas.map(t => `
-            <article class="mine-card">
-              <div><strong>${escapeHtml(t.titulo)}</strong><span>${escapeHtml(t.setor_nome || '-')} • ${escapeHtml(t.grupo_nome || '-')}</span></div>
-              <div class="mine-meta"><span class="badge ${statusClass(t.status)}">${escapeHtml(t.status)}</span><span class="badge ${priorityClass(t.prioridade)}">${escapeHtml(t.prioridade)}</span><span>Prazo: ${fmtDate(t.prazo)}</span></div>
-              <div class="mine-actions">
-                <select onchange="alterarMinhaTarefa(${t.id}, this.value)">
-                  ${['Não iniciado', 'Em andamento', 'Parado', 'Feito'].map(s => `<option value="${s}" ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-                </select>
-              </div>
-            </article>
-          `).join('') || '<p class="empty">Nenhuma tarefa vinculada ao seu usuário.</p>'}
-        </div>
-      </section>
-
-      <section class="dash-panel wide">
-        <h2>Minhas OS (${ordens.length})</h2>
-        <div class="mine-list">
-          ${ordens.map(o => `
-            <article class="mine-card">
-              <div><strong>${escapeHtml(o.numero || 'OS')} - ${escapeHtml(o.titulo)}</strong><span>${escapeHtml(o.setor_local || '-')} • ${escapeHtml(o.categoria || '-')}</span></div>
-              <div class="mine-meta"><span class="badge ${osStatusClass(o.status)}">${escapeHtml(o.status)}</span><span class="badge ${priorityClass(o.prioridade)}">${escapeHtml(o.prioridade)}</span><span>Criada: ${fmtDateTime(o.criado_em)}</span></div>
-              <div class="mine-actions">
-                <select onchange="alterarMinhaOS(${o.id}, this.value)">
-                  ${OS_STATUS.map(s => `<option value="${s}" ${o.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-                </select>
-              </div>
-            </article>
-          `).join('') || '<p class="empty">Nenhuma OS vinculada ao seu usuário.</p>'}
-        </div>
-      </section>
+    <div class="mine-summary">
+      <div><strong>${atrasadas.length}</strong><span>Atrasadas</span></div>
+      <div><strong>${paraHoje.length}</strong><span>Para hoje</span></div>
+      <div><strong>${proximas.length}</strong><span>Próximas</span></div>
+      <div><strong>${concluidas.length}</strong><span>Concluídas</span></div>
     </div>
+
+    <div class="mine-workflow">
+      ${mineTaskSection('Atrasadas', 'Prioridade de execução.', atrasadas, 'late')}
+      ${mineTaskSection('Para hoje', 'O que precisa ser resolvido hoje.', paraHoje, 'today')}
+      ${mineTaskSection('Próximas', 'Atividades futuras e atividades sem prazo definido.', proximas, 'next')}
+      ${mineTaskSection('Concluídas', 'Histórico recente das suas entregas.', concluidas, 'done')}
+    </div>
+
+    <section class="dash-panel wide mine-os-panel">
+      <h2>Minhas OS (${ordens.length})</h2>
+      <div class="mine-list">
+        ${ordens.map(o => `
+          <article class="mine-card">
+            <div><strong>${escapeHtml(o.numero || 'OS')} - ${escapeHtml(o.titulo)}</strong><span>${escapeHtml(o.setor_local || '-')} • ${escapeHtml(o.categoria || '-')}</span></div>
+            <div class="mine-meta"><span class="badge ${osStatusClass(o.status)}">${escapeHtml(o.status)}</span><span class="badge ${priorityClass(o.prioridade)}">${escapeHtml(o.prioridade)}</span><span>Criada: ${fmtDateTime(o.criado_em)}</span></div>
+            <div class="mine-actions">
+              <select onchange="alterarMinhaOS(${o.id}, this.value)">
+                ${OS_STATUS.map(s => `<option value="${s}" ${o.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+              </select>
+            </div>
+          </article>
+        `).join('') || '<p class="empty">Nenhuma OS vinculada ao seu usuário.</p>'}
+      </div>
+    </section>
   `;
 }
 
+window.verMinhaTarefa = async (id) => { const t=(state.minhasData?.tarefas||[]).find(x=>Number(x.id)===Number(id)); if(!t)return; let hist=[]; try{hist=await api(`/api/tarefas/${id}/historico`);}catch{} openModal('Detalhes da atividade',`<div class="task-detail"><h3>${escapeHtml(t.titulo)}</h3><p>${escapeHtml(t.descricao||'Sem descrição detalhada.')}</p><div class="detail-grid"><span><b>Status</b>${escapeHtml(t.status)}</span><span><b>Prioridade</b>${escapeHtml(t.prioridade)}</span><span><b>Prazo</b>${fmtDate(t.prazo)}</span><span><b>Setor</b>${escapeHtml(t.setor_nome||'-')}</span><span><b>Local</b>${escapeHtml(t.local_atividade||'-')}</span><span><b>Categoria</b>${escapeHtml(t.categoria||'-')}</span></div>${t.checklist?`<div class="detail-section"><b>Checklist</b>${String(t.checklist).split('\n').filter(Boolean).map(x=>`<p>□ ${escapeHtml(x)}</p>`).join('')}</div>`:''}${t.observacoes?`<div class="detail-section"><b>Observações</b><p>${escapeHtml(t.observacoes)}</p></div>`:''}<div class="detail-section"><b>Histórico</b>${hist.map(h=>`<p><strong>${escapeHtml(h.acao)}</strong> • ${escapeHtml(h.usuario_nome||'Sistema')} • ${fmtDateTime(h.criado_em)}${h.detalhes?`<br><small>${escapeHtml(h.detalhes)}</small>`:''}</p>`).join('')||'<p>Sem movimentações registradas.</p>'}</div></div>`); };
+
 window.alterarMinhaTarefa = async (id, status) => {
-  await api(`/api/minhas-tarefas/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
-  await abrirMinhas();
+  const atualizada = await api(`/api/minhas-tarefas/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  const idx = (state.minhasData?.tarefas || []).findIndex(t => Number(t.id) === Number(id));
+  if (idx >= 0) state.minhasData.tarefas[idx] = { ...state.minhasData.tarefas[idx], ...atualizada };
+  renderMinhas();
 };
 
 window.alterarMinhaOS = async (id, status) => {

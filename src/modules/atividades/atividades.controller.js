@@ -46,6 +46,7 @@ router.patch('/api/minhas-tarefas/:id', auth, requireModuleAccess('atividades'),
     `, [status || null, observacoes ?? null, req.params.id, req.user.id]);
 
     if (!tarefa) return res.status(404).json({ error: 'Tarefa não encontrada para este usuário.' });
+    await query('INSERT INTO tarefa_historico(tarefa_id,usuario_id,acao,detalhes) VALUES($1,$2,$3,$4)', [tarefa.id,req.user.id,'Status atualizado',status ? `Novo status: ${status}` : '']);
     res.json(tarefa);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao atualizar sua tarefa.', details: err.message });
@@ -101,9 +102,56 @@ router.patch('/api/minhas-os/:id/status', auth, requireModuleAccess('atividades'
 
 
 
+router.post('/api/lembretes',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const{titulo,descricao,data,horario_inicio,horario_fim,setor_id,visibilidade='setor'}=req.body;if(!titulo||!data)return res.status(400).json({error:'Título e data são obrigatórios.'});const sid=cleanId(setor_id);if(sid&&!await exigirAcessoSetor(req,res,sid,'criar'))return;const item=await get(`INSERT INTO lembretes_agenda(titulo,descricao,data,horario_inicio,horario_fim,setor_id,criado_por,visibilidade) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,[titulo,descricao||'',cleanDate(data),horario_inicio||null,horario_fim||null,sid,req.user.id,visibilidade]);res.status(201).json(item);}catch(err){res.status(500).json({error:'Erro ao criar lembrete.',details:err.message});}});
+
+router.delete('/api/lembretes/:id',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const item=await get('DELETE FROM lembretes_agenda WHERE id=$1 AND criado_por=$2 RETURNING *',[req.params.id,req.user.id]);if(!item)return res.status(404).json({error:'Lembrete não encontrado ou sem permissão.'});res.json({ok:true});}catch(err){res.status(500).json({error:'Erro ao excluir lembrete.',details:err.message});}});
+
+router.get('/api/tarefas/:id/historico',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const sid=await setorIdPorTarefa(req.params.id);if(!sid||!await exigirAcessoSetor(req,res,sid,'visualizar'))return;res.json(await all(`SELECT h.*,u.nome usuario_nome FROM tarefa_historico h LEFT JOIN usuarios u ON u.id=h.usuario_id WHERE h.tarefa_id=$1 ORDER BY h.criado_em DESC`,[req.params.id]));}catch(err){res.status(500).json({error:'Erro ao carregar histórico.',details:err.message});}});
+
+// Agenda mensal leve: usada na navegação do calendário sem recarregar todo o dashboard.
+router.get('/api/agenda', auth, requireModuleAccess('atividades'), async (req, res) => {
+  try {
+    const { setor_id, responsavel, mes } = req.query;
+    const calendarioMes = /^\d{4}-\d{2}$/.test(String(mes || '')) ? String(mes) : new Date().toISOString().slice(0, 7);
+    const acessoSql = isPrincipal(req)
+      ? 'TRUE'
+      : '(s.proprietario_id = $1 OR EXISTS (SELECT 1 FROM setor_compartilhamentos sc WHERE sc.setor_id=s.id AND sc.usuario_id=$1))';
+    const params = isPrincipal(req) ? [] : [req.user.id];
+    let extra = '';
+    if (setor_id) { params.push(setor_id); extra += ` AND s.id = $${params.length}`; }
+    if (responsavel && String(responsavel).trim()) { params.push(`%${String(responsavel).trim()}%`); extra += ` AND COALESCE(t.responsavel,'') ILIKE $${params.length}`; }
+    const calParams = [...params, `${calendarioMes}-01`];
+    const calDateParam = `$${calParams.length}::date`;
+
+    const [tarefas, lembretes] = await Promise.all([
+      all(`SELECT t.id,t.titulo,t.responsavel,t.status,t.prioridade,t.prazo,s.nome setor,'tarefa' AS tipo,t.horario_inicio,t.horario_fim
+           FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id
+           WHERE ${acessoSql}${extra}
+             AND t.prazo >= date_trunc('month',${calDateParam})::date
+             AND t.prazo < (date_trunc('month',${calDateParam}) + INTERVAL '1 month')::date
+           ORDER BY t.prazo,t.horario_inicio NULLS LAST,t.id`, calParams),
+      all(`SELECT l.id,l.titulo,l.descricao,l.data AS prazo,l.horario_inicio,l.horario_fim,s.nome setor,'lembrete' AS tipo
+           FROM lembretes_agenda l LEFT JOIN setores s ON s.id=l.setor_id
+           WHERE l.data >= date_trunc('month',$2::date)::date
+             AND l.data < (date_trunc('month',$2::date)+INTERVAL '1 month')::date
+             AND (l.criado_por=$1 OR l.visibilidade='todos' OR
+               (l.visibilidade='setor' AND (l.setor_id IS NULL OR EXISTS (
+                 SELECT 1 FROM setores sx LEFT JOIN setor_compartilhamentos scx ON scx.setor_id=sx.id AND scx.usuario_id=$1
+                 WHERE sx.id=l.setor_id AND (sx.proprietario_id=$1 OR scx.usuario_id=$1)
+               ))))
+           ORDER BY l.data,l.horario_inicio NULLS LAST,l.id`, [req.user.id, `${calendarioMes}-01`])
+    ]);
+
+    res.json({ mes: calendarioMes, calendario: [...tarefas, ...lembretes] });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao carregar agenda.', details: err.message });
+  }
+});
+
 router.get('/api/dashboard', auth, requireModuleAccess('atividades'), async (req, res) => {
   try {
-    const { setor_id, periodo = '90' } = req.query;
+    const { setor_id, responsavel, periodo = '90', calendario_mes } = req.query;
+    const calendarioMes = /^\d{4}-\d{2}$/.test(String(calendario_mes || '')) ? String(calendario_mes) : new Date().toISOString().slice(0,7);
     const periodoDias = Math.max(7, Math.min(parseInt(periodo, 10) || 90, 365));
     const acessoSql = isPrincipal(req)
       ? 'TRUE'
@@ -111,7 +159,8 @@ router.get('/api/dashboard', auth, requireModuleAccess('atividades'), async (req
     const baseParams = isPrincipal(req) ? [] : [req.user.id];
     let extra = '';
     const params = [...baseParams];
-    if (setor_id) { params.push(setor_id); extra = ` AND s.id = $${params.length}`; }
+    if (setor_id) { params.push(setor_id); extra += ` AND s.id = $${params.length}`; }
+    if (responsavel && String(responsavel).trim()) { params.push(`%${String(responsavel).trim()}%`); extra += ` AND COALESCE(t.responsavel,'') ILIKE $${params.length}`; }
     const totalizadores = await get(`SELECT COUNT(t.*)::int total,
       COUNT(t.*) FILTER(WHERE t.status<>'Feito')::int abertas,
       COUNT(t.*) FILTER(WHERE t.status='Feito')::int concluidas,
@@ -128,7 +177,10 @@ router.get('/api/dashboard', auth, requireModuleAccess('atividades'), async (req
     const tarefasPorMes=await all(`SELECT to_char(date_trunc('month',t.criado_em),'YYYY-MM') mes,COUNT(*)::int criadas,COUNT(*) FILTER(WHERE t.status='Feito')::int concluidas FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} AND t.criado_em>=CURRENT_DATE-($${params.length+1}::int*INTERVAL '1 day') GROUP BY date_trunc('month',t.criado_em) ORDER BY 1`,[...params,periodoDias]);
     const proximosPrazos=await all(`SELECT t.id,t.titulo,t.responsavel,t.status,t.prioridade,t.prazo,s.nome setor,g.nome grupo FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} AND t.status<>'Feito' AND t.prazo IS NOT NULL ORDER BY t.prazo LIMIT 14`,params);
     const ultimasAtividades=await all(`SELECT t.id,t.titulo,t.status,t.responsavel,t.atualizado_em,s.nome setor,g.nome grupo FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} ORDER BY t.atualizado_em DESC LIMIT 12`,params);
-    const calendario=await all(`SELECT t.id,t.titulo,t.responsavel,t.status,t.prioridade,t.prazo,s.nome setor FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} AND t.prazo BETWEEN date_trunc('month',CURRENT_DATE)::date AND (date_trunc('month',CURRENT_DATE)+INTERVAL '1 month - 1 day')::date ORDER BY t.prazo`,params);
+    const calParams=[...params, `${calendarioMes}-01`];
+    const calDateParam=`$${calParams.length}::date`;
+    const calendario=await all(`SELECT t.id,t.titulo,t.responsavel,t.status,t.prioridade,t.prazo,s.nome setor,'tarefa' AS tipo,t.horario_inicio,t.horario_fim FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} AND t.prazo BETWEEN date_trunc('month',${calDateParam})::date AND (date_trunc('month',${calDateParam})+INTERVAL '1 month - 1 day')::date ORDER BY t.prazo,t.horario_inicio`,calParams);
+    const lembretes=await all(`SELECT l.id,l.titulo,l.descricao,l.data AS prazo,l.horario_inicio,l.horario_fim,s.nome setor,'lembrete' AS tipo FROM lembretes_agenda l LEFT JOIN setores s ON s.id=l.setor_id WHERE l.data BETWEEN date_trunc('month',$2::date)::date AND (date_trunc('month',$2::date)+INTERVAL '1 month - 1 day')::date AND (l.criado_por=$1 OR l.visibilidade='todos' OR (l.visibilidade='setor' AND (l.setor_id IS NULL OR EXISTS (SELECT 1 FROM setores sx LEFT JOIN setor_compartilhamentos scx ON scx.setor_id=sx.id AND scx.usuario_id=$1 WHERE sx.id=l.setor_id AND (sx.proprietario_id=$1 OR scx.usuario_id=$1))))) ORDER BY l.data,l.horario_inicio`,[req.user.id,`${calendarioMes}-01`]);
     const quickBase=`FROM tarefas t JOIN grupos g ON g.id=t.grupo_id JOIN setores s ON s.id=g.setor_id WHERE ${acessoSql}${extra} AND t.status<>'Feito'`;
     const [atrasadas,hoje,semana,alta,semResponsavel]=await Promise.all([
       all(`SELECT t.*,s.nome setor,g.nome grupo ${quickBase} AND t.prazo<CURRENT_DATE ORDER BY t.prazo LIMIT 30`,params),
@@ -137,7 +189,7 @@ router.get('/api/dashboard', auth, requireModuleAccess('atividades'), async (req
       all(`SELECT t.*,s.nome setor,g.nome grupo ${quickBase} AND t.prioridade='Alta' ORDER BY t.prazo NULLS LAST LIMIT 30`,params),
       all(`SELECT t.*,s.nome setor,g.nome grupo ${quickBase} AND t.responsavel_id IS NULL ORDER BY t.prazo NULLS LAST LIMIT 30`,params)
     ]);
-    res.json({filtros:{setor_id:setor_id||'',periodo:periodoDias},totalizadores:totalizadores||{},porSetor,porStatus,porResponsavel,tarefasPorMes,proximosPrazos,ultimasAtividades,calendario,quickLists:{atrasadas,hoje,semana,alta,semResponsavel}});
+    res.json({filtros:{setor_id:setor_id||'',responsavel:responsavel||'',periodo:periodoDias,calendario_mes:calendarioMes},totalizadores:totalizadores||{},porSetor,porStatus,porResponsavel,tarefasPorMes,proximosPrazos,ultimasAtividades,calendario:[...calendario,...lembretes],quickLists:{atrasadas,hoje,semana,alta,semResponsavel}});
   } catch(err){res.status(500).json({error:'Erro ao carregar dashboard.',details:err.message});}
 });
 
@@ -204,8 +256,8 @@ router.post('/api/grupos',auth,requireModuleAccess('atividades'),async(req,res)=
 router.put('/api/grupos/:id',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const sid=await setorIdPorGrupo(req.params.id);if(!sid||!await exigirAcessoSetor(req,res,sid,'gerenciar'))return;const{nome,cor}=req.body;res.json(await get('UPDATE grupos SET nome=$1,cor=$2 WHERE id=$3 RETURNING *',[nome,cor||'#2563eb',req.params.id]));}catch(err){res.status(500).json({error:'Erro ao atualizar grupo.',details:err.message});}});
 router.delete('/api/grupos/:id',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const sid=await setorIdPorGrupo(req.params.id);if(!sid||!await exigirAcessoSetor(req,res,sid,'gerenciar'))return;await query('DELETE FROM grupos WHERE id=$1',[req.params.id]);res.json({ok:true});}catch(err){res.status(500).json({error:'Erro ao excluir grupo.',details:err.message});}});
 
-router.post('/api/tarefas',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const{grupo_id,titulo,responsavel_id,responsavel,status,prioridade,prazo,cronograma_inicio,cronograma_fim,observacoes}=req.body;if(!grupo_id||!titulo)return res.status(400).json({error:'Grupo e título são obrigatórios.'});const sid=await setorIdPorGrupo(grupo_id);if(!sid||!await exigirAcessoSetor(req,res,sid,'criar'))return;const respId=cleanId(responsavel_id),respNome=respId?await getUserNameById(respId):(responsavel||''),ordem=await getNextOrder('tarefas','grupo_id',grupo_id);const tarefa=await get(`INSERT INTO tarefas(grupo_id,titulo,responsavel,responsavel_id,status,prioridade,prazo,cronograma_inicio,cronograma_fim,observacoes,ordem,criado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,[grupo_id,titulo,respNome||'',respId,status||'Não iniciado',prioridade||'Média',cleanDate(prazo),cleanDate(cronograma_inicio),cleanDate(cronograma_fim),observacoes||'',ordem,req.user.id]);res.status(201).json(tarefa);}catch(err){res.status(500).json({error:'Erro ao criar tarefa.',details:err.message});}});
-router.put('/api/tarefas/:id',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const antiga=await get('SELECT t.*,g.setor_id FROM tarefas t JOIN grupos g ON g.id=t.grupo_id WHERE t.id=$1',[req.params.id]);if(!antiga)return res.status(404).json({error:'Tarefa não encontrada.'});const acesso=await exigirAcessoSetor(req,res,antiga.setor_id,'visualizar');if(!acesso)return;const podeEditar=PERMISSAO_NIVEL[acesso.permissao]>=PERMISSAO_NIVEL.editar||(acesso.permissao==='criar'&&String(antiga.criado_por)===String(req.user.id));if(!podeEditar)return res.status(403).json({error:'Você pode editar apenas tarefas criadas por você.'});const{grupo_id,titulo,responsavel_id,responsavel,status,prioridade,prazo,cronograma_inicio,cronograma_fim,observacoes}=req.body;const novoGrupoId=cleanId(grupo_id);if(!novoGrupoId)return res.status(400).json({error:'Grupo inválido.'});const novoSetorId=await setorIdPorGrupo(novoGrupoId);if(!novoSetorId)return res.status(400).json({error:'Grupo não encontrado.'});if(String(novoSetorId)!==String(antiga.setor_id))return res.status(403).json({error:'Não é permitido mover a tarefa para outro setor por esta operação.'});const respId=cleanId(responsavel_id),respNome=respId?await getUserNameById(respId):(responsavel||'');const tarefa=await get(`UPDATE tarefas SET grupo_id=$1,titulo=$2,responsavel=$3,responsavel_id=$4,status=$5,prioridade=$6,prazo=$7,cronograma_inicio=$8,cronograma_fim=$9,observacoes=$10,atualizado_em=CURRENT_TIMESTAMP WHERE id=$11 RETURNING *`,[novoGrupoId,titulo,respNome||'',respId,status||'Não iniciado',prioridade||'Média',cleanDate(prazo),cleanDate(cronograma_inicio),cleanDate(cronograma_fim),observacoes||'',req.params.id]);res.json(tarefa);}catch(err){res.status(500).json({error:'Erro ao atualizar tarefa.',details:err.message});}});
+router.post('/api/tarefas',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const{grupo_id,titulo,responsavel_id,responsavel,status,prioridade,prazo,cronograma_inicio,cronograma_fim,observacoes,descricao,local_atividade,categoria,link_referencia,horario_inicio,horario_fim,recorrencia,exigir_comprovacao,checklist}=req.body;if(!grupo_id||!titulo)return res.status(400).json({error:'Grupo e título são obrigatórios.'});const sid=await setorIdPorGrupo(grupo_id);if(!sid||!await exigirAcessoSetor(req,res,sid,'criar'))return;const respId=cleanId(responsavel_id),respNome=respId?await getUserNameById(respId):(responsavel||''),ordem=await getNextOrder('tarefas','grupo_id',grupo_id);const tarefa=await get(`INSERT INTO tarefas(grupo_id,titulo,responsavel,responsavel_id,status,prioridade,prazo,cronograma_inicio,cronograma_fim,observacoes,ordem,criado_por,descricao,local_atividade,categoria,link_referencia,horario_inicio,horario_fim,recorrencia,exigir_comprovacao,checklist) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *`,[grupo_id,titulo,respNome||'',respId,status||'Não iniciado',prioridade||'Média',cleanDate(prazo),cleanDate(cronograma_inicio),cleanDate(cronograma_fim),observacoes||'',ordem,req.user.id,descricao||'',local_atividade||'',categoria||'',link_referencia||'',horario_inicio||null,horario_fim||null,recorrencia||'Nenhuma',!!exigir_comprovacao,checklist||'']);await query('INSERT INTO tarefa_historico(tarefa_id,usuario_id,acao,detalhes) VALUES($1,$2,$3,$4)',[tarefa.id,req.user.id,'Atividade criada','']);res.status(201).json(tarefa);}catch(err){res.status(500).json({error:'Erro ao criar tarefa.',details:err.message});}});
+router.put('/api/tarefas/:id',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const antiga=await get('SELECT t.*,g.setor_id FROM tarefas t JOIN grupos g ON g.id=t.grupo_id WHERE t.id=$1',[req.params.id]);if(!antiga)return res.status(404).json({error:'Tarefa não encontrada.'});const acesso=await exigirAcessoSetor(req,res,antiga.setor_id,'visualizar');if(!acesso)return;const podeEditar=PERMISSAO_NIVEL[acesso.permissao]>=PERMISSAO_NIVEL.editar||(acesso.permissao==='criar'&&String(antiga.criado_por)===String(req.user.id));if(!podeEditar)return res.status(403).json({error:'Você pode editar apenas tarefas criadas por você.'});const{grupo_id,titulo,responsavel_id,responsavel,status,prioridade,prazo,cronograma_inicio,cronograma_fim,observacoes,descricao,local_atividade,categoria,link_referencia,horario_inicio,horario_fim,recorrencia,exigir_comprovacao,checklist}=req.body;const novoGrupoId=cleanId(grupo_id);if(!novoGrupoId)return res.status(400).json({error:'Grupo inválido.'});const novoSetorId=await setorIdPorGrupo(novoGrupoId);if(!novoSetorId)return res.status(400).json({error:'Grupo não encontrado.'});if(String(novoSetorId)!==String(antiga.setor_id))return res.status(403).json({error:'Não é permitido mover a tarefa para outro setor por esta operação.'});const respId=cleanId(responsavel_id),respNome=respId?await getUserNameById(respId):(responsavel||'');const tarefa=await get(`UPDATE tarefas SET grupo_id=$1,titulo=$2,responsavel=$3,responsavel_id=$4,status=$5,prioridade=$6,prazo=$7,cronograma_inicio=$8,cronograma_fim=$9,observacoes=$10,descricao=$11,local_atividade=$12,categoria=$13,link_referencia=$14,horario_inicio=$15,horario_fim=$16,recorrencia=$17,exigir_comprovacao=$18,checklist=$19,atualizado_em=CURRENT_TIMESTAMP WHERE id=$20 RETURNING *`,[novoGrupoId,titulo,respNome||'',respId,status||'Não iniciado',prioridade||'Média',cleanDate(prazo),cleanDate(cronograma_inicio),cleanDate(cronograma_fim),observacoes||'',descricao||'',local_atividade||'',categoria||'',link_referencia||'',horario_inicio||null,horario_fim||null,recorrencia||'Nenhuma',!!exigir_comprovacao,checklist||'',req.params.id]);await query('INSERT INTO tarefa_historico(tarefa_id,usuario_id,acao,detalhes) VALUES($1,$2,$3,$4)',[req.params.id,req.user.id,'Atividade atualizada',status!==antiga.status?`Status: ${antiga.status} → ${status}`:'']);res.json(tarefa);}catch(err){res.status(500).json({error:'Erro ao atualizar tarefa.',details:err.message});}});
 router.delete('/api/tarefas/:id',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const t=await get('SELECT t.criado_por,g.setor_id FROM tarefas t JOIN grupos g ON g.id=t.grupo_id WHERE t.id=$1',[req.params.id]);if(!t)return res.status(404).json({error:'Tarefa não encontrada.'});const acesso=await exigirAcessoSetor(req,res,t.setor_id,'visualizar');if(!acesso)return;const pode=PERMISSAO_NIVEL[acesso.permissao]>=PERMISSAO_NIVEL.gerenciar||(acesso.permissao==='criar'&&String(t.criado_por)===String(req.user.id));if(!pode)return res.status(403).json({error:'Sem permissão para excluir esta tarefa.'});await query('DELETE FROM tarefas WHERE id=$1',[req.params.id]);res.json({ok:true});}catch(err){res.status(500).json({error:'Erro ao excluir tarefa.',details:err.message});}});
 router.get('/api/tarefas/:id/comentarios',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const sid=await setorIdPorTarefa(req.params.id);if(!sid||!await exigirAcessoSetor(req,res,sid,'visualizar'))return;res.json(await all(`SELECT c.*,u.nome usuario_nome FROM comentarios c LEFT JOIN usuarios u ON u.id=c.usuario_id WHERE tarefa_id=$1 ORDER BY c.id DESC`,[req.params.id]));}catch(err){res.status(500).json({error:'Erro ao listar comentários.',details:err.message});}});
 router.post('/api/tarefas/:id/comentarios',auth,requireModuleAccess('atividades'),async(req,res)=>{try{const sid=await setorIdPorTarefa(req.params.id);if(!sid||!await exigirAcessoSetor(req,res,sid,'criar'))return;const{comentario}=req.body;if(!comentario)return res.status(400).json({error:'Comentário obrigatório.'});res.status(201).json(await get('INSERT INTO comentarios(tarefa_id,usuario_id,comentario) VALUES($1,$2,$3) RETURNING *',[req.params.id,req.user.id,comentario]));}catch(err){res.status(500).json({error:'Erro ao criar comentário.',details:err.message});}});

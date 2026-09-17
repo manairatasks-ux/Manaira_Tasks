@@ -1,0 +1,9 @@
+V22 - Minhas atividades por prioridade operacional
+
+- Minhas Atividades reorganizada em Atrasadas, Para hoje, Próximas e Concluídas.
+- Resumo com contadores no topo.
+- Atividades sem prazo aparecem em Próximas.
+- Concluídas ficam separadas das atividades que ainda exigem ação.
+- Mudança de status atualiza a tela localmente sem recarregar novamente tarefas e OS, deixando o uso mais leve.
+- Cards preservam detalhes, checklist e botão Ver atividade.
+- Minhas OS permanece abaixo, separada do fluxo de tarefas.

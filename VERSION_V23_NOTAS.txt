@@ -1,0 +1,8 @@
+V23 - CORREÇÃO DOS FILTROS DO DASHBOARD
+
+- Corrigido filtro por responsável no backend do Dashboard Geral.
+- O texto informado em “Filtrar responsável” agora é aplicado a totalizadores, gráficos, listas rápidas e demais blocos do dashboard.
+- O filtro de responsável também é preservado ao navegar pelos meses da Agenda.
+- Aplicar filtros não perde mais o mês atualmente selecionado no calendário.
+- Limpar filtros restaura setor/responsável/período e retorna a agenda ao mês atual.
+- Mantidas as otimizações e a nova organização de Minhas Atividades da V22.
