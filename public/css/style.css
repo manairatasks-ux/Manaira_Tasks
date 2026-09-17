@@ -4636,8 +4636,8 @@ td:last-child {
 .cartaz-edit {
   position: absolute;
   cursor: move;
-  font-family: Impact, 'Arial Black', sans-serif;
-  font-weight: 900;
+  font-family: Impact, sans-serif;
+  font-weight: normal;
   color: #050505;
   line-height: .92;
   touch-action: none;
@@ -5062,4 +5062,28 @@ td:last-child {
 .cartaz-canvas.oferta .cartaz-por-prefix,
 .cartaz-canvas.oferta .cartaz-de-prefix {
   display: none !important;
+}
+
+/* Fonte oficial dos cartazes */
+.cartaz-canvas,
+.cartaz-canvas .cartaz-edit,
+.cartaz-canvas .cartaz-edit strong,
+.cartaz-canvas .cartaz-edit span,
+.cartaz-canvas .cartaz-edit i,
+.cartaz-canvas .cartaz-edit em {
+  font-family: Impact, sans-serif !important;
+  font-weight: normal !important;
+}
+
+/* ==========================================================
+   V28 - CARTAZES: largura automática real dos preços
+   O JavaScript mede a largura natural e aplica scaleX no <strong>.
+   A caixa externa continua livre para posicionamento/arraste.
+   ========================================================== */
+.cartaz-canvas .cartaz-por > strong,
+.cartaz-canvas .cartaz-de > strong {
+  width: max-content;
+  flex: 0 0 auto;
+  transform-origin: center center;
+  will-change: transform;
 }

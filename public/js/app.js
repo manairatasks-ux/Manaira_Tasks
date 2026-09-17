@@ -4058,6 +4058,10 @@ function cartazControlesProduto(p) {
  <div class="cartaz-actions"><button type="button" id="cartazReset">Restaurar layout</button><button type="button" class="primary" id="cartazAddFila">＋ Enviar para fila</button></div>`;
 }
 
+// ============================================================
+// CARTAZES - PREVIEW E AJUSTE AUTOMÁTICO
+// ============================================================
+
 function cartazPreviewHtml(p) {
   const oferta = state.cartazModelo === 'oferta';
   const desc = escapeHtml(cartazDescricao(p));
@@ -4077,49 +4081,245 @@ function cartazPreviewHtml(p) {
       style="background-image:url('/img/cartazes/${oferta ? 'oferta' : 'normal'}.jpeg')"
     >
 
-      <!-- DESCRIÇÃO -->
       <div
         class="cartaz-edit cartaz-desc"
         data-field="desc"
         tabindex="0"
-      >${desc}</div>
+      >
+        ${desc}
+      </div>
 
-      ${oferta
-      ? `
-            <!-- VALIDADE -->
-            <div
-              class="cartaz-edit cartaz-validade"
-              data-field="validade"
-              tabindex="0"
-            >${escapeHtml(cartazValidade(p))}</div>
+      ${oferta ? `
+        <div
+          class="cartaz-edit cartaz-validade"
+          data-field="validade"
+          tabindex="0"
+        >
+          ${escapeHtml(cartazValidade(p))}
+        </div>
 
-            <!-- PREÇO DE -->
-            <div
-              class="cartaz-edit cartaz-de"
-              data-field="de"
-              tabindex="0"
-            >
-              <strong>
-                <span>${de.inteiro}</span><i>,</i><em>${de.cent}</em>
-              </strong>
-            </div>
-          `
-      : ''
-    }
+        <div
+          class="cartaz-edit cartaz-de"
+          data-field="de"
+          data-inteiro="${de.inteiro}"
+          tabindex="0"
+        >
+          <strong>
+            <span>${de.inteiro}</span>
+            <i>,</i>
+            <em>${de.cent}</em>
+          </strong>
+        </div>
+      ` : ''}
 
-      <!-- PREÇO PRINCIPAL -->
       <div
         class="cartaz-edit cartaz-por"
         data-field="por"
+        data-inteiro="${por.inteiro}"
         tabindex="0"
       >
         <strong>
-          <span>${por.inteiro}</span><i>,</i><em>${por.cent}</em>
+          <span>${por.inteiro}</span>
+          <i>,</i>
+          <em>${por.cent}</em>
         </strong>
       </div>
 
     </div>
   `;
+}
+
+
+// ============================================================
+// AJUSTE AUTOMÁTICO DA DESCRIÇÃO
+// ============================================================
+
+function cartazAjustarDescricao() {
+  const el = document.querySelector('#cartazCanvas .cartaz-desc');
+  if (!el) return;
+
+  const canvas = $('cartazCanvas');
+  if (!canvas) return;
+
+  const max = canvas.classList.contains('oferta') ? 62 : 64;
+  const min = 22;
+
+  let size = max;
+
+  el.style.fontSize = size + 'px';
+
+  while (
+    size > min &&
+    (
+      el.scrollWidth > el.clientWidth + 1 ||
+      el.scrollHeight > el.clientHeight + 1
+    )
+  ) {
+    size -= 1;
+    el.style.fontSize = size + 'px';
+  }
+}
+
+
+// ============================================================
+// AJUSTE AUTOMÁTICO DOS PREÇOS
+// ============================================================
+
+function cartazAjustarPrecos() {
+  const canvas = $('cartazCanvas');
+  if (!canvas) return;
+
+  /*
+    O preço é medido já renderizado na fonte do cartaz e o <strong>
+    é esticado/comprimido SOMENTE no eixo X para ocupar uma largura-alvo.
+    Assim 5,99 / 59,99 / 599,99 tendem a preencher a mesma faixa visual,
+    sem alterar a altura e sem interferir no arraste do elemento externo.
+  */
+  const ajustar = (selector, alvo = 0.92, min = 0.58, max = 1.85) => {
+    const el = canvas.querySelector(selector);
+    const strong = el?.querySelector(':scope > strong');
+    if (!el || !strong) return;
+
+    // Remove qualquer escala anterior antes de medir a largura natural.
+    strong.style.transform = 'scaleX(1)';
+    strong.style.transformOrigin = 'center center';
+
+    requestAnimationFrame(() => {
+      const larguraNatural = strong.offsetWidth;
+      const larguraArea = el.clientWidth;
+      if (!larguraNatural || !larguraArea) return;
+
+      const larguraAlvo = larguraArea * alvo;
+      let escala = larguraAlvo / larguraNatural;
+      escala = Math.max(min, Math.min(max, escala));
+
+      strong.style.transform = `scaleX(${escala.toFixed(4)})`;
+      strong.dataset.scaleX = escala.toFixed(4);
+    });
+  };
+
+  if (canvas.classList.contains('oferta')) {
+    // O DE ocupa uma faixa menor; o POR é o preço de maior destaque.
+    ajustar('.cartaz-de', 0.88, 0.62, 1.70);
+    ajustar('.cartaz-por', 0.94, 0.55, 1.85);
+  } else {
+    ajustar('.cartaz-por', 0.94, 0.55, 1.85);
+  }
+}
+
+// ============================================================
+// AJUSTE COMPLETO DO CARTAZ
+// ============================================================
+
+function cartazAjustarLayout() {
+  cartazAjustarDescricao();
+  cartazAjustarPrecos();
+}
+
+
+// ============================================================
+// MOVIMENTO DOS ELEMENTOS
+// ============================================================
+
+function habilitarDragCartaz() {
+  const canvas = $('cartazCanvas');
+
+  if (!canvas) return;
+
+  /*
+    Esperamos o navegador terminar de montar o cartaz
+    antes de calcular os tamanhos.
+  */
+  requestAnimationFrame(() => {
+    cartazAjustarLayout();
+  });
+
+
+  canvas.querySelectorAll('.cartaz-edit').forEach(el => {
+
+    el.addEventListener('pointerdown', ev => {
+
+      if (ev.button !== 0) return;
+
+      ev.preventDefault();
+
+      el.setPointerCapture(ev.pointerId);
+
+      const r = canvas.getBoundingClientRect();
+      const er = el.getBoundingClientRect();
+
+      const ox = ev.clientX - er.left;
+      const oy = ev.clientY - er.top;
+
+
+      const move = e => {
+
+        /*
+          MOVIMENTO LIVRE
+
+          Não usamos:
+          canvas.width - larguraDoElemento
+
+          porque a caixa do preço é grande e isso criava
+          aquela "parede invisível" que impedia você de
+          levar o preço para o lado direito.
+        */
+
+        let x = e.clientX - r.left - ox;
+        let y = e.clientY - r.top - oy;
+
+
+        /*
+          Mantemos apenas o ponto de referência dentro
+          do cartaz.
+
+          A caixa pode ultrapassar um pouco a área,
+          permitindo posicionar visualmente o preço
+          onde realmente precisa ficar.
+        */
+
+        x = Math.max(0, Math.min(r.width, x));
+        y = Math.max(0, Math.min(r.height, y));
+
+
+        el.style.left = (x / r.width * 100) + '%';
+        el.style.top = (y / r.height * 100) + '%';
+
+        /*
+          O transform do ELEMENTO precisa ficar livre
+          porque o preço possui seu próprio scaleX
+          aplicado no <strong>.
+        */
+        el.style.transform = 'none';
+      };
+
+
+      const up = () => {
+        el.removeEventListener('pointermove', move);
+
+        try {
+          el.releasePointerCapture(ev.pointerId);
+        } catch (_) { }
+      };
+
+
+      el.addEventListener('pointermove', move);
+
+      el.addEventListener(
+        'pointerup',
+        up,
+        { once: true }
+      );
+
+      el.addEventListener(
+        'pointercancel',
+        up,
+        { once: true }
+      );
+
+    });
+
+  });
 }
 async function buscarProdutoCartaz() {
   const tipo = $('cartazBuscaTipo').value, valor = $('cartazBusca').value.trim(); if (!valor) return;
@@ -4154,7 +4354,14 @@ function habilitarDragCartaz() {
   const canvas = $('cartazCanvas');
   if (!canvas) return;
 
-  requestAnimationFrame(cartazAjustarDescricao);
+  requestAnimationFrame(() => {
+    cartazAjustarLayout();
+
+    // Se a fonte terminar de carregar depois do primeiro frame, mede novamente.
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(() => cartazAjustarPrecos()).catch(() => {});
+    }
+  });
 
   canvas.querySelectorAll('.cartaz-edit').forEach(el => {
 

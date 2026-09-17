@@ -1,0 +1,8 @@
+V28 - Ajuste automático real da largura dos preços
+
+- Corrigida duplicidade de habilitarDragCartaz que impedia o ajuste de preços de ser chamado.
+- Preços agora são medidos pela largura renderizada real.
+- scaleX aplicado somente no <strong>, preservando altura e arraste livre.
+- NORMAL e OFERTA possuem larguras-alvo independentes.
+- Recalcula após carregamento das fontes.
+- Mantida a correção da parede invisível.
