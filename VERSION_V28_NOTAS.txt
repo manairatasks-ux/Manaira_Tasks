@@ -1,8 +1,21 @@
-V28 - Ajuste automático real da largura dos preços
+V28 - Módulo Cartazes | Área de impressão A4 (TESTE)
 
-- Corrigida duplicidade de habilitarDragCartaz que impedia o ajuste de preços de ser chamado.
-- Preços agora são medidos pela largura renderizada real.
-- scaleX aplicado somente no <strong>, preservando altura e arraste livre.
-- NORMAL e OFERTA possuem larguras-alvo independentes.
-- Recalcula após carregamento das fontes.
-- Mantida a correção da parede invisível.
+Implementado:
+- A plaquinha continua sendo salva na fila sem tamanho.
+- Nova tela "Impressão A4" acessível pela fila e pelo menu lateral.
+- Na impressão, o usuário escolhe Pequena ou Grande antes de clicar no item da fila.
+- Pequena: 14 cm x 9,22 cm; até 4 por folha A4 horizontal.
+- Grande: arte girada 90 graus; 20 cm de comprimento; até 2 por folha A4 horizontal.
+- Layout misto suportado: 2 pequenas em uma coluna + 1 grande na outra.
+- Clique no item da fila adiciona automaticamente no próximo espaço compatível.
+- Ao lotar a folha, o sistema cria automaticamente uma nova folha.
+- A mesma plaquinha pode ser clicada várias vezes sem sair da fila.
+- Remoção individual da montagem sem apagar o item da fila.
+- Nova folha, navegação entre folhas, limpar e excluir folha.
+- Montagem salva no localStorage para não perder ao atualizar a página.
+- Botão de impressão imprime somente as folhas montadas, em A4 horizontal.
+- Posições arrastadas no editor são reaproveitadas na impressão.
+- Novos cartazes também passam a guardar tamanho de fonte relativo para maior fidelidade de impressão.
+
+Observação:
+Esta é uma versão de teste para calibração física. Ao imprimir no navegador, usar escala 100% / tamanho real e desativar margens extras/cabeçalhos do navegador quando disponíveis.
