@@ -1,8 +1,0 @@
-V29 - CORREÇÃO DA PLAQUINHA GRANDE NA IMPRESSÃO A4
-
-- Corrigida a rotação da plaquinha grande para 90 graus à esquerda, igual ao padrão usado no Word.
-- Mantido o tamanho físico da grande em 13,17 cm x 20 cm.
-- Removido o posicionamento por translate() que podia causar deslocamento/estouro no Chrome Print.
-- O enquadramento da arte grande agora é fixo e recortado exatamente no slot.
-- Reforçado o CSS de impressão para evitar que elementos invisíveis da interface gerem páginas em branco ou sobra na impressão.
-- Nenhuma alteração na medida/posição das plaquinhas pequenas.
