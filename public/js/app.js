@@ -1,3 +1,14 @@
+function lerJsonLocal(chave, fallback) {
+  try {
+    const raw = localStorage.getItem(chave);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed ?? fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
 const state = {
   token: localStorage.getItem('mb_token'),
   usuario: null,
@@ -35,11 +46,12 @@ const state = {
   produtoGzAtual: null,
   cartazesView: 'rapido',
   cartazProduto: null,
+  cartazDraft: null,
   cartazModelo: 'normal',
-  cartazFila: JSON.parse(localStorage.getItem('mb_cartazes_fila') || '[]'),
+  cartazFila: lerJsonLocal('mb_cartazes_fila', []),
   cartazImpressaoTamanho: 'pequena',
   cartazImpressaoPagina: 0,
-  cartazImpressaoPaginas: JSON.parse(localStorage.getItem('mb_cartazes_impressao_paginas') || '[]')
+  cartazImpressaoPaginas: lerJsonLocal('mb_cartazes_impressao_paginas', [])
 };
 
 const CACHE_TTL = 60 * 1000;
@@ -3977,24 +3989,133 @@ window.desativarUsuario = async (id) => {
 
 
 // =========================
-// V25 - Cartazes Manaíra (layout inteligente + promoção por vigência)
+// V30 - Cartazes / Plaquinhas Manaíra
+// Revisão completa do módulo: preview, edição, fila e impressão A4.
 // =========================
-function entrarCartazes(view = 'rapido') {
-  if (!exigirModulo('cartazes', 'Cartazes')) return;
-  state.cartazesView = view;
-  setModule('cartazes');
-  setView('cartazes');
-  $('setorTitulo').textContent = 'Cartazes';
-  $('setorDescricao').textContent = 'Crie plaquinhas rapidamente com os dados da GZ e ajuste antes de imprimir.';
-  history.replaceState(null, '', '#cartazes');
-  renderCartazes();
+
+const CARTAZ_STORAGE_FILA = 'mb_cartazes_fila';
+const CARTAZ_STORAGE_IMPRESSAO = 'mb_cartazes_impressao_paginas';
+const CARTAZ_SCHEMA = 30;
+
+const CARTAZ_LAYOUTS = {
+  normal: {
+    desc: { left: 18, top: 2.7, width: 78, height: 27, scale: 120 },
+    por: { left: 24, top: 40, width: 68, height: 51, scale: 165 }
+  },
+  oferta: {
+    desc: { left: 16, top: 4, width: 78, height: 25, scale: 120 },
+    validade: { left: 63, top: 33, width: 37, height: 9, scale: 80 },
+    de: { left: 12, top: 37, width: 24, height: 15, scale: 90 },
+    por: { left: 35, top: 46, width: 59, height: 42, scale: 180 }
+  }
+};
+
+const CARTAZ_PRECO_CQW = {
+  normal: {
+    por: {
+      1: 30,
+      2: 27.5,
+      3: 24,
+      4: 20.5,
+      5: 18,
+      default: 16
+    }
+  },
+
+  oferta: {
+    de: {
+      1: 9.8,
+      2: 9.1,
+      3: 8,
+      4: 6.9,
+      default: 6.1
+    },
+
+    por: {
+      1: 26,
+      2: 23.5,
+      3: 20.5,
+      4: 17.5,
+      5: 15,
+      default: 13.5
+    }
+  }
+};
+
+// V31 - controles numéricos: o valor digitado pelo usuário é a fonte de verdade.
+const CARTAZ_ESCALA_LIMITES = {
+  desc: { min: 50, max: 250 },
+  de: { min: 50, max: 250 },
+  por: { min: 50, max: 300 },
+  validade: { min: 60, max: 160 }
+};
+
+function cartazLimitesEscala(campo) {
+  return CARTAZ_ESCALA_LIMITES[campo] || { min: 50, max: 300 };
 }
 
-function cartazSalvarFila() { localStorage.setItem('mb_cartazes_fila', JSON.stringify(state.cartazFila || [])); }
-function cartazValor(v) { const n = Number(v || 0); return Number.isFinite(n) ? n : 0; }
-function cartazPreco(v) { return cartazValor(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function cartazDescricao(p) { return String(p?.descricao || p?.descpdv || 'PRODUTO').trim().replace(/\s+/g, ' '); }
-function cartazPrecoOferta(p) { return cartazValor(p?.precoEspecial || p?.precoPromocao); }
+function cartazNormalizarEscala(campo, valor, fallback = 100) {
+  const { min, max } = cartazLimitesEscala(campo);
+  const n = Number(valor);
+  const base = Number.isFinite(n) ? n : fallback;
+  return Math.max(min, Math.min(max, base));
+}
+
+let cartazResultadosBusca = [];
+let cartazBuscaSeq = 0;
+
+function cartazClone(v) {
+  return JSON.parse(JSON.stringify(v));
+}
+
+function cartazUid(prefix = 'cartaz') {
+  if (globalThis.crypto?.randomUUID) return `${prefix}_${crypto.randomUUID()}`;
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function cartazSalvarFila() {
+  try { localStorage.setItem(CARTAZ_STORAGE_FILA, JSON.stringify(state.cartazFila || [])); } catch (_) { }
+}
+
+function cartazImpressaoSalvar() {
+  try { localStorage.setItem(CARTAZ_STORAGE_IMPRESSAO, JSON.stringify(state.cartazImpressaoPaginas || [])); } catch (_) { }
+}
+
+function cartazValor(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  const txt = String(v ?? '').trim();
+  if (!txt) return 0;
+  const normalizado = txt
+    .replace(/R\$/gi, '')
+    .replace(/\s/g, '')
+    .replace(/\.(?=\d{3}(?:\D|$))/g, '')
+    .replace(',', '.');
+  const n = Number(normalizado);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function cartazPreco(v) {
+  return cartazValor(v).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function cartazPrecoPartes(v) {
+  const [inteiro = '0', cent = '00'] = cartazPreco(v).split(',');
+  return { inteiro, cent };
+}
+
+function cartazDescricao(p) {
+  return String(p?.descricao || p?.descpdv || 'PRODUTO').trim().replace(/\s+/g, ' ');
+}
+
+function cartazPrecoOferta(p) {
+  // Mantém a regra validada do módulo: preço especial primeiro e promoção como fallback.
+  const especial = cartazValor(p?.precoEspecial);
+  const promocao = cartazValor(p?.precoPromocao);
+  return especial > 0 ? especial : promocao;
+}
 
 function cartazDataPartes(v) {
   if (!v) return null;
@@ -4005,19 +4126,256 @@ function cartazDataPartes(v) {
   if (m) return { y: +m[3], m: +m[2], d: +m[1] };
   return null;
 }
-function cartazDataNumero(v) { const p = cartazDataPartes(v); return p ? p.y * 10000 + p.m * 100 + p.d : null; }
-function cartazHojeNumero() { const d = new Date(); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
-function cartazTemOferta(p) {
-  const especial = cartazPrecoOferta(p), normal = cartazValor(p?.precoVenda);
-  const ini = cartazDataNumero(p?.dataInicioPromocao), fim = cartazDataNumero(p?.dataTerminoPromocao), hoje = cartazHojeNumero();
-  return especial > 0 && especial !== normal && ini !== null && fim !== null && hoje >= ini && hoje <= fim;
+
+function cartazDataNumero(v) {
+  const p = cartazDataPartes(v);
+  return p ? p.y * 10000 + p.m * 100 + p.d : null;
 }
+
+function cartazHojeNumero() {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
+
+function cartazTemOferta(p) {
+  const promocional = cartazPrecoOferta(p);
+  const normal = cartazValor(p?.precoVenda);
+  const ini = cartazDataNumero(p?.dataInicioPromocao);
+  const fim = cartazDataNumero(p?.dataTerminoPromocao);
+  const hoje = cartazHojeNumero();
+  return promocional > 0 && promocional !== normal && ini !== null && fim !== null && hoje >= ini && hoje <= fim;
+}
+
 function cartazValidade(p) {
-  const x = cartazDataPartes(p?.dataTerminoPromocao); if (!x) return '';
-  const d = new Date(Date.UTC(x.y, x.m - 1, x.d)); d.setUTCDate(d.getUTCDate() + 1);
+  const x = cartazDataPartes(p?.dataTerminoPromocao);
+  if (!x) return '';
+  // Regra já existente no projeto: a validade impressa é o dia seguinte ao término retornado pela GZ.
+  const d = new Date(Date.UTC(x.y, x.m - 1, x.d));
+  d.setUTCDate(d.getUTCDate() + 1);
   return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
 }
-function cartazPrecoPartes(v) { const txt = cartazPreco(v); const [inteiro = '0', cent = '00'] = txt.split(','); return { inteiro, cent }; }
+
+function cartazLayoutPadrao(modelo) {
+  return cartazClone(CARTAZ_LAYOUTS[modelo === 'oferta' ? 'oferta' : 'normal']);
+}
+
+function cartazNumeroCss(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function cartazPercentualAntigo(v, fallback) {
+  const m = String(v || '').trim().match(/^(-?\d+(?:\.\d+)?)%$/);
+  return m ? Number(m[1]) : fallback;
+}
+
+function cartazNormalizarLayoutAntigo(c) {
+  const modelo = c?.modelo === 'oferta' ? 'oferta' : 'normal';
+  const layout = cartazLayoutPadrao(modelo);
+  const fields = c?.fields || {};
+  Object.keys(layout).forEach(campo => {
+    const antigo = fields[campo] || {};
+    layout[campo].left = cartazPercentualAntigo(antigo.left, layout[campo].left);
+    layout[campo].top = cartazPercentualAntigo(antigo.top, layout[campo].top);
+    const fontPct = campo === 'de' || campo === 'por' ? Number(antigo.strongFontSizePct) : Number(antigo.fontSizePct);
+    if (Number.isFinite(fontPct) && fontPct > 0 && fontPct < 60) layout[campo].fitCqw = fontPct;
+  });
+  return layout;
+}
+
+function cartazNormalizarLayout(c, modelo) {
+  const base = cartazLayoutPadrao(modelo);
+  if (!c?.layout || typeof c.layout !== 'object') return cartazNormalizarLayoutAntigo(c);
+  Object.keys(base).forEach(campo => {
+    const src = c.layout[campo] || {};
+    base[campo] = {
+      ...base[campo],
+      ...src,
+      left: cartazNumeroCss(src.left, base[campo].left),
+      top: cartazNumeroCss(src.top, base[campo].top),
+      width: Math.max(1, cartazNumeroCss(src.width, base[campo].width)),
+      height: Math.max(1, cartazNumeroCss(src.height, base[campo].height)),
+      scale: cartazNormalizarEscala(campo, src.scale, base[campo].scale || 100)
+    };
+    // fitCqw guarda apenas o tamanho resolvido para fila/impressão. Não altera o número digitado.
+    const fit = Number(src.fitCqw ?? src.fontCqw);
+    if (Number.isFinite(fit) && fit > 0 && fit < 60) base[campo].fitCqw = fit;
+    else delete base[campo].fitCqw;
+    delete base[campo].fontCqw;
+  });
+  return base;
+}
+
+function cartazNormalizarItemFila(c) {
+  if (!c || typeof c !== 'object') return null;
+  const modelo = c.modelo === 'oferta' ? 'oferta' : 'normal';
+  return {
+    schema: CARTAZ_SCHEMA,
+    id: c.id || cartazUid('fila'),
+    modelo,
+    descricao: String(c.descricao || c?.fields?.desc?.text || 'PRODUTO').trim(),
+    ean: String(c.ean || ''),
+    preco: cartazValor(c.preco),
+    precoDe: cartazValor(c.precoDe),
+    validade: modelo === 'oferta' ? String(c.validade || c?.fields?.validade?.text || '') : '',
+    layout: cartazNormalizarLayout(c, modelo)
+  };
+}
+
+function cartazNormalizarFila() {
+  const fila = Array.isArray(state.cartazFila) ? state.cartazFila : [];
+  state.cartazFila = fila.map(cartazNormalizarItemFila).filter(Boolean);
+  cartazSalvarFila();
+}
+
+function cartazCriarDraft(p) {
+  const modelo = cartazTemOferta(p) ? 'oferta' : 'normal';
+  return {
+    modelo,
+    descricao: cartazDescricao(p),
+    precoNormal: cartazValor(p?.precoVenda),
+    precoOferta: cartazPrecoOferta(p) || cartazValor(p?.precoVenda),
+    validade: cartazValidade(p),
+    quantidade: 1,
+    layout: cartazLayoutPadrao(modelo)
+  };
+}
+
+function cartazDraftAtual() {
+  if (!state.cartazDraft && state.cartazProduto) state.cartazDraft = cartazCriarDraft(state.cartazProduto);
+  return state.cartazDraft;
+}
+
+function cartazCampoStyle(layout = {}, fontCqw = null) {
+  const left = cartazNumeroCss(layout.left, 0);
+  const top = cartazNumeroCss(layout.top, 0);
+  const width = Math.max(1, cartazNumeroCss(layout.width, 10));
+  const height = Math.max(1, cartazNumeroCss(layout.height, 10));
+  const out = [`left:${left}%`, `top:${top}%`, `width:${width}%`, `height:${height}%`];
+  if (Number.isFinite(Number(fontCqw)) && Number(fontCqw) > 0) out.push(`--cartaz-font:${Number(fontCqw).toFixed(3)}cqw`);
+  return out.join(';');
+}
+
+function cartazQuantidadeDigitos(v) {
+  return String(cartazPrecoPartes(v).inteiro).replace(/\D/g, '').length || 1;
+}
+
+function cartazPrecoBaseCqw(modelo, campo, valor) {
+  const tabela = CARTAZ_PRECO_CQW[modelo]?.[campo] || CARTAZ_PRECO_CQW.normal.por;
+  const digitos = cartazQuantidadeDigitos(valor);
+  return tabela[digitos] ?? tabela.default;
+}
+
+function cartazPrecoFontCqw(dados, campo, { preferFit = false } = {}) {
+  const layout = dados?.layout?.[campo] || {};
+  const fit = Number(layout.fitCqw);
+  if (preferFit && Number.isFinite(fit) && fit > 0) return fit;
+  const valor = campo === 'de' ? dados.precoDe : dados.preco;
+  const base = cartazPrecoBaseCqw(dados.modelo, campo, valor);
+  return base * (cartazNormalizarEscala(campo, layout.scale, 100) / 100);
+}
+
+function cartazDescricaoFontCqw(dados, { preferFit = false } = {}) {
+  const l = dados?.layout?.desc || {};
+  const fit = Number(l.fitCqw);
+  if (preferFit && Number.isFinite(fit) && fit > 0) return fit;
+  return 7.1 * (cartazNormalizarEscala('desc', l.scale, 100) / 100);
+}
+
+function cartazValidadeFontCqw(dados, { preferFit = false } = {}) {
+  const l = dados?.layout?.validade || {};
+  const fit = Number(l.fitCqw);
+  if (preferFit && Number.isFinite(fit) && fit > 0) return fit;
+  return 4.0 * (cartazNormalizarEscala('validade', l.scale, 100) / 100);
+}
+
+function cartazPrecoHtml(valor) {
+  const p = cartazPrecoPartes(valor);
+  return `<span class="cartaz-price"><span class="cartaz-price-int">${escapeHtml(p.inteiro)}</span><i class="cartaz-price-comma">,</i><em class="cartaz-price-cents">${escapeHtml(p.cent)}</em></span>`;
+}
+
+function cartazArteHtml(dados, { preview = false, id = '' } = {}) {
+  const modelo = dados.modelo === 'oferta' ? 'oferta' : 'normal';
+  const layout = dados.layout || cartazLayoutPadrao(modelo);
+  const idAttr = id ? ` id="${id}"` : '';
+  const editClass = preview ? ' cartaz-field-editable' : '';
+  const tab = preview ? ' tabindex="0"' : '';
+  const preferFit = !preview;
+  return `<div class="cartaz-art ${modelo}${preview ? ' cartaz-canvas' : ''}"${idAttr} style="background-image:url('/img/cartazes/${modelo}.jpeg')">
+    <div class="cartaz-field cartaz-desc${editClass}" data-field="desc"${tab} style="${cartazCampoStyle(layout.desc, cartazDescricaoFontCqw(dados, { preferFit }))}">${escapeHtml(dados.descricao || 'PRODUTO')}</div>
+    ${modelo === 'oferta' ? `
+      <div class="cartaz-field cartaz-validade${editClass}" data-field="validade"${tab} style="${cartazCampoStyle(layout.validade, cartazValidadeFontCqw(dados, { preferFit }))}">${dados.validade ? `Validade: ${escapeHtml(dados.validade)}` : ''}</div>
+      <div class="cartaz-field cartaz-de${editClass}" data-field="de"${tab} style="${cartazCampoStyle(layout.de, cartazPrecoFontCqw(dados, 'de', { preferFit }))}">${cartazPrecoHtml(dados.precoDe)}</div>` : ''}
+    <div class="cartaz-field cartaz-por${editClass}" data-field="por"${tab} style="${cartazCampoStyle(layout.por, cartazPrecoFontCqw(dados, 'por', { preferFit }))}">${cartazPrecoHtml(dados.preco)}</div>
+  </div>`;
+}
+
+function cartazDadosDoDraft() {
+  const d = cartazDraftAtual();
+  if (!d) return null;
+  return {
+    modelo: d.modelo,
+    descricao: d.descricao,
+    preco: d.modelo === 'oferta' ? d.precoOferta : d.precoNormal,
+    precoDe: d.precoNormal,
+    validade: d.modelo === 'oferta' ? d.validade : '',
+    layout: d.layout
+  };
+}
+
+function cartazLimparFontCalculada(campo) {
+  const d = cartazDraftAtual();
+  if (!d?.layout?.[campo]) return;
+  delete d.layout[campo].fitCqw;
+  delete d.layout[campo].fontCqw; // compatibilidade com filas antigas
+}
+
+function cartazLerCamposNoDraft() {
+  const d = cartazDraftAtual();
+  if (!d) return;
+  if ($('cartazDesc')) d.descricao = $('cartazDesc').value.trimStart();
+  if ($('cartazQtd')) d.quantidade = Math.max(1, Math.min(50, Number($('cartazQtd').value) || 1));
+  if ($('cartazValidade')) d.validade = $('cartazValidade').value.trim();
+  if ($('cartazDe')) d.precoNormal = cartazValor($('cartazDe').value);
+  if ($('cartazPor')) {
+    if (d.modelo === 'oferta') d.precoOferta = cartazValor($('cartazPor').value);
+    else d.precoNormal = cartazValor($('cartazPor').value);
+  }
+}
+
+function cartazControlesProduto(p) {
+  const d = cartazDraftAtual();
+  const oferta = d.modelo === 'oferta';
+  const ativo = cartazTemOferta(p);
+  const layout = d.layout || cartazLayoutPadrao(d.modelo);
+  return `<div class="cartaz-product-box"><small>PRODUTO</small><strong>${escapeHtml(cartazDescricao(p))}</strong><span>${escapeHtml(p.codigoEan || p.codigo || '')}</span></div>
+    <div class="cartaz-form-grid">
+      <label class="full">Descrição<input id="cartazDesc" value="${escapeHtml(d.descricao)}"></label>
+      <label>Modelo<select id="cartazModelo"><option value="normal" ${!oferta ? 'selected' : ''}>Normal</option><option value="oferta" ${oferta ? 'selected' : ''}>Oferta</option></select></label>
+      <label>Quantidade<input id="cartazQtd" type="number" min="1" max="50" value="${d.quantidade || 1}"></label>
+      ${oferta ? `<label>Preço DE<input id="cartazDe" inputmode="decimal" value="${cartazPreco(d.precoNormal)}"></label><label>Preço POR<input id="cartazPor" inputmode="decimal" value="${cartazPreco(d.precoOferta)}"></label><label class="full">Validade da placa<input id="cartazValidade" value="${escapeHtml(d.validade || '')}"></label>` : `<label class="full">Preço terminal<input id="cartazPor" inputmode="decimal" value="${cartazPreco(d.precoNormal)}"></label>`}
+    </div>
+    <div class="cartaz-size-panel">
+      <div class="cartaz-size-head"><strong>Ajuste fino</strong><span>Digite o tamanho em %. 100% é o padrão. Pressione Enter ou clique fora para aplicar.</span></div>
+      <label><span>Descrição</span><div class="cartaz-number-size"><input id="cartazScaleDesc" type="number" min="50" max="250" step="1" value="${Math.round(layout.desc?.scale || 100)}"><span>%</span></div></label>
+      ${oferta ? `<label><span>Preço DE</span><div class="cartaz-number-size"><input id="cartazScaleDe" type="number" min="50" max="250" step="1" value="${Math.round(layout.de?.scale || 100)}"><span>%</span></div></label>` : ''}
+      <label><span>Preço ${oferta ? 'POR' : ''}</span><div class="cartaz-number-size"><input id="cartazScalePor" type="number" min="50" max="300" step="1" value="${Math.round(layout.por?.scale || 100)}"><span>%</span></div></label>
+    </div>
+    <div class="cartaz-auto-note">${ativo ? `Promoção ativa pela GZ. Vigência até ${escapeHtml(fmtDate(p.dataTerminoPromocao))}; validade exibida na placa: ${escapeHtml(cartazValidade(p))}.` : 'Modelo normal pela vigência atual da GZ.'} O modelo pode ser trocado manualmente.</div>
+    <div class="cartaz-actions"><button type="button" id="cartazReset">Restaurar layout</button><button type="button" class="primary" id="cartazAddFila">＋ Enviar para fila</button></div>`;
+}
+
+function entrarCartazes(view = 'rapido') {
+  if (!exigirModulo('cartazes', 'Cartazes')) return;
+  cartazNormalizarFila();
+  state.cartazesView = ['rapido', 'fila', 'impressao'].includes(view) ? view : 'rapido';
+  setModule('cartazes');
+  setView('cartazes');
+  $('setorTitulo').textContent = 'Cartazes';
+  $('setorDescricao').textContent = 'Crie plaquinhas com os preços da GZ, ajuste o layout e monte a impressão A4.';
+  history.replaceState(null, '', '#cartazes');
+  renderCartazes();
+}
 
 function renderCartazes() {
   const panel = $('cartazesPanel');
@@ -4027,7 +4385,7 @@ function renderCartazes() {
   const p = state.cartazProduto;
   panel.innerHTML = `<div class="cartazes-shell">
     <section class="cartazes-toolbar">
-      <div><strong>Criação rápida</strong><span>Digite o EAN ou pesquise pela descrição. Enter consulta e prepara o cartaz.</span></div>
+      <div><strong>Criação rápida</strong><span>Busque por EAN, código ou descrição. Enter consulta sem recarregar a página.</span></div>
       <button type="button" class="cartaz-fila-btn" id="cartazAbrirFila">Fila <b>${state.cartazFila.length}</b></button>
     </section>
     <section class="cartazes-workspace">
@@ -4039,550 +4397,292 @@ function renderCartazes() {
         <div id="cartazResultados"></div>
         ${p ? cartazControlesProduto(p) : '<div class="cartaz-empty-side">Consulte um produto para começar.</div>'}
       </aside>
-      <main class="cartaz-preview-wrap"><div class="cartaz-preview-head"><strong>Pré-visualização</strong><span>O sistema distribui descrição e preço automaticamente. Arraste somente se precisar.</span></div><div id="cartazPreviewArea">${p ? cartazPreviewHtml(p) : '<div class="cartaz-preview-empty">A plaquinha aparecerá aqui.</div>'}</div></main>
+      <main class="cartaz-preview-wrap"><div class="cartaz-preview-head"><strong>Pré-visualização</strong><span>Arraste os campos ou use as setas do teclado para ajuste fino.</span></div><div id="cartazPreviewArea">${p ? cartazArteHtml(cartazDadosDoDraft(), { preview: true, id: 'cartazCanvas' }) : '<div class="cartaz-preview-empty">A plaquinha aparecerá aqui.</div>'}</div></main>
     </section>
   </div>`;
+
   $('cartazAbrirFila').onclick = () => entrarCartazes('fila');
   $('cartazBuscaForm').onsubmit = async e => { e.preventDefault(); await buscarProdutoCartaz(); };
+  $('cartazBuscaTipo').onchange = () => {
+    const tipo = $('cartazBuscaTipo').value;
+    $('cartazBusca').placeholder = tipo === 'descricao' ? 'Digite parte da descrição' : tipo === 'codigoInterno' ? 'Digite o código interno' : 'Digite o EAN e pressione Enter';
+    $('cartazBusca').focus();
+  };
   if (p) ligarEditorCartaz();
-  setTimeout(() => $('cartazBusca')?.focus(), 40);
+  setTimeout(() => $('cartazBusca')?.focus(), 30);
 }
 
-function cartazControlesProduto(p) {
-  const oferta = state.cartazModelo === 'oferta';
-  const especial = cartazPrecoOferta(p);
-  return `<div class="cartaz-product-box"><small>PRODUTO</small><strong>${escapeHtml(cartazDescricao(p))}</strong><span>${escapeHtml(p.codigoEan || p.codigo || '')}</span></div>
- <div class="cartaz-form-grid">
-  <label class="full">Descrição<input id="cartazDesc" value="${escapeHtml(cartazDescricao(p))}"></label>
-  <label>Modelo<select id="cartazModelo"><option value="normal" ${!oferta ? 'selected' : ''}>Normal</option><option value="oferta" ${oferta ? 'selected' : ''}>Oferta</option></select></label>
-  <label>Quantidade<input id="cartazQtd" type="number" min="1" max="50" value="1"></label>
-  ${oferta ? `<label>Preço DE<input id="cartazDe" inputmode="decimal" value="${cartazPreco(p.precoVenda)}"></label><label>Preço POR<input id="cartazPor" inputmode="decimal" value="${cartazPreco(especial || p.precoVenda)}"></label><label class="full">Validade da placa<input id="cartazValidade" value="${escapeHtml(cartazValidade(p))}" readonly></label>` : `<label class="full">Preço terminal<input id="cartazPor" inputmode="decimal" value="${cartazPreco(p.precoVenda)}"></label>`}
- </div>
- <div class="cartaz-auto-note">${cartazTemOferta(p) ? `Promoção ativa pela GZ. Vigência até ${escapeHtml(fmtDate(p.dataTerminoPromocao))}; na placa a validade é ${escapeHtml(cartazValidade(p))}.` : 'Modelo normal pela vigência atual da GZ.'} Você pode trocar o modelo manualmente.</div>
- <div class="cartaz-actions"><button type="button" id="cartazReset">Restaurar layout</button><button type="button" class="primary" id="cartazAddFila">＋ Enviar para fila</button></div>`;
-}
-
-// ============================================================
-// CARTAZES - PREVIEW E AJUSTE AUTOMÁTICO
-// ============================================================
-
-function cartazPreviewHtml(p) {
-  const oferta = state.cartazModelo === 'oferta';
-  const desc = escapeHtml(cartazDescricao(p));
-
-  const de = cartazPrecoPartes(p.precoVenda);
-
-  const por = cartazPrecoPartes(
-    oferta
-      ? (cartazPrecoOferta(p) || p.precoVenda)
-      : p.precoVenda
-  );
-
-  return `
-    <div
-      class="cartaz-canvas ${oferta ? 'oferta' : 'normal'}"
-      id="cartazCanvas"
-      style="background-image:url('/img/cartazes/${oferta ? 'oferta' : 'normal'}.jpeg')"
-    >
-
-      <div
-        class="cartaz-edit cartaz-desc"
-        data-field="desc"
-        tabindex="0"
-      >
-        ${desc}
-      </div>
-
-      ${oferta ? `
-        <div
-          class="cartaz-edit cartaz-validade"
-          data-field="validade"
-          tabindex="0"
-        >
-          ${escapeHtml(cartazValidade(p))}
-        </div>
-
-        <div
-          class="cartaz-edit cartaz-de"
-          data-field="de"
-          data-inteiro="${de.inteiro}"
-          tabindex="0"
-        >
-          <strong>
-            <span>${de.inteiro}</span>
-            <i>,</i>
-            <em>${de.cent}</em>
-          </strong>
-        </div>
-      ` : ''}
-
-      <div
-        class="cartaz-edit cartaz-por"
-        data-field="por"
-        data-inteiro="${por.inteiro}"
-        tabindex="0"
-      >
-        <strong>
-          <span>${por.inteiro}</span>
-          <i>,</i>
-          <em>${por.cent}</em>
-        </strong>
-      </div>
-
-    </div>
-  `;
-}
-
-
-// ============================================================
-// AJUSTE AUTOMÁTICO DA DESCRIÇÃO
-// ============================================================
-
-function cartazAjustarDescricao() {
-  const el = document.querySelector('#cartazCanvas .cartaz-desc');
-  if (!el) return;
-
-  const canvas = $('cartazCanvas');
-  if (!canvas) return;
-
-  const max = canvas.classList.contains('oferta') ? 62 : 64;
-  const min = 22;
-
-  let size = max;
-
-  el.style.fontSize = size + 'px';
-
-  while (
-    size > min &&
-    (
-      el.scrollWidth > el.clientWidth + 1 ||
-      el.scrollHeight > el.clientHeight + 1
-    )
-  ) {
-    size -= 1;
-    el.style.fontSize = size + 'px';
+async function buscarProdutoCartaz() {
+  const tipo = $('cartazBuscaTipo')?.value || 'codigoBarras';
+  const valor = $('cartazBusca')?.value?.trim() || '';
+  if (!valor) return;
+  const out = $('cartazResultados');
+  if (!out) return;
+  const seq = ++cartazBuscaSeq;
+  out.innerHTML = '<div class="cartaz-loading">Consultando GZ...</div>';
+  try {
+    const data = await api(`/api/cartazes/consulta?${new URLSearchParams({ [tipo]: valor })}`);
+    if (seq !== cartazBuscaSeq) return;
+    cartazResultadosBusca = Array.isArray(data?.produtos) ? data.produtos : [];
+    if (!cartazResultadosBusca.length) {
+      out.innerHTML = '<div class="cartaz-search-msg">Nenhum produto encontrado.</div>';
+      return;
+    }
+    if (cartazResultadosBusca.length === 1) return selecionarProdutoCartaz(cartazResultadosBusca[0]);
+    out.innerHTML = `<div class="cartaz-result-list">${cartazResultadosBusca.slice(0, 40).map((p, i) => `<button type="button" data-i="${i}"><span><strong>${escapeHtml(cartazDescricao(p))}</strong><small>${escapeHtml(p.codigoEan || p.codigo || '')}</small></span><b>${brl(cartazTemOferta(p) ? cartazPrecoOferta(p) : p.precoVenda)}</b></button>`).join('')}</div>`;
+    out.querySelectorAll('[data-i]').forEach(b => b.onclick = () => selecionarProdutoCartaz(cartazResultadosBusca[Number(b.dataset.i)]));
+  } catch (err) {
+    if (seq !== cartazBuscaSeq) return;
+    out.innerHTML = `<div class="cartaz-search-msg">${escapeHtml(err.message)}</div>`;
   }
 }
 
-
-// ============================================================
-// AJUSTE AUTOMÁTICO DOS PREÇOS
-// ============================================================
-
-function cartazAjustarPrecos() {
-  const canvas = $('cartazCanvas');
-  if (!canvas) return;
-
-  const oferta = canvas.classList.contains('oferta');
-
-  const ajustar = (el, tipo) => {
-    if (!el) return;
-
-    const strong = el.querySelector('strong');
-    const inteiro = el.querySelector('strong > span');
-    const virgula = el.querySelector('strong > i');
-    const centavos = el.querySelector('strong > em');
-
-    if (!strong || !inteiro || !virgula || !centavos) return;
-
-    const quantidadeDigitos =
-      String(inteiro.textContent || '').replace(/\D/g, '').length || 1;
-
-    /*
-      A ideia aqui é:
-
-      6,99
-      -> número inteiro maior, ocupando bem a área.
-
-      19,99
-      -> reduz um pouco.
-
-      129,99
-      -> reduz mais.
-
-      1.299,99
-      -> continua cabendo sem destruir a composição.
-
-      Não diminuímos o cartaz inteiro.
-      Ajustamos somente a composição do preço.
-    */
-
-    let tamanho;
-    let escalaX = 1;
-
-    if (tipo === 'de') {
-
-      // PREÇO DE - menor
-      if (quantidadeDigitos <= 1) {
-        tamanho = 88;
-        escalaX = 1.10;
-      } else if (quantidadeDigitos === 2) {
-        tamanho = 82;
-        escalaX = 1.05;
-      } else if (quantidadeDigitos === 3) {
-        tamanho = 72;
-        escalaX = 1;
-      } else {
-        tamanho = 62;
-        escalaX = 0.95;
-      }
-
-    } else if (oferta) {
-
-      // PREÇO PRINCIPAL DA OFERTA
-      if (quantidadeDigitos <= 1) {
-        tamanho = 205;
-        escalaX = 1.13;
-      } else if (quantidadeDigitos === 2) {
-        tamanho = 185;
-        escalaX = 1.08;
-      } else if (quantidadeDigitos === 3) {
-        tamanho = 160;
-        escalaX = 1;
-      } else if (quantidadeDigitos === 4) {
-        tamanho = 140;
-        escalaX = 0.96;
-      } else {
-        tamanho = 120;
-        escalaX = 0.90;
-      }
-
-    } else {
-
-      // PREÇO PRINCIPAL DO CARTAZ NORMAL
-      if (quantidadeDigitos <= 1) {
-        tamanho = 225;
-        escalaX = 1.15;
-      } else if (quantidadeDigitos === 2) {
-        tamanho = 205;
-        escalaX = 1.10;
-      } else if (quantidadeDigitos === 3) {
-        tamanho = 180;
-        escalaX = 1;
-      } else if (quantidadeDigitos === 4) {
-        tamanho = 155;
-        escalaX = 0.95;
-      } else {
-        tamanho = 135;
-        escalaX = 0.90;
-      }
-    }
-
-    strong.style.fontSize = tamanho + 'px';
-
-    /*
-      Estica horizontalmente preços pequenos.
-      Isso faz 6,99 aproveitar praticamente o mesmo espaço
-      visual que 19,99.
-    */
-    strong.style.transform = `scaleX(${escalaX})`;
-    strong.style.transformOrigin = 'center center';
-
-    // O inteiro continua sendo a parte dominante.
-    inteiro.style.fontSize = '1em';
-    inteiro.style.lineHeight = '.78';
-
-    // Vírgula proporcional ao inteiro.
-    virgula.style.fontSize = '.45em';
-    virgula.style.lineHeight = '1';
-    virgula.style.marginLeft = '-0.04em';
-    virgula.style.marginRight = '-0.03em';
-
-    // Centavos menores e posicionados no alto.
-    centavos.style.fontSize = '.38em';
-    centavos.style.lineHeight = '1';
-    centavos.style.alignSelf = 'flex-start';
-    centavos.style.marginTop = '.08em';
-    centavos.style.marginLeft = '-0.02em';
-
-    /*
-      Segurança adicional:
-      se mesmo com a regra por dígitos o preço passar
-      da área disponível, reduz progressivamente.
-    */
-    let seguranca = 0;
-
-    while (
-      strong.scrollWidth > el.clientWidth * 1.08 &&
-      tamanho > 70 &&
-      seguranca < 40
-    ) {
-      tamanho -= 2;
-      strong.style.fontSize = tamanho + 'px';
-      seguranca++;
-    }
-  };
-
-
-  // PREÇO DE
-  ajustar(
-    canvas.querySelector('.cartaz-de'),
-    'de'
-  );
-
-  // PREÇO PRINCIPAL
-  ajustar(
-    canvas.querySelector('.cartaz-por'),
-    'por'
-  );
+function selecionarProdutoCartaz(p) {
+  state.cartazProduto = { ...p };
+  state.cartazDraft = cartazCriarDraft(state.cartazProduto);
+  state.cartazModelo = state.cartazDraft.modelo;
+  renderCartazes();
 }
 
-
-// ============================================================
-// AJUSTE COMPLETO DO CARTAZ
-// ============================================================
-
-function cartazAjustarLayout() {
-  cartazAjustarDescricao();
-  cartazAjustarPrecos();
+function cartazAtualizarPreview() {
+  const area = $('cartazPreviewArea');
+  const dados = cartazDadosDoDraft();
+  if (!area || !dados) return;
+  area.innerHTML = cartazArteHtml(dados, { preview: true, id: 'cartazCanvas' });
+  habilitarEditorVisualCartaz();
 }
 
+function cartazAtualizarEscalaNumero(input, campo, { render = true } = {}) {
+  const d = cartazDraftAtual();
+  if (!d?.layout?.[campo] || !input) return;
+  const valor = cartazNormalizarEscala(campo, input.value, d.layout[campo].scale || 100);
+  d.layout[campo].scale = valor;
+  cartazLimparFontCalculada(campo);
+  input.value = String(Math.round(valor));
+  if (render) cartazAtualizarPreview();
+}
 
-// ============================================================
-// MOVIMENTO DOS ELEMENTOS
-// ============================================================
-
-function habilitarDragCartaz() {
-  const canvas = $('cartazCanvas');
-
-  if (!canvas) return;
-
-  /*
-    Esperamos o navegador terminar de montar o cartaz
-    antes de calcular os tamanhos.
-  */
-  requestAnimationFrame(() => {
-    cartazAjustarLayout();
-  });
-
-
-  canvas.querySelectorAll('.cartaz-edit').forEach(el => {
-
-    el.addEventListener('pointerdown', ev => {
-
-      if (ev.button !== 0) return;
-
-      ev.preventDefault();
-
-      el.setPointerCapture(ev.pointerId);
-
-      const r = canvas.getBoundingClientRect();
-      const er = el.getBoundingClientRect();
-
-      const ox = ev.clientX - er.left;
-      const oy = ev.clientY - er.top;
-
-
-      const move = e => {
-
-        /*
-          MOVIMENTO LIVRE
-
-          Não usamos:
-          canvas.width - larguraDoElemento
-
-          porque a caixa do preço é grande e isso criava
-          aquela "parede invisível" que impedia você de
-          levar o preço para o lado direito.
-        */
-
-        let x = e.clientX - r.left - ox;
-        let y = e.clientY - r.top - oy;
-
-
-        /*
-          Mantemos apenas o ponto de referência dentro
-          do cartaz.
-
-          A caixa pode ultrapassar um pouco a área,
-          permitindo posicionar visualmente o preço
-          onde realmente precisa ficar.
-        */
-
-        x = Math.max(0, Math.min(r.width, x));
-        y = Math.max(0, Math.min(r.height, y));
-
-
-        el.style.left = (x / r.width * 100) + '%';
-        el.style.top = (y / r.height * 100) + '%';
-
-        /*
-          O transform do ELEMENTO precisa ficar livre
-          porque o preço possui seu próprio scaleX
-          aplicado no <strong>.
-        */
-        el.style.transform = 'none';
-      };
-
-
-      const up = () => {
-        el.removeEventListener('pointermove', move);
-
-        try {
-          el.releasePointerCapture(ev.pointerId);
-        } catch (_) { }
-      };
-
-
-      el.addEventListener('pointermove', move);
-
-      el.addEventListener(
-        'pointerup',
-        up,
-        { once: true }
-      );
-
-      el.addEventListener(
-        'pointercancel',
-        up,
-        { once: true }
-      );
-
-    });
-
+function cartazVincularCampoEscala(id, campo) {
+  const input = $(id);
+  if (!input) return;
+  input.addEventListener('change', () => cartazAtualizarEscalaNumero(input, campo));
+  input.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    cartazAtualizarEscalaNumero(input, campo);
+    input.select();
   });
 }
-async function buscarProdutoCartaz() {
-  const tipo = $('cartazBuscaTipo').value, valor = $('cartazBusca').value.trim(); if (!valor) return;
-  const out = $('cartazResultados'); out.innerHTML = '<div class="cartaz-loading">Consultando GZ...</div>';
-  try {
-    const data = await api(`/api/cartazes/consulta?${new URLSearchParams({ [tipo]: valor })}`); const arr = data.produtos || [];
-    if (!arr.length) { out.innerHTML = '<div class="cartaz-search-msg">Nenhum produto encontrado.</div>'; return; }
-    if (arr.length === 1) { selecionarProdutoCartaz(arr[0]); return; }
-    out.innerHTML = `<div class="cartaz-result-list">${arr.slice(0, 40).map((p, i) => `<button type="button" data-i="${i}"><span><strong>${escapeHtml(cartazDescricao(p))}</strong><small>${escapeHtml(p.codigoEan || p.codigo || '')}</small></span><b>${brl(cartazTemOferta(p) ? cartazPrecoOferta(p) : p.precoVenda)}</b></button>`).join('')}</div>`;
-    [...out.querySelectorAll('button[data-i]')].forEach(b => b.onclick = () => selecionarProdutoCartaz(arr[Number(b.dataset.i)]));
-  } catch (err) { out.innerHTML = `<div class="cartaz-search-msg">${escapeHtml(err.message)}</div>`; }
+
+function cartazLerEscalasNoDraft() {
+  [['cartazScaleDesc', 'desc'], ['cartazScaleDe', 'de'], ['cartazScalePor', 'por']].forEach(([id, campo]) => {
+    const input = $(id);
+    if (input) cartazAtualizarEscalaNumero(input, campo, { render: false });
+  });
 }
-function selecionarProdutoCartaz(p) { state.cartazProduto = { ...p }; state.cartazModelo = cartazTemOferta(p) ? 'oferta' : 'normal'; renderCartazes(); }
 
 function ligarEditorCartaz() {
-  const modelo = $('cartazModelo');
-  modelo.onchange = () => { state.cartazModelo = modelo.value; renderCartazes(); };
-  const sync = () => { const p = state.cartazProduto; if (!p) return; p.descricao = $('cartazDesc').value; const por = Number(String($('cartazPor').value).replace(/\./g, '').replace(',', '.')) || 0; if (state.cartazModelo === 'oferta') { p.precoVenda = Number(String($('cartazDe').value).replace(/\./g, '').replace(',', '.')) || 0; p.precoEspecial = por; } else p.precoVenda = por; const area = $('cartazPreviewArea'); area.innerHTML = cartazPreviewHtml(p); habilitarDragCartaz(); };
-  ['cartazDesc', 'cartazDe', 'cartazPor'].forEach(id => $(id)?.addEventListener('input', debounce(sync, 120)));
-  $('cartazReset').onclick = () => { renderCartazes(); };
-  $('cartazAddFila').onclick = () => adicionarCartazFila();
-  habilitarDragCartaz();
+  const d = cartazDraftAtual();
+  if (!d) return;
+
+  $('cartazModelo').onchange = () => {
+    cartazLerCamposNoDraft();
+    const novo = $('cartazModelo').value === 'oferta' ? 'oferta' : 'normal';
+    d.modelo = novo;
+    state.cartazModelo = novo;
+    // Cada modelo possui áreas diferentes; ao trocar, restaura somente o layout visual do novo modelo.
+    d.layout = cartazLayoutPadrao(novo);
+    renderCartazes();
+  };
+
+  const syncTexto = debounce(() => {
+    d.descricao = $('cartazDesc')?.value || '';
+    cartazLimparFontCalculada('desc');
+    cartazAtualizarPreview();
+  }, 80);
+  $('cartazDesc')?.addEventListener('input', syncTexto);
+
+  const syncPreco = debounce(() => {
+    cartazLerCamposNoDraft();
+    cartazLimparFontCalculada('de');
+    cartazLimparFontCalculada('por');
+    cartazAtualizarPreview();
+  }, 80);
+  $('cartazDe')?.addEventListener('input', syncPreco);
+  $('cartazPor')?.addEventListener('input', syncPreco);
+  $('cartazValidade')?.addEventListener('input', debounce(() => {
+    d.validade = $('cartazValidade').value;
+    cartazLimparFontCalculada('validade');
+    cartazAtualizarPreview();
+  }, 80));
+  $('cartazQtd')?.addEventListener('input', () => { d.quantidade = Math.max(1, Math.min(50, Number($('cartazQtd').value) || 1)); });
+
+  ['cartazDe', 'cartazPor'].forEach(id => $(id)?.addEventListener('blur', () => {
+    const el = $(id);
+    if (el) el.value = cartazPreco(cartazValor(el.value));
+  }));
+
+  cartazVincularCampoEscala('cartazScaleDesc', 'desc');
+  cartazVincularCampoEscala('cartazScaleDe', 'de');
+  cartazVincularCampoEscala('cartazScalePor', 'por');
+
+  $('cartazReset').onclick = () => {
+    d.layout = cartazLayoutPadrao(d.modelo);
+    renderCartazes();
+  };
+  $('cartazAddFila').onclick = adicionarCartazFila;
+  habilitarEditorVisualCartaz();
 }
 
-function cartazAjustarDescricao() {
-  const el = document.querySelector('#cartazCanvas .cartaz-desc'); if (!el) return;
-  const canvas = $('cartazCanvas'); const max = canvas.classList.contains('oferta') ? 62 : 64, min = 22;
-  let size = max; el.style.fontSize = size + 'px';
-  while (size > min && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) { size -= 1; el.style.fontSize = size + 'px'; }
+function cartazAjustarDescricaoPreview() {
+  const canvas = $('cartazCanvas');
+  const el = canvas?.querySelector('.cartaz-desc');
+  const d = cartazDraftAtual();
+  if (!canvas || !el || !d?.layout?.desc) return;
+  let cqw = cartazDescricaoFontCqw(cartazDadosDoDraft());
+  const min = 2.4;
+  el.style.setProperty('--cartaz-font', `${cqw}cqw`);
+  let guard = 0;
+  while (cqw > min && guard < 80 && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) {
+    cqw -= 0.12;
+    el.style.setProperty('--cartaz-font', `${cqw}cqw`);
+    guard++;
+  }
+  d.layout.desc.fitCqw = Number(cqw.toFixed(3));
 }
-function habilitarDragCartaz() {
+
+function cartazAjustarPrecoPreview(campo) {
+  const canvas = $('cartazCanvas');
+  const el = canvas?.querySelector(`.cartaz-${campo}`);
+  const price = el?.querySelector('.cartaz-price');
+  const d = cartazDraftAtual();
+  if (!canvas || !el || !price || !d?.layout?.[campo]) return;
+  let cqw = cartazPrecoFontCqw(cartazDadosDoDraft(), campo);
+  const min = campo === 'de' ? 4.5 : 9;
+  price.style.setProperty('--cartaz-font', `${cqw}cqw`);
+  let guard = 0;
+  while (cqw > min && guard < 80 && (price.scrollWidth > el.clientWidth * 1.02 || price.scrollHeight > el.clientHeight * 1.04)) {
+    cqw -= 0.15;
+    price.style.setProperty('--cartaz-font', `${cqw}cqw`);
+    guard++;
+  }
+  d.layout[campo].fitCqw = Number(cqw.toFixed(3));
+}
+
+function cartazAjustarPreview() {
+  cartazAjustarDescricaoPreview();
+  if (state.cartazDraft?.modelo === 'oferta') cartazAjustarPrecoPreview('de');
+  cartazAjustarPrecoPreview('por');
+}
+
+function cartazMoverCampo(el, left, top) {
+  const d = cartazDraftAtual();
+  const campo = el?.dataset?.field;
+  if (!d?.layout?.[campo]) return;
+  const x = Math.max(-10, Math.min(100, Number(left)));
+  const y = Math.max(-10, Math.min(100, Number(top)));
+  d.layout[campo].left = Number(x.toFixed(3));
+  d.layout[campo].top = Number(y.toFixed(3));
+  el.style.left = `${d.layout[campo].left}%`;
+  el.style.top = `${d.layout[campo].top}%`;
+}
+
+function habilitarEditorVisualCartaz() {
   const canvas = $('cartazCanvas');
   if (!canvas) return;
 
-  requestAnimationFrame(cartazAjustarDescricao);
+  requestAnimationFrame(cartazAjustarPreview);
 
-  canvas.querySelectorAll('.cartaz-edit').forEach(el => {
-
+  canvas.querySelectorAll('.cartaz-field-editable').forEach(el => {
     el.addEventListener('pointerdown', ev => {
       if (ev.button !== 0) return;
-
       ev.preventDefault();
-      el.setPointerCapture(ev.pointerId);
-
-      const r = canvas.getBoundingClientRect();
-      const er = el.getBoundingClientRect();
-
-      const ox = ev.clientX - er.left;
-      const oy = ev.clientY - er.top;
+      el.focus();
+      el.classList.add('is-dragging');
+      el.setPointerCapture?.(ev.pointerId);
+      const canvasRect = canvas.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const offsetX = ev.clientX - elRect.left;
+      const offsetY = ev.clientY - elRect.top;
 
       const move = e => {
-
-        // ==========================================
-        // MOVIMENTO LIVRE DENTRO DO CARTAZ
-        // ==========================================
-
-        let x = e.clientX - r.left - ox;
-        let y = e.clientY - r.top - oy;
-
-        // Permite que a CAIXA ultrapasse o canvas,
-        // mas mantém o ponto de referência dentro dele.
-        // Isso elimina a "parede invisível" causada
-        // pelo tamanho grande da caixa do preço.
-        x = Math.max(0, Math.min(r.width, x));
-        y = Math.max(0, Math.min(r.height, y));
-
-        el.style.left = (x / r.width * 100) + '%';
-        el.style.top = (y / r.height * 100) + '%';
-        el.style.transform = 'none';
+        const left = ((e.clientX - canvasRect.left - offsetX) / canvasRect.width) * 100;
+        const top = ((e.clientY - canvasRect.top - offsetY) / canvasRect.height) * 100;
+        cartazMoverCampo(el, left, top);
       };
-
-      const up = () => {
+      const stop = () => {
+        el.classList.remove('is-dragging');
         el.removeEventListener('pointermove', move);
+        el.removeEventListener('pointerup', stop);
+        el.removeEventListener('pointercancel', stop);
+        try { el.releasePointerCapture?.(ev.pointerId); } catch (_) { }
       };
-
       el.addEventListener('pointermove', move);
-      el.addEventListener('pointerup', up, { once: true });
+      el.addEventListener('pointerup', stop);
+      el.addEventListener('pointercancel', stop);
     });
 
+    el.addEventListener('keydown', ev => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key)) return;
+      ev.preventDefault();
+      const campo = el.dataset.field;
+      const atual = cartazDraftAtual()?.layout?.[campo];
+      if (!atual) return;
+      const passo = ev.shiftKey ? 1 : 0.25;
+      let left = Number(atual.left) || 0;
+      let top = Number(atual.top) || 0;
+      if (ev.key === 'ArrowLeft') left -= passo;
+      if (ev.key === 'ArrowRight') left += passo;
+      if (ev.key === 'ArrowUp') top -= passo;
+      if (ev.key === 'ArrowDown') top += passo;
+      cartazMoverCampo(el, left, top);
+    });
   });
 }
 
 function adicionarCartazFila() {
   const p = state.cartazProduto;
-  if (!p) return;
-
-  const qtd = Math.max(1, Math.min(50, Number($('cartazQtd')?.value) || 1));
-  const canvas = $('cartazCanvas');
-  const fields = {};
-
-  if (canvas) {
-    const cr = canvas.getBoundingClientRect();
-    canvas.querySelectorAll('.cartaz-edit').forEach(el => {
-      const style = getComputedStyle(el);
-      const strong = el.querySelector('strong');
-      const strongStyle = strong ? getComputedStyle(strong) : null;
-      fields[el.dataset.field] = {
-        text: el.textContent,
-        left: el.style.left || '',
-        top: el.style.top || '',
-        transform: el.style.transform || '',
-        fontSizePct: cr.width ? (parseFloat(style.fontSize) / cr.width * 100) : null,
-        strongFontSizePct: cr.width && strongStyle ? (parseFloat(strongStyle.fontSize) / cr.width * 100) : null
-      };
-    });
-  }
-
-  for (let i = 0; i < qtd; i++) {
-    state.cartazFila.push({
-      id: Date.now() + i,
-      modelo: state.cartazModelo,
-      descricao: cartazDescricao(p),
-      ean: p.codigoEan || p.codigo || '',
-      preco: cartazValor(state.cartazModelo === 'oferta' ? cartazPrecoOferta(p) : p.precoVenda),
-      precoDe: cartazValor(p.precoVenda),
-      validade: state.cartazModelo === 'oferta' ? cartazValidade(p) : '',
-      fields
-    });
-  }
-
+  const d = cartazDraftAtual();
+  if (!p || !d) return;
+  cartazLerCamposNoDraft();
+  cartazLerEscalasNoDraft();
+  cartazAjustarPreview();
+  const qtd = Math.max(1, Math.min(50, Number(d.quantidade) || 1));
+  const base = {
+    schema: CARTAZ_SCHEMA,
+    modelo: d.modelo,
+    descricao: String(d.descricao || 'PRODUTO').trim(),
+    ean: String(p.codigoEan || p.codigo || ''),
+    preco: d.modelo === 'oferta' ? cartazValor(d.precoOferta) : cartazValor(d.precoNormal),
+    precoDe: cartazValor(d.precoNormal),
+    validade: d.modelo === 'oferta' ? String(d.validade || '') : '',
+    layout: cartazClone(d.layout)
+  };
+  for (let i = 0; i < qtd; i++) state.cartazFila.push({ ...cartazClone(base), id: cartazUid('fila') });
   cartazSalvarFila();
-  renderCartazes();
+  const btn = $('cartazAddFila');
+  if (btn) {
+    const old = btn.textContent;
+    btn.textContent = `Adicionado ✓ (${qtd})`;
+    btn.disabled = true;
+    setTimeout(() => { if ($('cartazAddFila')) { $('cartazAddFila').textContent = old; $('cartazAddFila').disabled = false; } }, 700);
+  }
+  const filaBadge = document.querySelector('.cartaz-fila-btn b');
+  if (filaBadge) filaBadge.textContent = state.cartazFila.length;
 }
 
 function renderCartazesFila() {
+  cartazNormalizarFila();
   const panel = $('cartazesPanel');
   panel.innerHTML = `<div class="cartazes-shell">
-    <section class="cartazes-toolbar">
-      <div><strong>Fila de cartazes</strong><span>Os cartazes ficam salvos sem tamanho. Pequena ou grande é escolhido somente na montagem da folha A4.</span></div>
-      <button type="button" id="cartazVoltar">← Criação rápida</button>
-    </section>
+    <section class="cartazes-toolbar"><div><strong>Fila de cartazes</strong><span>O tamanho físico é escolhido somente na montagem A4. A mesma plaquinha pode ser usada várias vezes.</span></div><button type="button" id="cartazVoltar">← Criação rápida</button></section>
     <section class="cartaz-queue">${state.cartazFila.length ? state.cartazFila.map((c, i) => `<article>
       <div class="cartaz-queue-thumb" style="background-image:url('/img/cartazes/${c.modelo}.jpeg')"></div>
       <div><small>${c.modelo === 'oferta' ? 'OFERTA' : 'NORMAL'}</small><strong>${escapeHtml(c.descricao)}</strong><span>${escapeHtml(c.ean)} · ${brl(c.preco)}${c.validade ? ` · validade ${escapeHtml(c.validade)}` : ''}</span></div>
       <button type="button" data-remove="${i}" title="Remover">×</button>
-    </article>`).join('') : '<div class="cartaz-preview-empty">A fila está vazia. Gere um cartaz na Criação rápida.</div>'}</section>
-    <div class="cartaz-queue-footer">
-      <span>${state.cartazFila.length} cartaz(es) na fila</span>
-      <div><button id="cartazLimpar" type="button" ${!state.cartazFila.length ? 'disabled' : ''}>Limpar fila</button><button class="primary" id="cartazAbrirImpressao" type="button" ${!state.cartazFila.length ? 'disabled' : ''}>🖨 Área de impressão A4</button></div>
-    </div>
+    </article>`).join('') : '<div class="cartaz-preview-empty">A fila está vazia. Gere uma plaquinha na Criação rápida.</div>'}</section>
+    <div class="cartaz-queue-footer"><span>${state.cartazFila.length} cartaz(es) na fila</span><div><button id="cartazLimpar" type="button" ${!state.cartazFila.length ? 'disabled' : ''}>Limpar fila</button><button class="primary" id="cartazAbrirImpressao" type="button" ${!state.cartazFila.length ? 'disabled' : ''}>🖨 Área de impressão A4</button></div></div>
   </div>`;
-
   $('cartazVoltar').onclick = () => entrarCartazes('rapido');
   $('cartazAbrirImpressao')?.addEventListener('click', () => entrarCartazes('impressao'));
   panel.querySelectorAll('[data-remove]').forEach(b => b.onclick = () => {
@@ -4591,60 +4691,47 @@ function renderCartazesFila() {
     renderCartazesFila();
   });
   $('cartazLimpar')?.addEventListener('click', () => {
-    if (confirm('Limpar toda a fila de cartazes?')) {
-      state.cartazFila = [];
-      cartazSalvarFila();
-      renderCartazesFila();
-    }
+    if (!confirm('Limpar toda a fila de cartazes?')) return;
+    state.cartazFila = [];
+    cartazSalvarFila();
+    renderCartazesFila();
   });
 }
 
-// ============================================================
-// V29 - MONTAGEM E IMPRESSÃO A4 DOS CARTAZES
-// Pequena: 14 x 9,22 cm (até 4 por A4)
-// Grande: mesma arte ampliada para 20 cm e girada 90° à esquerda (até 2 por A4)
-// A folha também aceita o uso misto: 2 pequenas + 1 grande.
-// ============================================================
-
 function cartazImpressaoNovaPagina() {
-  return {
-    id: Date.now() + Math.random(),
-    colunas: [
-      { tipo: null, itens: [] },
-      { tipo: null, itens: [] }
-    ]
-  };
+  return { id: cartazUid('pagina'), colunas: [{ tipo: null, itens: [] }, { tipo: null, itens: [] }] };
 }
 
 function cartazImpressaoNormalizarPaginas() {
-  if (!Array.isArray(state.cartazImpressaoPaginas)) state.cartazImpressaoPaginas = [];
-
-  state.cartazImpressaoPaginas = state.cartazImpressaoPaginas.map(p => {
+  const pags = Array.isArray(state.cartazImpressaoPaginas) ? state.cartazImpressaoPaginas : [];
+  state.cartazImpressaoPaginas = pags.map(p => {
     const cols = Array.isArray(p?.colunas) ? p.colunas.slice(0, 2) : [];
     while (cols.length < 2) cols.push({ tipo: null, itens: [] });
     return {
-      id: p?.id || Date.now() + Math.random(),
-      colunas: cols.map(col => ({
-        tipo: col?.tipo === 'grande' || col?.tipo === 'pequena' ? col.tipo : null,
-        itens: Array.isArray(col?.itens) ? col.itens : []
-      }))
+      id: p?.id || cartazUid('pagina'),
+      colunas: cols.map(col => {
+        let itens = Array.isArray(col?.itens) ? col.itens.filter(x => x?.cartaz) : [];
+        let tipo = col?.tipo === 'grande' ? 'grande' : col?.tipo === 'pequena' ? 'pequena' : null;
+        if (!tipo && itens.length) tipo = itens[0]?.tamanho === 'grande' ? 'grande' : 'pequena';
+        if (tipo === 'grande') itens = itens.slice(0, 1);
+        if (tipo === 'pequena') itens = itens.slice(0, 2);
+        if (!itens.length) tipo = null;
+        itens = itens.map(item => ({
+          uid: item.uid || cartazUid('slot'),
+          tamanho: tipo || (item.tamanho === 'grande' ? 'grande' : 'pequena'),
+          cartaz: cartazNormalizarItemFila(item.cartaz) || item.cartaz
+        }));
+        return { tipo, itens };
+      })
     };
   });
-
   if (!state.cartazImpressaoPaginas.length) state.cartazImpressaoPaginas.push(cartazImpressaoNovaPagina());
-  state.cartazImpressaoPagina = Math.max(0, Math.min(state.cartazImpressaoPagina, state.cartazImpressaoPaginas.length - 1));
-}
-
-function cartazImpressaoSalvar() {
-  localStorage.setItem('mb_cartazes_impressao_paginas', JSON.stringify(state.cartazImpressaoPaginas));
+  state.cartazImpressaoPagina = Math.max(0, Math.min(Number(state.cartazImpressaoPagina) || 0, state.cartazImpressaoPaginas.length - 1));
+  cartazImpressaoSalvar();
 }
 
 function cartazImpressaoTemConteudo(pagina) {
   return !!pagina?.colunas?.some(col => Array.isArray(col.itens) && col.itens.length);
-}
-
-function cartazImpressaoCloneCartaz(c) {
-  return JSON.parse(JSON.stringify(c));
 }
 
 function cartazImpressaoAdicionar(c) {
@@ -4652,35 +4739,27 @@ function cartazImpressaoAdicionar(c) {
   const tamanho = state.cartazImpressaoTamanho === 'grande' ? 'grande' : 'pequena';
   let pagina = state.cartazImpressaoPaginas[state.cartazImpressaoPagina];
 
-  const encontrarColuna = p => {
-    if (tamanho === 'grande') return p.colunas.findIndex(col => !col.tipo || !col.itens.length);
-    return p.colunas.findIndex(col => (!col.tipo || col.tipo === 'pequena') && col.itens.length < 2);
-  };
+  const encontrar = p => tamanho === 'grande'
+    ? p.colunas.findIndex(col => !col.itens.length)
+    : p.colunas.findIndex(col => (!col.tipo || col.tipo === 'pequena') && col.itens.length < 2);
 
-  let colIndex = encontrarColuna(pagina);
-  if (colIndex < 0) {
-    const nova = cartazImpressaoNovaPagina();
-    state.cartazImpressaoPaginas.push(nova);
+  let ci = encontrar(pagina);
+  if (ci < 0) {
+    pagina = cartazImpressaoNovaPagina();
+    state.cartazImpressaoPaginas.push(pagina);
     state.cartazImpressaoPagina = state.cartazImpressaoPaginas.length - 1;
-    pagina = nova;
-    colIndex = encontrarColuna(pagina);
+    ci = encontrar(pagina);
   }
 
-  const col = pagina.colunas[colIndex];
+  const col = pagina.colunas[ci];
   col.tipo = tamanho;
-  col.itens.push({
-    uid: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    tamanho,
-    cartaz: cartazImpressaoCloneCartaz(c)
-  });
-
+  col.itens.push({ uid: cartazUid('slot'), tamanho, cartaz: cartazClone(cartazNormalizarItemFila(c) || c) });
   cartazImpressaoSalvar();
   renderCartazesImpressao();
 }
 
 function cartazImpressaoRemover(paginaIndex, colunaIndex, itemIndex) {
-  const pagina = state.cartazImpressaoPaginas[paginaIndex];
-  const col = pagina?.colunas?.[colunaIndex];
+  const col = state.cartazImpressaoPaginas?.[paginaIndex]?.colunas?.[colunaIndex];
   if (!col) return;
   col.itens.splice(itemIndex, 1);
   if (!col.itens.length) col.tipo = null;
@@ -4698,10 +4777,7 @@ function cartazImpressaoLimparPagina() {
 }
 
 function cartazImpressaoExcluirPagina() {
-  if (state.cartazImpressaoPaginas.length <= 1) {
-    cartazImpressaoLimparPagina();
-    return;
-  }
+  if (state.cartazImpressaoPaginas.length <= 1) return cartazImpressaoLimparPagina();
   if (!confirm('Excluir esta folha da montagem?')) return;
   state.cartazImpressaoPaginas.splice(state.cartazImpressaoPagina, 1);
   state.cartazImpressaoPagina = Math.max(0, state.cartazImpressaoPagina - 1);
@@ -4716,64 +4792,15 @@ function cartazImpressaoNovaFolha() {
   renderCartazesImpressao();
 }
 
-function cartazImpressaoCssValor(v, tipo) {
-  const x = String(v || '').trim();
-  if (!x) return '';
-  if (tipo === 'pos' && /^-?\d+(?:\.\d+)?(?:%|px)$/.test(x)) return x;
-  if (tipo === 'transform' && /^(none|translate(?:X|Y)?\([^;]+\)|translate\([^;]+\))$/.test(x)) return x;
-  return '';
-}
-
-function cartazImpressaoStyleCampo(c, campo) {
-  const f = c?.fields?.[campo] || {};
-  const out = [];
-  const left = cartazImpressaoCssValor(f.left, 'pos');
-  const top = cartazImpressaoCssValor(f.top, 'pos');
-  const transform = cartazImpressaoCssValor(f.transform, 'transform');
-  if (left) out.push(`left:${left}`);
-  if (top) out.push(`top:${top}`);
-  if (transform) out.push(`transform:${transform}`);
-  if (Number.isFinite(Number(f.fontSizePct)) && Number(f.fontSizePct) > 0 && Number(f.fontSizePct) < 30) out.push(`font-size:${Number(f.fontSizePct).toFixed(3)}cqw`);
-  return out.join(';');
-}
-
-function cartazImpressaoStrongStyle(c, campo) {
-  const n = Number(c?.fields?.[campo]?.strongFontSizePct);
-  return Number.isFinite(n) && n > 0 && n < 60 ? `font-size:${n.toFixed(3)}cqw` : '';
-}
-
-function cartazImpressaoArteHtml(c) {
-  const oferta = c.modelo === 'oferta';
-  const por = cartazPrecoPartes(c.preco);
-  const de = cartazPrecoPartes(c.precoDe);
-  const desc = String(c?.fields?.desc?.text || c.descricao || 'PRODUTO').trim();
-  const validade = String(c?.fields?.validade?.text || c.validade || '').trim();
-
-  return `<div class="cartaz-print-art ${oferta ? 'oferta' : 'normal'}" style="background-image:url('/img/cartazes/${oferta ? 'oferta' : 'normal'}.jpeg')">
-    <div class="cartaz-print-edit cartaz-print-desc" style="${cartazImpressaoStyleCampo(c, 'desc')}">${escapeHtml(desc)}</div>
-    ${oferta ? `<div class="cartaz-print-edit cartaz-print-validade" style="${cartazImpressaoStyleCampo(c, 'validade')}">${escapeHtml(validade)}</div>
-    <div class="cartaz-print-edit cartaz-print-de" style="${cartazImpressaoStyleCampo(c, 'de')}"><strong style="${cartazImpressaoStrongStyle(c, 'de')}"><span>${escapeHtml(de.inteiro)}</span><i>,</i><em>${escapeHtml(de.cent)}</em></strong></div>` : ''}
-    <div class="cartaz-print-edit cartaz-print-por" style="${cartazImpressaoStyleCampo(c, 'por')}"><strong style="${cartazImpressaoStrongStyle(c, 'por')}"><span>${escapeHtml(por.inteiro)}</span><i>,</i><em>${escapeHtml(por.cent)}</em></strong></div>
-  </div>`;
-}
-
 function cartazImpressaoItemHtml(item, opts = {}) {
   const remove = opts.remove !== false;
-  const c = item.cartaz;
-  return `<div class="cartaz-print-card ${item.tamanho}">
-    <div class="cartaz-print-art-frame">${cartazImpressaoArteHtml(c)}</div>
-    ${remove ? `<button type="button" class="cartaz-print-remove" data-pagina="${opts.pagina}" data-coluna="${opts.coluna}" data-item="${opts.item}" title="Remover desta folha">×</button>` : ''}
-  </div>`;
+  return `<div class="cartaz-print-card ${item.tamanho}"><div class="cartaz-print-art-frame">${cartazArteHtml(item.cartaz)}</div>${remove ? `<button type="button" class="cartaz-print-remove" data-pagina="${opts.pagina}" data-coluna="${opts.coluna}" data-item="${opts.item}" title="Remover desta folha">×</button>` : ''}</div>`;
 }
 
 function cartazImpressaoPaginaHtml(pagina, paginaIndex, opts = {}) {
   const remove = opts.remove !== false;
   const output = !!opts.output;
-  return `<div class="cartaz-print-sheet ${output ? 'cartaz-print-sheet-output' : ''}">
-    ${pagina.colunas.map((col, ci) => `<div class="cartaz-print-column ${col.tipo || 'vazia'}">
-      ${col.itens.length ? col.itens.map((item, ii) => cartazImpressaoItemHtml(item, { remove, pagina: paginaIndex, coluna: ci, item: ii })).join('') : '<div class="cartaz-print-slot-empty">Espaço livre</div>'}
-    </div>`).join('')}
-  </div>`;
+  return `<div class="cartaz-print-sheet ${output ? 'cartaz-print-sheet-output' : ''}">${pagina.colunas.map((col, ci) => `<div class="cartaz-print-column ${col.tipo || 'vazia'}">${col.itens.length ? col.itens.map((item, ii) => cartazImpressaoItemHtml(item, { remove, pagina: paginaIndex, coluna: ci, item: ii })).join('') : '<div class="cartaz-print-slot-empty">Espaço livre</div>'}</div>`).join('')}</div>`;
 }
 
 function cartazImpressaoResumoPagina(pagina) {
@@ -4782,80 +4809,80 @@ function cartazImpressaoResumoPagina(pagina) {
     if (col.tipo === 'grande') grandes += col.itens.length;
     if (col.tipo === 'pequena') pequenas += col.itens.length;
   });
-  const partes = [];
-  if (pequenas) partes.push(`${pequenas} pequena${pequenas > 1 ? 's' : ''}`);
-  if (grandes) partes.push(`${grandes} grande${grandes > 1 ? 's' : ''}`);
-  return partes.length ? partes.join(' + ') : 'folha vazia';
+  const p = [];
+  if (pequenas) p.push(`${pequenas} pequena${pequenas > 1 ? 's' : ''}`);
+  if (grandes) p.push(`${grandes} grande${grandes > 1 ? 's' : ''}`);
+  return p.length ? p.join(' + ') : 'folha vazia';
+}
+
+function cartazImprimirA4() {
+  // Chrome/Edge nem sempre aplicam corretamente uma @page nomeada.
+  // Criamos a regra de página apenas durante a impressão dos cartazes,
+  // sem alterar os relatórios/impressões dos outros módulos da plataforma.
+  let pageStyle = document.getElementById('cartazPrintPageStyle');
+  if (!pageStyle) {
+    pageStyle = document.createElement('style');
+    pageStyle.id = 'cartazPrintPageStyle';
+    document.head.appendChild(pageStyle);
+  }
+
+  pageStyle.textContent = `
+    @page {
+      size: 297mm 210mm;
+      margin: 0;
+    }
+  `;
+
+  document.body.classList.add('cartaz-printing');
+
+  const limpar = () => {
+    document.body.classList.remove('cartaz-printing');
+    document.getElementById('cartazPrintPageStyle')?.remove();
+    window.removeEventListener('afterprint', limpar);
+  };
+
+  window.addEventListener('afterprint', limpar, { once: true });
+
+  // Dois frames garantem que o navegador aplicou a @page e o layout em mm
+  // antes de abrir a pré-visualização de impressão.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => window.print());
+  });
 }
 
 function renderCartazesImpressao() {
+  cartazNormalizarFila();
   cartazImpressaoNormalizarPaginas();
   const panel = $('cartazesPanel');
   const pagina = state.cartazImpressaoPaginas[state.cartazImpressaoPagina];
   const paginasComConteudo = state.cartazImpressaoPaginas.filter(cartazImpressaoTemConteudo);
-
   panel.innerHTML = `<div class="cartazes-shell cartaz-print-screen">
-    <section class="cartazes-toolbar">
-      <div><strong>Impressão A4</strong><span>Escolha o tamanho e clique em uma plaquinha da fila. O sistema encaixa automaticamente no próximo espaço disponível.</span></div>
-      <div class="cartaz-print-toolbar-actions"><button type="button" id="cartazPrintVoltarFila">← Fila</button><button class="primary" type="button" id="cartazPrintImprimir" ${!paginasComConteudo.length ? 'disabled' : ''}>🖨 Imprimir ${paginasComConteudo.length || ''} folha${paginasComConteudo.length === 1 ? '' : 's'}</button></div>
-    </section>
-
+    <section class="cartazes-toolbar"><div><strong>Impressão A4</strong><span>Escolha o tamanho e clique na plaquinha. O sistema encaixa no próximo espaço compatível.</span></div><div class="cartaz-print-toolbar-actions"><button type="button" id="cartazPrintVoltarFila">← Fila</button><button class="primary" type="button" id="cartazPrintImprimir" ${!paginasComConteudo.length ? 'disabled' : ''}>🖨 Imprimir ${paginasComConteudo.length || ''} folha${paginasComConteudo.length === 1 ? '' : 's'}</button></div></section>
     <section class="cartaz-print-layout">
       <aside class="cartaz-print-sidebar">
-        <div class="cartaz-print-size-box">
-          <strong>Tamanho ao clicar</strong>
-          <div class="cartaz-print-size-toggle">
-            <button type="button" data-print-size="pequena" class="${state.cartazImpressaoTamanho === 'pequena' ? 'active' : ''}"><b>Pequena</b><span>14 cm · até 4/A4</span></button>
-            <button type="button" data-print-size="grande" class="${state.cartazImpressaoTamanho === 'grande' ? 'active' : ''}"><b>Grande</b><span>20 cm · até 2/A4</span></button>
-          </div>
-          <small>Você pode misturar na mesma folha: 2 pequenas em uma coluna e 1 grande na outra.</small>
-        </div>
-
+        <div class="cartaz-print-size-box"><strong>Tamanho ao clicar</strong><div class="cartaz-print-size-toggle"><button type="button" data-print-size="pequena" class="${state.cartazImpressaoTamanho === 'pequena' ? 'active' : ''}"><b>Pequena</b><span>14 cm · até 4/A4</span></button><button type="button" data-print-size="grande" class="${state.cartazImpressaoTamanho === 'grande' ? 'active' : ''}"><b>Grande</b><span>20 cm · até 2/A4</span></button></div><small>É possível misturar: duas pequenas em uma coluna e uma grande na outra.</small></div>
         <div class="cartaz-print-source-head"><strong>Fila de plaquinhas</strong><span>${state.cartazFila.length}</span></div>
-        <div class="cartaz-print-source-list">${state.cartazFila.length ? state.cartazFila.map((c, i) => `<button type="button" class="cartaz-print-source" data-cartaz-print="${i}">
-          <div class="cartaz-queue-thumb" style="background-image:url('/img/cartazes/${c.modelo}.jpeg')"></div>
-          <div><small>${c.modelo === 'oferta' ? 'OFERTA' : 'NORMAL'}</small><strong>${escapeHtml(c.descricao)}</strong><span>${brl(c.preco)}</span></div>
-          <b>＋</b>
-        </button>`).join('') : '<div class="cartaz-preview-empty">A fila está vazia.</div>'}</div>
+        <div class="cartaz-print-source-list">${state.cartazFila.length ? state.cartazFila.map((c, i) => `<button type="button" class="cartaz-print-source" data-cartaz-print="${i}"><div class="cartaz-queue-thumb" style="background-image:url('/img/cartazes/${c.modelo}.jpeg')"></div><div><small>${c.modelo === 'oferta' ? 'OFERTA' : 'NORMAL'}</small><strong>${escapeHtml(c.descricao)}</strong><span>${brl(c.preco)}</span></div><b>＋</b></button>`).join('') : '<div class="cartaz-preview-empty">A fila está vazia.</div>'}</div>
       </aside>
-
       <main class="cartaz-print-workspace">
-        <div class="cartaz-print-pagebar">
-          <div><strong>Folha ${state.cartazImpressaoPagina + 1} de ${state.cartazImpressaoPaginas.length}</strong><span>${cartazImpressaoResumoPagina(pagina)}</span></div>
-          <div><button type="button" id="cartazPrintAnterior" ${state.cartazImpressaoPagina <= 0 ? 'disabled' : ''}>‹</button><button type="button" id="cartazPrintProxima" ${state.cartazImpressaoPagina >= state.cartazImpressaoPaginas.length - 1 ? 'disabled' : ''}>›</button><button type="button" id="cartazPrintNovaFolha">＋ Nova folha</button></div>
-        </div>
-
+        <div class="cartaz-print-pagebar"><div><strong>Folha ${state.cartazImpressaoPagina + 1} de ${state.cartazImpressaoPaginas.length}</strong><span>${cartazImpressaoResumoPagina(pagina)}</span></div><div><button type="button" id="cartazPrintAnterior" ${state.cartazImpressaoPagina <= 0 ? 'disabled' : ''}>‹</button><button type="button" id="cartazPrintProxima" ${state.cartazImpressaoPagina >= state.cartazImpressaoPaginas.length - 1 ? 'disabled' : ''}>›</button><button type="button" id="cartazPrintNovaFolha">＋ Nova folha</button></div></div>
         <div class="cartaz-print-sheet-stage">${cartazImpressaoPaginaHtml(pagina, state.cartazImpressaoPagina)}</div>
-
-        <div class="cartaz-print-page-actions"><span>A4 horizontal · montagem automática</span><div><button type="button" id="cartazPrintLimparFolha">Limpar folha</button><button type="button" id="cartazPrintExcluirFolha">Excluir folha</button></div></div>
+        <div class="cartaz-print-page-actions"><span>A4 horizontal · impressão em tamanho real / 100%</span><div><button type="button" id="cartazPrintLimparFolha">Limpar folha</button><button type="button" id="cartazPrintExcluirFolha">Excluir folha</button></div></div>
       </main>
     </section>
-
     <div id="cartazPrintOutput" class="cartaz-print-pages-output">${paginasComConteudo.map((p, i) => cartazImpressaoPaginaHtml(p, i, { remove: false, output: true })).join('')}</div>
   </div>`;
 
   $('cartazPrintVoltarFila').onclick = () => entrarCartazes('fila');
-  $('cartazPrintImprimir').onclick = () => window.print();
+  $('cartazPrintImprimir').onclick = cartazImprimirA4;
   $('cartazPrintNovaFolha').onclick = cartazImpressaoNovaFolha;
   $('cartazPrintLimparFolha').onclick = cartazImpressaoLimparPagina;
   $('cartazPrintExcluirFolha').onclick = cartazImpressaoExcluirPagina;
-  $('cartazPrintAnterior').onclick = () => { state.cartazImpressaoPagina--; renderCartazesImpressao(); };
-  $('cartazPrintProxima').onclick = () => { state.cartazImpressaoPagina++; renderCartazesImpressao(); };
-
-  panel.querySelectorAll('[data-print-size]').forEach(b => b.onclick = () => {
-    state.cartazImpressaoTamanho = b.dataset.printSize;
-    renderCartazesImpressao();
-  });
-
-  panel.querySelectorAll('[data-cartaz-print]').forEach(b => b.onclick = () => {
-    const c = state.cartazFila[Number(b.dataset.cartazPrint)];
-    if (c) cartazImpressaoAdicionar(c);
-  });
-
-  panel.querySelectorAll('.cartaz-print-remove').forEach(b => b.onclick = e => {
-    e.stopPropagation();
-    cartazImpressaoRemover(Number(b.dataset.pagina), Number(b.dataset.coluna), Number(b.dataset.item));
-  });
+  $('cartazPrintAnterior').onclick = () => { if (state.cartazImpressaoPagina > 0) state.cartazImpressaoPagina--; renderCartazesImpressao(); };
+  $('cartazPrintProxima').onclick = () => { if (state.cartazImpressaoPagina < state.cartazImpressaoPaginas.length - 1) state.cartazImpressaoPagina++; renderCartazesImpressao(); };
+  panel.querySelectorAll('[data-print-size]').forEach(b => b.onclick = () => { state.cartazImpressaoTamanho = b.dataset.printSize === 'grande' ? 'grande' : 'pequena'; renderCartazesImpressao(); });
+  panel.querySelectorAll('[data-cartaz-print]').forEach(b => b.onclick = () => { const c = state.cartazFila[Number(b.dataset.cartazPrint)]; if (c) cartazImpressaoAdicionar(c); });
+  panel.querySelectorAll('.cartaz-print-remove').forEach(b => b.onclick = e => { e.stopPropagation(); cartazImpressaoRemover(Number(b.dataset.pagina), Number(b.dataset.coluna), Number(b.dataset.item)); });
 }
 
 window.entrarCartazes = entrarCartazes;

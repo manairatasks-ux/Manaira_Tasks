@@ -1,0 +1,53 @@
+V30 - MÓDULO CARTAZES / PLAQUINHAS - REVISÃO COMPLETA
+
+Objetivo
+- Refazer a parte de criação, edição, fila e impressão das plaquinhas sem alterar os demais módulos da Plataforma Manaíra.
+
+Principais correções
+1. Removidas funções duplicadas de ajuste/drag que sobrescreviam umas às outras.
+2. Corrigida a estrutura HTML da arte; os campos agora fecham corretamente e não ficam aninhados por acidente.
+3. Removido o conflito de CSS acumulado das versões V24/V25/V27/V28/V29.
+4. CSS do módulo isolado em public/css/cartazes.css.
+5. Preview e impressão agora usam a MESMA função/estrutura de arte, reduzindo diferenças entre tela e papel.
+6. Removido o uso de <strong> no preço da arte; preço usa estrutura própria .cartaz-price.
+7. Mantida a fonte Impact; aplicado afinamento visual leve sem trocar o desenho da fonte.
+8. Tamanho dos preços passa a ser relativo ao cartaz (cqw), não dependente de pixels fixos da tela.
+9. Adicionado ajuste fino de tamanho na interface para descrição e preços, sem precisar editar CSS/JS.
+10. Arraste refeito; também é possível ajustar posição com as setas do teclado (Shift = passo maior).
+11. Layout salvo em percentuais e reaproveitado na fila e na impressão.
+12. Fila antiga é migrada automaticamente para o novo formato quando possível.
+13. localStorage protegido contra JSON inválido para não derrubar a aplicação inteira.
+14. Montagem A4 normalizada e protegida contra páginas/colunas inconsistentes.
+15. Plaquinha grande continua girando 90° à esquerda, porém agora é centralizada no slot sem offsets manuais frágeis.
+16. @page da impressão foi transformado em página nomeada para não forçar os outros módulos a imprimirem em A4 horizontal.
+
+Medidas mantidas
+- Pequena: 14 cm de largura, slot de 14 x 9,22 cm.
+- Grande: 20 cm após ampliação e rotação, slot de aproximadamente 13,17 x 20 cm.
+- A4 horizontal com duas colunas.
+- Combinações: 4 pequenas; 2 grandes; ou 2 pequenas + 1 grande.
+
+Integração GZ
+- Rota /api/cartazes/consulta foi mantida.
+- Preço normal continua usando precoVenda.
+- Promoção mantém a regra anterior: precoEspecial e precoPromocao como fallback.
+- Detecção de promoção continua respeitando início/fim de vigência.
+- A regra existente de validade da placa como dia seguinte ao dataTerminoPromocao foi PRESERVADA, não alterada silenciosamente.
+
+Arquivos principais alterados
+- public/js/app.js
+- public/css/style.css
+- public/css/cartazes.css (novo)
+- public/index.html
+
+Teste recomendado antes de commit
+1. Buscar por EAN e pressionar Enter.
+2. Buscar por descrição e escolher um resultado.
+3. Testar cartaz normal com 5,99 / 19,99 / 129,99 / 1.299,99.
+4. Testar cartaz oferta com preço DE/POR e validade.
+5. Editar descrição e preços e confirmar atualização sem reload.
+6. Arrastar descrição/preço e usar setas do teclado.
+7. Alterar os sliders de tamanho.
+8. Enviar 1 e múltiplas quantidades para a fila.
+9. Montar 4 pequenas, 2 grandes e layout misto.
+10. Conferir visualização de impressão em 100% / tamanho real.

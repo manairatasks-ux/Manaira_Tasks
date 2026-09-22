@@ -1,0 +1,18 @@
+V31 - PLAQUINHAS | CONTROLES NUMÉRICOS E REVISÃO
+
+Ajustes principais:
+- Substituídos sliders de tamanho por campos numéricos em porcentagem.
+- 100% representa o tamanho padrão; descrição e preço DE aceitam 50%-250%; preço principal/POR 50%-300%.
+- Enter ou saída do campo aplica o valor digitado.
+- Corrigido bug em que alternar entre controles fazia o tamanho parecer voltar/resetar.
+- Separado o tamanho escolhido pelo usuário (scale) do tamanho resolvido para caber na área (fitCqw).
+- O autoajuste não sobrescreve mais a porcentagem escolhida.
+- Fila/impressão preservam o tamanho visual resolvido do preview.
+- Compatibilidade com cartazes antigos que usavam fontCqw.
+- Simplificada a troca entre modelo Normal/Oferta, removendo condição redundante.
+- Mantidos centavos, vírgula e parte inteira com o mesmo tamanho.
+
+Validação:
+- node --check em todos os arquivos JS.
+- verificação de duplicidade de funções no app.js.
+- verificação estrutural de CSS e referências do módulo.

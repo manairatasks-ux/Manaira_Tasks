@@ -1,0 +1,935 @@
+/* ==========================================================
+   V31 - MÓDULO CARTAZES / PLAQUINHAS MANAÍRA
+   CSS isolado para evitar conflitos com versões antigas.
+   ========================================================== */
+
+.cartazes-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.cartazes-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+}
+
+.cartazes-toolbar>div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.cartazes-toolbar strong {
+  font-size: 16px;
+}
+
+.cartazes-toolbar span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.cartaz-fila-btn b {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+}
+
+.cartazes-workspace {
+  display: grid;
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.cartazes-controls,
+.cartaz-preview-wrap,
+.cartaz-print-sidebar,
+.cartaz-print-workspace {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.cartaz-search-form {
+  display: grid;
+  gap: 7px;
+}
+
+.cartaz-search-form label,
+.cartaz-form-grid label {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cartaz-search-line {
+  display: grid;
+  grid-template-columns: 105px minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.cartaz-search-line input,
+.cartaz-search-line select,
+.cartaz-form-grid input,
+.cartaz-form-grid select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.cartaz-product-box {
+  display: grid;
+  gap: 3px;
+  margin: 14px 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.cartaz-product-box small {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.cartaz-product-box strong {
+  font-size: 14px;
+}
+
+.cartaz-product-box span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.cartaz-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cartaz-form-grid label {
+  display: grid;
+  gap: 5px;
+}
+
+.cartaz-form-grid .full {
+  grid-column: 1 / -1;
+}
+
+.cartaz-size-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.cartaz-size-head {
+  display: grid;
+  gap: 2px;
+}
+
+.cartaz-size-head strong {
+  font-size: 12px;
+}
+
+.cartaz-size-head span {
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.cartaz-size-panel label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cartaz-number-size {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.cartaz-number-size input[type="number"] {
+  width: 72px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  outline: none;
+}
+
+.cartaz-number-size input[type="number"]:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+
+.cartaz-number-size>span {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.cartaz-auto-note {
+  margin: 12px 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.cartaz-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cartaz-preview-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cartaz-preview-head span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.cartaz-preview-empty,
+.cartaz-empty-side,
+.cartaz-search-msg,
+.cartaz-loading {
+  padding: 30px 12px;
+  color: #64748b;
+  text-align: center;
+}
+
+.cartaz-result-list {
+  display: grid;
+  max-height: 260px;
+  margin-top: 10px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.cartaz-result-list button {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px;
+  border: 0;
+  border-bottom: 1px solid #eef2f7;
+  background: #fff;
+  text-align: left;
+}
+
+.cartaz-result-list button:last-child {
+  border-bottom: 0;
+}
+
+.cartaz-result-list button:hover {
+  background: #f8fbff;
+}
+
+.cartaz-result-list span {
+  display: grid;
+  gap: 2px;
+}
+
+.cartaz-result-list small {
+  color: #64748b;
+}
+
+/* ---------- Componente único da arte: preview e impressão usam a mesma marcação ---------- */
+.cartaz-art {
+  position: relative;
+  box-sizing: border-box;
+  container-type: inline-size;
+  overflow: hidden;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  background-position: center;
+  font-family: Impact, "Arial Black", sans-serif;
+  user-select: none;
+}
+
+.cartaz-art.normal {
+  aspect-ratio: 1600 / 1054;
+}
+
+.cartaz-art.oferta {
+  aspect-ratio: 1073 / 700;
+}
+
+.cartaz-canvas {
+  width: min(100%, 900px);
+  margin: auto;
+}
+
+.cartaz-field {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #050505;
+  font-family: Impact, "Arial Black", sans-serif;
+  font-size: var(--cartaz-font, 6cqw);
+  font-weight: normal;
+  line-height: .92;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+.cartaz-field-editable {
+  cursor: move;
+  touch-action: none;
+  outline: 0;
+}
+
+.cartaz-field-editable:focus,
+.cartaz-field-editable.is-dragging {
+  outline: 2px dashed #2563eb;
+  outline-offset: 2px;
+  background: rgba(255, 255, 255, .05);
+}
+
+.cartaz-desc {
+  padding: 0 1%;
+  color: #000;
+  line-height: .95;
+}
+
+.cartaz-validade {
+  color: #000;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cartaz-de,
+.cartaz-por {
+  overflow: visible;
+  color: #f00000;
+  line-height: .78;
+  white-space: nowrap;
+}
+
+.cartaz-price {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  color: #f00000;
+  font: inherit;
+  font-size: var(--cartaz-font, 16cqw);
+  font-style: normal;
+  font-weight: normal;
+  letter-spacing: -.055em;
+  white-space: nowrap;
+  /* Mantém a Impact e reduz visualmente a espessura sem trocar a fonte. */
+  -webkit-text-stroke: .10cqw #ffff00;
+}
+
+.cartaz-price-int,
+.cartaz-price-comma,
+.cartaz-price-cents {
+  font: inherit;
+  font-size: 1em;
+  font-style: normal;
+  line-height: inherit;
+  margin: 0;
+  align-self: auto;
+}
+
+/* ---------- Fila ---------- */
+.cartaz-queue {
+  display: grid;
+  gap: 8px;
+}
+
+.cartaz-queue article {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.cartaz-queue article>div:nth-child(2) {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cartaz-queue article small {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.cartaz-queue article strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cartaz-queue article span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.cartaz-queue-thumb {
+  aspect-ratio: 1600 / 1054;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background-position: center;
+  background-size: cover;
+}
+
+.cartaz-queue-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.cartaz-queue-footer>div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Montagem A4 ---------- */
+.cartaz-print-toolbar-actions,
+.cartaz-print-pagebar>div,
+.cartaz-print-page-actions>div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cartaz-print-layout {
+  display: grid;
+  grid-template-columns: minmax(290px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.cartaz-print-size-box {
+  display: grid;
+  gap: 9px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cartaz-print-size-box>strong {
+  font-size: 13px;
+}
+
+.cartaz-print-size-box>small {
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.cartaz-print-size-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.cartaz-print-size-toggle button {
+  display: grid;
+  gap: 2px;
+  padding: 10px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  text-align: left;
+}
+
+.cartaz-print-size-toggle button b {
+  font-size: 12px;
+}
+
+.cartaz-print-size-toggle button span {
+  color: #64748b;
+  font-size: 9px;
+}
+
+.cartaz-print-size-toggle button.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  box-shadow: inset 0 0 0 1px #2563eb;
+}
+
+.cartaz-print-source-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 13px 0 8px;
+}
+
+.cartaz-print-source-head strong {
+  font-size: 13px;
+}
+
+.cartaz-print-source-head span {
+  display: grid;
+  place-items: center;
+  min-width: 23px;
+  height: 23px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.cartaz-print-source-list {
+  display: grid;
+  gap: 7px;
+  max-height: 620px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.cartaz-print-source {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) 26px;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  transition: .15s ease;
+}
+
+.cartaz-print-source:hover {
+  border-color: #93c5fd;
+  background: #f8fbff;
+  transform: translateY(-1px);
+}
+
+.cartaz-print-source>div:nth-child(2) {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cartaz-print-source small {
+  color: #64748b;
+  font-size: 9px;
+}
+
+.cartaz-print-source strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.cartaz-print-source span {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.cartaz-print-source>b {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 16px;
+}
+
+.cartaz-print-pagebar,
+.cartaz-print-page-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cartaz-print-pagebar {
+  margin-bottom: 12px;
+}
+
+.cartaz-print-pagebar>div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.cartaz-print-pagebar strong {
+  font-size: 13px;
+}
+
+.cartaz-print-pagebar span,
+.cartaz-print-page-actions>span {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.cartaz-print-page-actions {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.cartaz-print-sheet-stage {
+  min-height: 535px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 12px;
+  background: #e5e7eb;
+}
+
+.cartaz-print-sheet {
+  box-sizing: border-box;
+  width: 29.7cm;
+  height: 21cm;
+  padding: .5cm;
+  display: grid;
+  grid-template-columns: 14cm 14cm;
+  grid-template-rows: 20cm;
+  gap: .7cm;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .18);
+}
+
+@media screen {
+  .cartaz-print-sheet-stage>.cartaz-print-sheet {
+    zoom: .64;
+  }
+}
+
+.cartaz-print-column {
+  position: relative;
+  width: 14cm;
+  height: 20cm;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .5cm;
+  overflow: hidden;
+}
+
+.cartaz-print-column.vazia {
+  border: 1px dashed #cbd5e1;
+  border-radius: 5px;
+}
+
+.cartaz-print-slot-empty {
+  color: #94a3b8;
+  font: 600 13px Arial, sans-serif;
+}
+
+.cartaz-print-card {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.cartaz-print-card.pequena {
+  width: 14cm;
+  height: 9.22cm;
+}
+
+.cartaz-print-card.grande {
+  width: 13.17cm;
+  height: 20cm;
+}
+
+.cartaz-print-art-frame {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.cartaz-print-card.pequena .cartaz-art {
+  width: 14cm;
+  flex: none;
+}
+
+/*
+  Cartaz grande: gira um quadro de dimensões conhecidas, em vez de girar
+  diretamente a arte dentro de um frame estreito. Isso evita o deslocamento
+  lateral/clipping que Chromium pode aplicar ao imprimir elementos rotacionados.
+*/
+.cartaz-print-card.grande .cartaz-print-art-frame {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  width: 20cm;
+  height: 13.17cm;
+  transform: translate(-50%, -50%) rotate(-90deg);
+  transform-origin: center center;
+  overflow: hidden;
+}
+
+.cartaz-print-card.grande .cartaz-art {
+  width: 100%;
+  height: 100%;
+  flex: none;
+  aspect-ratio: auto;
+  transform: none;
+}
+
+.cartaz-print-remove {
+  position: absolute;
+  z-index: 20;
+  top: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, .86);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, .25);
+  font: 700 17px/1 Arial, sans-serif;
+}
+
+.cartaz-print-pages-output {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .cartaz-print-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .cartaz-print-source-list {
+    max-height: 330px;
+  }
+}
+
+@media (max-width: 900px) {
+  .cartazes-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .cartazes-toolbar,
+  .cartaz-queue-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cartaz-canvas {
+    width: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+
+  .cartaz-search-line,
+  .cartaz-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cartaz-form-grid .full {
+    grid-column: auto;
+  }
+
+  .cartaz-print-pagebar,
+  .cartaz-print-page-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cartaz-print-size-toggle {
+    grid-template-columns: 1fr;
+  }
+
+  .cartaz-print-sheet-stage {
+    justify-content: flex-start;
+  }
+}
+
+/*
+  A orientação A4 horizontal é injetada pelo cartazImprimirA4() somente
+  durante esta impressão. Isso evita afetar os outros módulos e contorna
+  a inconsistência do Chrome/Edge com páginas @page nomeadas.
+*/
+
+@media print {
+
+  #loginScreen,
+  #app>.sidebar,
+  #app>.main> :not(#cartazesPanel),
+  #modal,
+  .cartaz-print-screen> :not(.cartaz-print-pages-output) {
+    display: none !important;
+  }
+
+  html,
+  body,
+  #app,
+  #app>.main,
+  #cartazesPanel,
+  .cartazes-shell.cartaz-print-screen {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .cartaz-print-pages-output,
+  .cartaz-print-pages-output * {
+    visibility: visible !important;
+  }
+
+  .cartaz-print-pages-output {
+    display: block !important;
+    position: static !important;
+    width: 297mm !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .cartaz-print-sheet-output {
+    box-sizing: border-box !important;
+    display: grid !important;
+    grid-template-columns: 140mm 140mm !important;
+    grid-template-rows: 200mm !important;
+    gap: 7mm !important;
+    width: 297mm !important;
+    min-width: 297mm !important;
+    max-width: 297mm !important;
+    height: 210mm !important;
+    min-height: 210mm !important;
+    max-height: 210mm !important;
+    margin: 0 !important;
+    padding: 5mm !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .cartaz-print-sheet-output:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+
+  .cartaz-print-sheet-output .cartaz-print-column {
+    width: 140mm !important;
+    height: 200mm !important;
+    gap: 5mm !important;
+  }
+
+  .cartaz-print-sheet-output .cartaz-print-card.pequena {
+    width: 140mm !important;
+    height: 92.2mm !important;
+  }
+
+  .cartaz-print-sheet-output .cartaz-print-card.grande {
+    width: 131.7mm !important;
+    height: 200mm !important;
+  }
+
+  .cartaz-print-sheet-output .cartaz-print-card.pequena .cartaz-art {
+    width: 140mm !important;
+  }
+
+  .cartaz-print-sheet-output .cartaz-print-card.grande .cartaz-print-art-frame {
+    left: 50% !important;
+    top: 50% !important;
+    width: 200mm !important;
+    height: 131.7mm !important;
+    transform: translate(-50%, -50%) rotate(-90deg) !important;
+    transform-origin: center center !important;
+  }
+
+  .cartaz-print-sheet-output .cartaz-print-card.grande .cartaz-art {
+    width: 100% !important;
+    height: 100% !important;
+    aspect-ratio: auto !important;
+    transform: none !important;
+  }
+
+  .cartaz-print-slot-empty,
+  .cartaz-print-remove {
+    display: none !important;
+  }
+
+  .cartaz-art,
+  .cartaz-art * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
