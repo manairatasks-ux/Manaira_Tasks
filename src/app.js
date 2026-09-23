@@ -12,6 +12,8 @@ const galpaoRoutes=require('./modules/galpao/galpao.routes');
 const rhRoutes=require('./modules/rh/rh.routes');
 const produtosGzRoutes=require('./modules/produtos-gz/produtos-gz.routes');
 const cartazesRoutes=require('./modules/cartazes/cartazes.routes');
+const mobileRoutes =
+  require('./modules/mobile/mobile.routes');
 
 const app=express();
 app.use(cors());
@@ -29,6 +31,7 @@ app.use('/api/galpao',galpaoRoutes);
 app.use('/api/rh',rhRoutes);
 app.use('/api/produtos-gz',produtosGzRoutes);
 app.use('/api/cartazes',cartazesRoutes);
+app.use('/api/mobile', mobileRoutes);
 app.use('/',atividadesRoutes);
 app.use('/',osRoutes);
 app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'..','public','index.html')));
