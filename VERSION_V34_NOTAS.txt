@@ -1,0 +1,19 @@
+V34 - Consulta em lote + destaque de itens inativos
+
+Alterações:
+- Novo botão "Consulta em lote" dentro do módulo Consulta de Produtos.
+- Aceita listas copiadas da Scanntech, Excel, Markdown e texto simples.
+- Ignora espaços, linhas/células vazias, tabulações e separadores.
+- Extrai códigos numéricos de 8 a 14 dígitos e remove duplicados.
+- Consulta até 4 itens em paralelo para não sobrecarregar a Ponte GZ.
+- Tenta primeiro como código de barras/EAN e, se necessário, como código interno.
+- Resultado em tabela com situação, preço de venda e estoque.
+- Resumo de ativos, inativos, sem estoque e não encontrados.
+- Produtos não ativos aparecem avermelhados em toda a Consulta de Produtos:
+  * lista de resultados da consulta individual;
+  * cartão completo do produto;
+  * status;
+  * consulta em lote e resumo.
+- Produto inativo recebe alerta visual explícito no cartão.
+
+Backend/API GZ não foi alterado nesta versão.

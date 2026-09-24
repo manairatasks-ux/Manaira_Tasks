@@ -3829,8 +3829,36 @@ td:last-child {
 }
 
 .prod-gz-status.inativo {
-  background: #f3f4f6;
-  color: #667085
+  background: #fee2e2;
+  color: #b42318;
+  border: 1px solid #fecaca
+}
+
+.prod-gz-product.prod-gz-product-inativo {
+  border-color: #f4a7a7;
+  background: #fff7f7;
+  box-shadow: 0 8px 24px rgba(180, 35, 24, .08)
+}
+
+.prod-gz-product-inativo .prod-gz-product-head {
+  border-bottom-color: #fecaca
+}
+
+.prod-gz-product-inativo .prod-gz-highlight,
+.prod-gz-product-inativo .prod-gz-detail {
+  border-color: #f8c9c9;
+  background: rgba(254, 226, 226, .38)
+}
+
+.prod-gz-inativo-alerta {
+  margin: -4px 0 16px;
+  border: 1px solid #fecaca;
+  background: #fee2e2;
+  color: #9f1d16;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 800
 }
 
 .prod-gz-highlight-grid {
@@ -3904,6 +3932,25 @@ td:last-child {
 
 .prod-gz-result-item:hover {
   border-color: var(--primary, #0b5ed7)
+}
+
+.prod-gz-result-item.inativo {
+  border-color: #f4a7a7;
+  background: #fff1f1
+}
+
+.prod-gz-result-item.inativo:hover {
+  border-color: #dc2626;
+  background: #fee2e2
+}
+
+.prod-gz-result-side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  text-align: right
 }
 
 .prod-gz-result-item strong {
@@ -3985,6 +4032,591 @@ td:last-child {
     position: sticky;
     top: 0;
     z-index: 2
+  }
+}
+
+
+/* =========================
+   V34 - Consulta de Produtos em Lote
+   ========================= */
+.prod-gz-lote-shell {
+  max-width: 1180px
+}
+
+.prod-gz-lote-textarea {
+  width: 100%;
+  min-height: 245px;
+  padding: 15px 16px;
+  border: 1px solid var(--border, #dfe4ea);
+  border-radius: 12px;
+  resize: vertical;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.55;
+  outline: none
+}
+
+.prod-gz-lote-textarea:focus {
+  border-color: var(--primary, #0b5ed7);
+  box-shadow: 0 0 0 3px rgba(11, 94, 215, .1)
+}
+
+.prod-gz-lote-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  color: var(--muted, #667085);
+  font-size: 13px
+}
+
+.prod-gz-lote-secondary {
+  border: 1px solid var(--border, #dfe4ea);
+  background: var(--surface, #fff);
+  color: inherit;
+  border-radius: 10px;
+  padding: 7px 12px;
+  cursor: pointer;
+  font-weight: 700
+}
+
+.prod-gz-lote-consultar {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 18px;
+  background: var(--primary, #0b5ed7);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800
+}
+
+.prod-gz-lote-consultar:disabled {
+  opacity: .58;
+  cursor: not-allowed
+}
+
+.prod-gz-lote-resultado {
+  display: grid;
+  gap: 16px
+}
+
+.prod-gz-lote-loading {
+  background: var(--card, #fff);
+  border: 1px solid var(--border, #dfe4ea);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .04)
+}
+
+.prod-gz-lote-loading-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px
+}
+
+.prod-gz-lote-loading-head span {
+  color: var(--muted, #667085);
+  font-size: 13px;
+  font-weight: 700
+}
+
+.prod-gz-progress {
+  height: 9px;
+  border-radius: 999px;
+  background: #e9eef6;
+  overflow: hidden
+}
+
+.prod-gz-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary, #0b5ed7);
+  transition: width .2s ease
+}
+
+.prod-gz-lote-resumo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 10px
+}
+
+.prod-gz-lote-resumo>div {
+  background: var(--card, #fff);
+  border: 1px solid var(--border, #dfe4ea);
+  border-radius: 14px;
+  padding: 15px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .035)
+}
+
+.prod-gz-lote-resumo strong {
+  display: block;
+  font-size: 25px;
+  line-height: 1;
+  margin-bottom: 6px
+}
+
+.prod-gz-lote-resumo span {
+  color: var(--muted, #667085);
+  font-size: 12px;
+  font-weight: 700
+}
+
+.prod-gz-lote-resumo .resumo-inativo {
+  border-color: #f4a7a7;
+  background: #fff1f1;
+  color: #b42318
+}
+
+.prod-gz-lote-resumo .resumo-inativo span {
+  color: #b42318
+}
+
+.prod-gz-lote-resumo .resumo-alerta {
+  border-color: #f5d58b;
+  background: #fff9e8
+}
+
+.prod-gz-lote-table-wrap {
+  overflow: auto;
+  background: var(--card, #fff);
+  border: 1px solid var(--border, #dfe4ea);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .04)
+}
+
+.prod-gz-lote-table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse
+}
+
+.prod-gz-lote-table th,
+.prod-gz-lote-table td {
+  padding: 12px 13px;
+  border-bottom: 1px solid #edf0f5;
+  text-align: left;
+  vertical-align: middle
+}
+
+.prod-gz-lote-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  color: #667085;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .035em
+}
+
+.prod-gz-lote-table td {
+  font-size: 13px
+}
+
+.prod-gz-lote-table tbody tr:last-child td {
+  border-bottom: 0
+}
+
+.prod-gz-lote-row-inativo td {
+  background: #fff1f1;
+  border-bottom-color: #f7caca
+}
+
+.prod-gz-lote-row-inativo td:first-child {
+  box-shadow: inset 4px 0 0 #dc2626
+}
+
+.prod-gz-lote-row-sem-estoque td {
+  background: #fffaf0
+}
+
+.prod-gz-lote-nao-encontrado td {
+  background: #f8fafc;
+  color: #667085
+}
+
+.prod-gz-lote-row-erro td {
+  background: #fff1f1;
+  color: #9f1d16
+}
+
+.prod-gz-lote-codigo-gz {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted, #667085);
+  font-size: 11px
+}
+
+.lote-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap
+}
+
+.lote-status-ok {
+  background: #e8f7ee;
+  color: #18794e
+}
+
+.lote-status-alerta {
+  background: #fff1c2;
+  color: #855600
+}
+
+.lote-status-erro {
+  background: #fee2e2;
+  color: #b42318;
+  border: 1px solid #fecaca
+}
+
+.lote-status-neutro {
+  background: #eef2f6;
+  color: #5f6b7a
+}
+
+@media(max-width:760px) {
+  .prod-gz-lote-textarea {
+    min-height: 210px
+  }
+
+  .prod-gz-lote-info,
+  .prod-gz-lote-loading-head {
+    align-items: flex-start;
+    flex-direction: column
+  }
+}
+
+
+/* V35 - filtros, ordenação e cópia da Consulta em Lote */
+.prod-gz-lote-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 18px;
+  align-items: end;
+  padding: 15px;
+  background: var(--card, #fff);
+  border: 1px solid var(--border, #dfe4ea);
+  border-radius: 15px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .035)
+}
+
+.prod-gz-lote-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px
+}
+
+.prod-gz-lote-toolbar-label {
+  width: 100%;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em
+}
+
+.prod-gz-lote-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #dfe4ea;
+  border-radius: 999px;
+  background: #fff;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none
+}
+
+.prod-gz-lote-filter-chip input {
+  accent-color: var(--primary, #0b5ed7)
+}
+
+.prod-gz-lote-filter-chip small {
+  display: inline-flex;
+  min-width: 20px;
+  min-height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #667085;
+  font-size: 10px
+}
+
+.prod-gz-lote-filter-chip.inativo {
+  border-color: #f4b5b5;
+  background: #fff6f6;
+  color: #b42318
+}
+
+.prod-gz-lote-filter-chip.alerta {
+  border-color: #f0d48d;
+  background: #fffbef;
+  color: #855600
+}
+
+.prod-gz-lote-filter-chip.neutro {
+  background: #f8fafc
+}
+
+.prod-gz-lote-filter-chip.erro {
+  border-color: #f4b5b5;
+  color: #9f1d16
+}
+
+.prod-gz-lote-toolbar-actions {
+  display: flex;
+  align-items: end;
+  gap: 10px
+}
+
+.prod-gz-lote-sort-wrap {
+  display: grid;
+  gap: 5px
+}
+
+.prod-gz-lote-sort-wrap span {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em
+}
+
+.prod-gz-lote-sort-wrap select {
+  min-width: 220px;
+  min-height: 40px;
+  padding: 0 36px 0 11px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #fff;
+  color: #344054;
+  font: inherit
+}
+
+.prod-gz-lote-copy-btn {
+  min-height: 40px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--primary, #0b5ed7);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap
+}
+
+.prod-gz-lote-copy-btn:disabled {
+  opacity: .45;
+  cursor: default
+}
+
+.prod-gz-lote-visible-count {
+  grid-column: 1 / -1;
+  padding-top: 10px;
+  border-top: 1px solid #edf0f5;
+  color: #667085;
+  font-size: 12px
+}
+
+.prod-gz-lote-visible-count strong {
+  color: #344054
+}
+
+.prod-gz-lote-sem-resultados td {
+  padding: 28px !important;
+  color: #667085;
+  text-align: center !important
+}
+
+.prod-gz-copy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, .48);
+  backdrop-filter: blur(2px)
+}
+
+.prod-gz-copy-modal {
+  width: min(620px, 100%);
+  max-height: min(760px, 92vh);
+  overflow: auto;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .25);
+  padding: 20px
+}
+
+.prod-gz-copy-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px
+}
+
+.prod-gz-copy-head strong {
+  display: block;
+  color: #172033;
+  font-size: 20px
+}
+
+.prod-gz-copy-head span {
+  display: block;
+  margin-top: 5px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.45
+}
+
+.prod-gz-copy-close {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 9px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer
+}
+
+.prod-gz-copy-shortcuts {
+  display: flex;
+  gap: 8px;
+  margin: 18px 0 12px
+}
+
+.prod-gz-copy-shortcuts button {
+  padding: 8px 11px;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+  background: #fff;
+  color: #344054;
+  font-weight: 700;
+  cursor: pointer
+}
+
+.prod-gz-copy-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #fafbfc
+}
+
+.prod-gz-copy-fields label,
+.prod-gz-copy-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer
+}
+
+.prod-gz-copy-fields input,
+.prod-gz-copy-header input {
+  accent-color: var(--primary, #0b5ed7)
+}
+
+.prod-gz-copy-header {
+  margin-top: 13px
+}
+
+.prod-gz-copy-feedback {
+  min-height: 20px;
+  margin-top: 10px;
+  color: #176b45;
+  font-size: 12px;
+  font-weight: 700
+}
+
+.prod-gz-copy-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 8px
+}
+
+.prod-gz-copy-actions button {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-weight: 800;
+  cursor: pointer
+}
+
+.prod-gz-copy-cancel {
+  border: 1px solid #d0d5dd;
+  background: #fff;
+  color: #344054
+}
+
+.prod-gz-copy-confirm {
+  border: 0;
+  background: var(--primary, #0b5ed7);
+  color: #fff
+}
+
+.prod-gz-copy-confirm:disabled {
+  opacity: .65;
+  cursor: wait
+}
+
+@media(max-width:900px) {
+  .prod-gz-lote-toolbar {
+    grid-template-columns: 1fr
+  }
+
+  .prod-gz-lote-toolbar-actions {
+    align-items: stretch;
+    flex-direction: column
+  }
+
+  .prod-gz-lote-sort-wrap select,
+  .prod-gz-lote-copy-btn {
+    width: 100%
+  }
+}
+
+@media(max-width:560px) {
+  .prod-gz-copy-fields {
+    grid-template-columns: 1fr
+  }
+
+  .prod-gz-copy-shortcuts,
+  .prod-gz-copy-actions {
+    flex-direction: column
+  }
+
+  .prod-gz-copy-actions button,
+  .prod-gz-copy-shortcuts button {
+    width: 100%
   }
 }
 

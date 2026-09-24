@@ -3367,16 +3367,33 @@ window.abrirGalpao = abrirGalpao;
 
 
 // =========================
-// V19 - Consulta de Produtos GZ
+// V36 - Consulta de Produtos GZ + Consulta em Lote, filtros e cópia Excel corrigida
 // =========================
+function atualizarMenuProdutosGz(modo = 'consulta') {
+  $('btnProdutosGzConsulta')?.classList.toggle('active', modo === 'consulta');
+  $('btnProdutosGzLote')?.classList.toggle('active', modo === 'lote');
+}
+
 function entrarProdutosGz() {
   if (!exigirModulo('consulta_produtos', 'Consulta de Produtos')) return;
   setModule('produtos-gz');
   setView('produtos-gz');
+  atualizarMenuProdutosGz('consulta');
   $('setorTitulo').textContent = 'Consulta de Produtos';
   $('setorDescricao').textContent = 'Consulte preço, custo, margem e estoque diretamente da GZ.';
   history.replaceState(null, '', '#consulta-produtos');
   renderProdutosGz();
+}
+
+function entrarProdutosGzLote() {
+  if (!exigirModulo('consulta_produtos', 'Consulta de Produtos')) return;
+  setModule('produtos-gz');
+  setView('produtos-gz');
+  atualizarMenuProdutosGz('lote');
+  $('setorTitulo').textContent = 'Consulta em Lote';
+  $('setorDescricao').textContent = 'Cole produtos da Scanntech, Excel ou qualquer lista de códigos e consulte tudo de uma vez.';
+  history.replaceState(null, '', '#consulta-produtos-lote');
+  renderProdutosGzLote();
 }
 
 function brl(value) {
@@ -3387,6 +3404,15 @@ function brl(value) {
 function numPt(value, casas = 3) {
   const n = Number(value || 0);
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: casas });
+}
+
+function produtoGzStatus(p) {
+  return String(p?.situacao || '').trim().toUpperCase();
+}
+
+function produtoGzNaoAtivo(p) {
+  const status = produtoGzStatus(p);
+  return Boolean(status) && status !== 'ATIVO';
 }
 
 function renderProdutosGz() {
@@ -3445,19 +3471,40 @@ async function consultarProdutoGz(tipo, valor) {
       conteudo.innerHTML = produtoGzCard(state.produtoGzAtual);
       return;
     }
-    conteudo.innerHTML = `<section class="prod-gz-product"><div class="prod-gz-product-head"><div class="prod-gz-product-title"><small>RESULTADOS</small><h3>${state.produtosGzResultados.length} produtos encontrados</h3></div></div><div class="prod-gz-results-list">${state.produtosGzResultados.map((p, i) => `<button type="button" class="prod-gz-result-item" onclick="selecionarProdutoGz(${i})"><span><strong>${escapeHtml(p.descricao || p.descpdv || 'Produto')}</strong><small>${escapeHtml(p.codigoEan || p.codigo || '-')}</small></span><span>${brl(p.precoVenda)}</span></button>`).join('')}</div></section>`;
+
+    conteudo.innerHTML = `
+      <section class="prod-gz-product">
+        <div class="prod-gz-product-head">
+          <div class="prod-gz-product-title"><small>RESULTADOS</small><h3>${state.produtosGzResultados.length} produtos encontrados</h3></div>
+        </div>
+        <div class="prod-gz-results-list">
+          ${state.produtosGzResultados.map((p, i) => {
+            const status = produtoGzStatus(p);
+            const naoAtivo = produtoGzNaoAtivo(p);
+            return `<button type="button" class="prod-gz-result-item ${naoAtivo ? 'inativo' : ''}" onclick="selecionarProdutoGz(${i})">
+              <span><strong>${escapeHtml(p.descricao || p.descpdv || 'Produto')}</strong><small>${escapeHtml(p.codigoEan || p.codigo || '-')}</small></span>
+              <span class="prod-gz-result-side">
+                ${status ? `<span class="prod-gz-status ${naoAtivo ? 'inativo' : ''}">${escapeHtml(status)}</span>` : ''}
+                <strong>${brl(p.precoVenda)}</strong>
+              </span>
+            </button>`;
+          }).join('')}
+        </div>
+      </section>`;
   } catch (err) {
     conteudo.innerHTML = `<div class="prod-gz-empty"><strong>Não foi possível consultar.</strong><br>${escapeHtml(err.message)}</div>`;
   }
 }
 
 function produtoGzCard(p) {
-  const status = String(p.situacao || '').toUpperCase();
-  return `<section class="prod-gz-product">
+  const status = produtoGzStatus(p);
+  const naoAtivo = produtoGzNaoAtivo(p);
+  return `<section class="prod-gz-product ${naoAtivo ? 'prod-gz-product-inativo' : ''}">
     <div class="prod-gz-product-head">
       <div class="prod-gz-product-title"><small>${escapeHtml(p.codigoEan || p.codigo || '-')}</small><h3>${escapeHtml(p.descricao || p.descpdv || 'Produto')}</h3></div>
-      <span class="prod-gz-status ${status === 'ATIVO' ? '' : 'inativo'}">${escapeHtml(status || '-')}</span>
+      <span class="prod-gz-status ${naoAtivo ? 'inativo' : ''}">${escapeHtml(status || '-')}</span>
     </div>
+    ${naoAtivo ? '<div class="prod-gz-inativo-alerta">⚠ Produto inativo na GZ</div>' : ''}
     <div class="prod-gz-highlight-grid">
       <div class="prod-gz-highlight"><span>Preço de venda</span><strong>${brl(p.precoVenda)}</strong></div>
       <div class="prod-gz-highlight"><span>Custo aquisição</span><strong>${brl(p.valorCustoAquisicao)}</strong></div>
@@ -3492,7 +3539,748 @@ window.selecionarProdutoGz = (index) => {
   const conteudo = $('prodGzConteudo');
   if (conteudo && state.produtoGzAtual) conteudo.innerHTML = produtoGzCard(state.produtoGzAtual);
 };
+
+// -------------------------
+// Consulta em lote
+// -------------------------
+function renderProdutosGzLote() {
+  const panel = $('produtosGzPanel');
+  panel.innerHTML = `
+    <div class="prod-gz-shell prod-gz-lote-shell">
+      <section class="prod-gz-search-card">
+        <div class="prod-gz-search-head">
+          <div>
+            <strong>Consulta em lote</strong>
+            <span>Cole produtos da Scanntech, colunas do Excel ou uma lista simples de códigos.</span>
+          </div>
+        </div>
+
+        <textarea id="prodGzLoteTexto" class="prod-gz-lote-textarea" spellcheck="false" placeholder="Exemplo Scanntech:\n78934146 - REXONA WOMEN50ML\n78923409 - DESODORANTE ROLL-ON REXONA SENSIT 50ML\n\nOu cole direto do Excel:\n7894904265817\n7509546687865\n7509546673202"></textarea>
+
+        <div class="prod-gz-lote-info">
+          <span id="prodGzLoteContagem">Nenhum código identificado</span>
+          <button type="button" id="btnProdGzLoteLimpar" class="prod-gz-lote-secondary">Limpar</button>
+        </div>
+
+        <button type="button" id="btnProdGzLoteConsultar" class="prod-gz-lote-consultar">Consultar produtos</button>
+
+        <div class="prod-gz-hint">O sistema ignora espaços, células vazias, tabulações, separadores do Excel/Markdown e descrições. Códigos repetidos são consultados apenas uma vez.</div>
+      </section>
+
+      <div id="prodGzLoteResultado" class="prod-gz-lote-resultado"></div>
+    </div>`;
+
+  const textarea = $('prodGzLoteTexto');
+  textarea.addEventListener('input', atualizarContagemLote);
+
+  $('btnProdGzLoteLimpar')?.addEventListener('click', () => {
+    textarea.value = '';
+    $('prodGzLoteResultado').innerHTML = '';
+    atualizarContagemLote();
+    textarea.focus();
+  });
+
+  $('btnProdGzLoteConsultar')?.addEventListener('click', consultarProdutosGzLote);
+  setTimeout(() => textarea?.focus(), 50);
+}
+
+function extrairProdutosGzLote(texto) {
+  if (!texto) return [];
+
+  const normalizado = String(texto)
+    .replace(/\u00a0/g, ' ')
+    .replace(/\r/g, '');
+
+  const produtos = new Map();
+
+  for (const linhaOriginal of normalizado.split('\n')) {
+    const linha = linhaOriginal.replace(/\*\*/g, '').trim();
+    if (!linha) continue;
+
+    // EAN-8, EAN-13 e códigos equivalentes copiados da Scanntech/Excel.
+    // Números curtos de descrições (50ML, 48H etc.) ficam de fora.
+    const encontrados = linha.match(/\b\d{8,14}\b/g) || [];
+
+    for (const codigo of encontrados) {
+      if (produtos.has(codigo)) continue;
+
+      let descricaoOrigem = '';
+      if (encontrados.length === 1) {
+        const posicao = linha.indexOf(codigo);
+        descricaoOrigem = linha
+          .slice(posicao + codigo.length)
+          .replace(/^[\s|\-–—:;]+/, '')
+          .replace(/[|]+$/g, '')
+          .trim();
+      }
+
+      produtos.set(codigo, { codigo, descricaoOrigem });
+    }
+  }
+
+  return [...produtos.values()];
+}
+
+function atualizarContagemLote() {
+  const textarea = $('prodGzLoteTexto');
+  const contador = $('prodGzLoteContagem');
+  const botao = $('btnProdGzLoteConsultar');
+  if (!textarea || !contador) return;
+
+  const produtos = extrairProdutosGzLote(textarea.value);
+  const total = produtos.length;
+  contador.textContent = total
+    ? `${total} ${total === 1 ? 'produto identificado' : 'produtos identificados'}`
+    : 'Nenhum código identificado';
+
+  if (botao && !botao.dataset.consultando) botao.disabled = total === 0;
+}
+
+function escolherProdutoLote(produtos, codigo) {
+  if (!Array.isArray(produtos) || !produtos.length) return null;
+  const alvo = String(codigo || '').trim();
+  return produtos.find((p) =>
+    String(p?.codigoEan ?? '').trim() === alvo ||
+    String(p?.codigo ?? '').trim() === alvo
+  ) || produtos[0];
+}
+
+async function consultarCodigoLoteGz(item) {
+  let houveRespostaValida = false;
+  let ultimoErro = null;
+
+  for (const tipo of ['codigoBarras', 'codigoInterno']) {
+    try {
+      const params = new URLSearchParams({ [tipo]: item.codigo });
+      const data = await api(`/api/produtos-gz/consulta?${params.toString()}`);
+      houveRespostaValida = true;
+      const produto = escolherProdutoLote(data.produtos || [], item.codigo);
+      if (produto) return { ...item, encontrado: true, produto, erro: null };
+    } catch (err) {
+      ultimoErro = err;
+    }
+  }
+
+  if (!houveRespostaValida && ultimoErro) {
+    return { ...item, encontrado: false, produto: null, erro: ultimoErro.message || 'Erro ao consultar a GZ.' };
+  }
+
+  return { ...item, encontrado: false, produto: null, erro: null };
+}
+
+async function consultarProdutosGzLote() {
+  const textarea = $('prodGzLoteTexto');
+  const resultado = $('prodGzLoteResultado');
+  const botao = $('btnProdGzLoteConsultar');
+  if (!textarea || !resultado || !botao) return;
+
+  const itens = extrairProdutosGzLote(textarea.value);
+  if (!itens.length) {
+    alert('Nenhum código válido foi identificado.');
+    textarea.focus();
+    return;
+  }
+
+  if (itens.length > 500) {
+    alert('Para segurança, consulte no máximo 500 códigos por vez.');
+    return;
+  }
+
+  botao.disabled = true;
+  botao.dataset.consultando = '1';
+  botao.textContent = 'Consultando...';
+
+  resultado.innerHTML = `
+    <div class="prod-gz-lote-loading">
+      <div class="prod-gz-lote-loading-head"><strong>Consultando produtos na GZ...</strong><span id="prodGzLoteProgresso">0 de ${itens.length}</span></div>
+      <div class="prod-gz-progress"><div id="prodGzProgressBar" class="prod-gz-progress-bar" style="width:0%"></div></div>
+    </div>`;
+
+  const respostas = new Array(itens.length);
+  let proximoIndice = 0;
+  let concluidos = 0;
+
+  async function trabalhador() {
+    while (true) {
+      const indice = proximoIndice++;
+      if (indice >= itens.length) return;
+
+      respostas[indice] = await consultarCodigoLoteGz(itens[indice]);
+      concluidos++;
+
+      const progresso = $('prodGzLoteProgresso');
+      const barra = $('prodGzProgressBar');
+      if (progresso) progresso.textContent = `${concluidos} de ${itens.length}`;
+      if (barra) barra.style.width = `${(concluidos / itens.length) * 100}%`;
+    }
+  }
+
+  const quantidadeTrabalhadores = Math.min(4, itens.length);
+  await Promise.all(Array.from({ length: quantidadeTrabalhadores }, () => trabalhador()));
+
+  delete botao.dataset.consultando;
+  botao.disabled = false;
+  botao.textContent = 'Consultar produtos';
+
+  state.produtosGzLoteResultados = respostas;
+  renderResultadoProdutosGzLote(respostas);
+}
+
+function classificarResultadoLote(r) {
+  if (r.erro) return { texto: 'Erro na consulta', classe: 'erro' };
+  if (!r.encontrado || !r.produto) return { texto: 'Sem cadastro', classe: 'nao-encontrado' };
+
+  const naoAtivo = produtoGzNaoAtivo(r.produto);
+  const estoque = Number(r.produto.quantidadeEstoque || 0);
+
+  if (naoAtivo && estoque <= 0) return { texto: 'Inativo · Sem estoque', classe: 'inativo' };
+  if (naoAtivo) return { texto: 'Inativo', classe: 'inativo' };
+  if (estoque <= 0) return { texto: 'Sem estoque', classe: 'sem-estoque' };
+  return { texto: 'OK', classe: 'ok' };
+}
+
+function garantirPreferenciasLote() {
+  if (!state.produtosGzLoteFiltros) {
+    state.produtosGzLoteFiltros = {
+      ativos: true,
+      inativos: true,
+      semEstoque: true,
+      semCadastro: true,
+      erros: true
+    };
+  }
+
+  if (!state.produtosGzLoteOrdenacao) {
+    state.produtosGzLoteOrdenacao = 'original';
+  }
+}
+
+function categoriasResultadoLote(r) {
+  if (r.erro) return ['erros'];
+  if (!r.encontrado || !r.produto) return ['semCadastro'];
+
+  const categorias = [];
+  const status = produtoGzStatus(r.produto);
+  if (status === 'ATIVO') categorias.push('ativos');
+  else categorias.push('inativos');
+
+  if (Number(r.produto.quantidadeEstoque || 0) <= 0) categorias.push('semEstoque');
+  return categorias;
+}
+
+function compararCodigoLote(a, b) {
+  const normalizar = (valor) => {
+    const digitos = String(valor || '').replace(/\D/g, '').replace(/^0+/, '');
+    return digitos || '0';
+  };
+  const ca = normalizar(a?.codigo);
+  const cb = normalizar(b?.codigo);
+  if (ca.length !== cb.length) return ca.length - cb.length;
+  return ca.localeCompare(cb, 'pt-BR', { numeric: true });
+}
+
+function descricaoResultadoLote(r) {
+  return String(r?.produto?.descricao || r?.produto?.descpdv || r?.descricaoOrigem || '').trim();
+}
+
+function ordenarResultadosLote(resultados, ordenacao) {
+  const lista = [...resultados];
+  const numero = (r, campo) => {
+    if (!r?.encontrado || !r?.produto) return null;
+    const n = Number(r.produto[campo]);
+    return Number.isFinite(n) ? n : null;
+  };
+  const compararNumero = (campo, direcao = 1) => (a, b) => {
+    const na = numero(a, campo);
+    const nb = numero(b, campo);
+    if (na === null && nb === null) return 0;
+    if (na === null) return 1;
+    if (nb === null) return -1;
+    return (na - nb) * direcao;
+  };
+
+  switch (ordenacao) {
+    case 'codigo-asc':
+      return lista.sort(compararCodigoLote);
+    case 'codigo-desc':
+      return lista.sort((a, b) => compararCodigoLote(b, a));
+    case 'descricao-asc':
+      return lista.sort((a, b) => descricaoResultadoLote(a).localeCompare(descricaoResultadoLote(b), 'pt-BR', { sensitivity: 'base', numeric: true }));
+    case 'descricao-desc':
+      return lista.sort((a, b) => descricaoResultadoLote(b).localeCompare(descricaoResultadoLote(a), 'pt-BR', { sensitivity: 'base', numeric: true }));
+    case 'preco-asc':
+      return lista.sort(compararNumero('precoVenda', 1));
+    case 'preco-desc':
+      return lista.sort(compararNumero('precoVenda', -1));
+    case 'custo-asc':
+      return lista.sort(compararNumero('valorCustoAquisicao', 1));
+    case 'custo-desc':
+      return lista.sort(compararNumero('valorCustoAquisicao', -1));
+    case 'estoque-asc':
+      return lista.sort(compararNumero('quantidadeEstoque', 1));
+    case 'estoque-desc':
+      return lista.sort(compararNumero('quantidadeEstoque', -1));
+    case 'ativos-primeiro':
+      return lista.sort((a, b) => {
+        const rank = (r) => r.erro ? 3 : (!r.encontrado || !r.produto) ? 2 : produtoGzStatus(r.produto) === 'ATIVO' ? 0 : 1;
+        return rank(a) - rank(b);
+      });
+    case 'inativos-primeiro':
+      return lista.sort((a, b) => {
+        const rank = (r) => r.erro ? 3 : (!r.encontrado || !r.produto) ? 2 : produtoGzNaoAtivo(r.produto) ? 0 : 1;
+        return rank(a) - rank(b);
+      });
+    case 'sem-estoque-primeiro':
+      return lista.sort((a, b) => {
+        const rank = (r) => r.erro ? 3 : (!r.encontrado || !r.produto) ? 2 : Number(r.produto.quantidadeEstoque || 0) <= 0 ? 0 : 1;
+        return rank(a) - rank(b);
+      });
+    case 'sem-cadastro-primeiro':
+      return lista.sort((a, b) => {
+        const rank = (r) => r.erro ? 2 : (!r.encontrado || !r.produto) ? 0 : 1;
+        return rank(a) - rank(b);
+      });
+    default:
+      return lista;
+  }
+}
+
+function obterResultadosGzLoteVisiveis() {
+  garantirPreferenciasLote();
+  const resultados = Array.isArray(state.produtosGzLoteResultados) ? state.produtosGzLoteResultados : [];
+  const filtros = state.produtosGzLoteFiltros;
+
+  const filtrados = resultados.filter((r) => {
+    const categorias = categoriasResultadoLote(r);
+    return categorias.some((categoria) => Boolean(filtros[categoria]));
+  });
+
+  return ordenarResultadosLote(filtrados, state.produtosGzLoteOrdenacao);
+}
+
+function contagensResultadosLote(resultados) {
+  const encontrados = resultados.filter((r) => r.encontrado && r.produto);
+  return {
+    total: resultados.length,
+    ativos: encontrados.filter((r) => produtoGzStatus(r.produto) === 'ATIVO').length,
+    inativos: encontrados.filter((r) => produtoGzNaoAtivo(r.produto)).length,
+    semEstoque: encontrados.filter((r) => Number(r.produto.quantidadeEstoque || 0) <= 0).length,
+    semCadastro: resultados.filter((r) => !r.encontrado && !r.erro).length,
+    erros: resultados.filter((r) => r.erro).length
+  };
+}
+
+function renderControlesProdutosGzLote(contagens, visiveis) {
+  garantirPreferenciasLote();
+  const f = state.produtosGzLoteFiltros;
+  const todosMarcados = ['ativos', 'inativos', 'semEstoque', 'semCadastro', 'erros'].every((chave) => f[chave]);
+  const checked = (valor) => valor ? 'checked' : '';
+
+  return `
+    <section class="prod-gz-lote-toolbar">
+      <div class="prod-gz-lote-toolbar-group prod-gz-lote-filtros">
+        <span class="prod-gz-lote-toolbar-label">Mostrar</span>
+        <label class="prod-gz-lote-filter-chip todos"><input id="prodGzFiltroTodos" type="checkbox" ${checked(todosMarcados)}> Todos</label>
+        <label class="prod-gz-lote-filter-chip"><input data-lote-filtro="ativos" type="checkbox" ${checked(f.ativos)}> Ativos <small>${contagens.ativos}</small></label>
+        <label class="prod-gz-lote-filter-chip inativo"><input data-lote-filtro="inativos" type="checkbox" ${checked(f.inativos)}> Inativos <small>${contagens.inativos}</small></label>
+        <label class="prod-gz-lote-filter-chip alerta"><input data-lote-filtro="semEstoque" type="checkbox" ${checked(f.semEstoque)}> Sem estoque <small>${contagens.semEstoque}</small></label>
+        <label class="prod-gz-lote-filter-chip neutro"><input data-lote-filtro="semCadastro" type="checkbox" ${checked(f.semCadastro)}> Sem cadastro <small>${contagens.semCadastro}</small></label>
+        ${contagens.erros ? `<label class="prod-gz-lote-filter-chip erro"><input data-lote-filtro="erros" type="checkbox" ${checked(f.erros)}> Erros <small>${contagens.erros}</small></label>` : ''}
+      </div>
+
+      <div class="prod-gz-lote-toolbar-actions">
+        <label class="prod-gz-lote-sort-wrap">
+          <span>Ordenar por</span>
+          <select id="prodGzLoteOrdenacao">
+            <option value="original">Ordem original</option>
+            <option value="codigo-asc">Código: menor → maior</option>
+            <option value="codigo-desc">Código: maior → menor</option>
+            <option value="descricao-asc">Descrição: A → Z</option>
+            <option value="descricao-desc">Descrição: Z → A</option>
+            <option value="preco-asc">Preço: menor → maior</option>
+            <option value="preco-desc">Preço: maior → menor</option>
+            <option value="custo-asc">Custo aquisição: menor → maior</option>
+            <option value="custo-desc">Custo aquisição: maior → menor</option>
+            <option value="estoque-asc">Estoque: menor → maior</option>
+            <option value="estoque-desc">Estoque: maior → menor</option>
+            <option value="ativos-primeiro">Ativos primeiro</option>
+            <option value="inativos-primeiro">Inativos primeiro</option>
+            <option value="sem-estoque-primeiro">Sem estoque primeiro</option>
+            <option value="sem-cadastro-primeiro">Sem cadastro primeiro</option>
+          </select>
+        </label>
+        <button type="button" id="btnProdGzLoteCopiar" class="prod-gz-lote-copy-btn" ${visiveis ? '' : 'disabled'}>⧉ Copiar dados</button>
+      </div>
+
+      <div class="prod-gz-lote-visible-count"><strong>${visiveis}</strong> de ${contagens.total} produtos exibidos</div>
+    </section>`;
+}
+
+function vincularControlesProdutosGzLote() {
+  garantirPreferenciasLote();
+
+  const select = $('prodGzLoteOrdenacao');
+  if (select) {
+    select.value = state.produtosGzLoteOrdenacao;
+    select.addEventListener('change', () => {
+      state.produtosGzLoteOrdenacao = select.value;
+      renderResultadoProdutosGzLote();
+    });
+  }
+
+  document.querySelectorAll('[data-lote-filtro]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const chave = input.dataset.loteFiltro;
+      if (chave) state.produtosGzLoteFiltros[chave] = input.checked;
+      renderResultadoProdutosGzLote();
+    });
+  });
+
+  $('prodGzFiltroTodos')?.addEventListener('change', (e) => {
+    const marcar = Boolean(e.target.checked);
+    Object.keys(state.produtosGzLoteFiltros).forEach((chave) => {
+      state.produtosGzLoteFiltros[chave] = marcar;
+    });
+    renderResultadoProdutosGzLote();
+  });
+
+  $('btnProdGzLoteCopiar')?.addEventListener('click', abrirPopupCopiarProdutosGzLote);
+}
+
+function renderResultadoProdutosGzLote(resultados = null) {
+  const container = $('prodGzLoteResultado');
+  if (!container) return;
+
+  if (Array.isArray(resultados)) state.produtosGzLoteResultados = resultados;
+  garantirPreferenciasLote();
+
+  const todos = Array.isArray(state.produtosGzLoteResultados) ? state.produtosGzLoteResultados : [];
+  const contagens = contagensResultadosLote(todos);
+  const visiveis = obterResultadosGzLoteVisiveis();
+
+  container.innerHTML = `
+    <div class="prod-gz-lote-resumo">
+      <div><strong>${contagens.total}</strong><span>Consultados</span></div>
+      <div><strong>${contagens.ativos}</strong><span>Ativos</span></div>
+      <div class="resumo-inativo"><strong>${contagens.inativos}</strong><span>Inativos</span></div>
+      <div class="resumo-alerta"><strong>${contagens.semEstoque}</strong><span>Sem estoque</span></div>
+      <div><strong>${contagens.semCadastro}</strong><span>Sem cadastro</span></div>
+      ${contagens.erros ? `<div class="resumo-inativo"><strong>${contagens.erros}</strong><span>Erros</span></div>` : ''}
+    </div>
+
+    ${renderControlesProdutosGzLote(contagens, visiveis.length)}
+
+    <div class="prod-gz-lote-table-wrap">
+      <table class="prod-gz-lote-table">
+        <thead>
+          <tr>
+            <th>Código informado</th>
+            <th>Descrição recebida</th>
+            <th>Produto GZ</th>
+            <th>Situação</th>
+            <th>Preço venda</th>
+            <th>Custo aquisição</th>
+            <th>Estoque</th>
+            <th>Resultado</th>
+          </tr>
+        </thead>
+        <tbody>${visiveis.length
+          ? visiveis.map(resultadoLinhaProdutoGzLote).join('')
+          : '<tr class="prod-gz-lote-sem-resultados"><td colspan="8">Nenhum produto corresponde aos filtros selecionados.</td></tr>'}
+        </tbody>
+      </table>
+    </div>`;
+
+  vincularControlesProdutosGzLote();
+}
+
+function resultadoLinhaProdutoGzLote(r) {
+  if (r.erro) {
+    return `<tr class="prod-gz-lote-row-erro">
+      <td><strong>${escapeHtml(r.codigo)}</strong></td>
+      <td>${escapeHtml(r.descricaoOrigem || '-')}</td>
+      <td colspan="5">${escapeHtml(r.erro)}</td>
+      <td><span class="lote-status lote-status-erro">Erro na consulta</span></td>
+    </tr>`;
+  }
+
+  if (!r.encontrado || !r.produto) {
+    return `<tr class="prod-gz-lote-nao-encontrado">
+      <td><strong>${escapeHtml(r.codigo)}</strong></td>
+      <td>${escapeHtml(r.descricaoOrigem || '-')}</td>
+      <td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>
+      <td><span class="lote-status lote-status-neutro">Sem cadastro</span></td>
+    </tr>`;
+  }
+
+  const p = r.produto;
+  const status = produtoGzStatus(p);
+  const naoAtivo = produtoGzNaoAtivo(p);
+  const classificacao = classificarResultadoLote(r);
+  const rowClasse = naoAtivo
+    ? 'prod-gz-lote-row-inativo'
+    : classificacao.classe === 'sem-estoque'
+      ? 'prod-gz-lote-row-sem-estoque'
+      : '';
+
+  const statusClasse = naoAtivo ? 'inativo' : '';
+  const badgeClasse = classificacao.classe === 'ok'
+    ? 'lote-status-ok'
+    : classificacao.classe === 'sem-estoque'
+      ? 'lote-status-alerta'
+      : classificacao.classe === 'inativo'
+        ? 'lote-status-erro'
+        : 'lote-status-neutro';
+
+  return `<tr class="${rowClasse}">
+    <td><strong>${escapeHtml(r.codigo)}</strong></td>
+    <td>${escapeHtml(r.descricaoOrigem || '-')}</td>
+    <td><strong>${escapeHtml(p.descricao || p.descpdv || '-')}</strong><small class="prod-gz-lote-codigo-gz">EAN GZ: ${escapeHtml(p.codigoEan || '-')} · Cód.: ${escapeHtml(p.codigo || '-')}</small></td>
+    <td><span class="prod-gz-status ${statusClasse}">${escapeHtml(status || '-')}</span></td>
+    <td><strong>${brl(p.precoVenda)}</strong></td>
+    <td><strong>${brl(p.valorCustoAquisicao)}</strong></td>
+    <td><strong>${numPt(p.quantidadeEstoque)} ${escapeHtml(p.unidade || '')}</strong></td>
+    <td><span class="lote-status ${badgeClasse}">${escapeHtml(classificacao.texto)}</span></td>
+  </tr>`;
+}
+
+function camposCopiaProdutosGzLote() {
+  return [
+    { chave: 'codigo', titulo: 'Código informado', padrao: true },
+    { chave: 'descricaoOrigem', titulo: 'Descrição recebida', padrao: false },
+    { chave: 'produto', titulo: 'Produto GZ', padrao: true },
+    { chave: 'ean', titulo: 'EAN GZ', padrao: false },
+    { chave: 'codigoInterno', titulo: 'Código interno GZ', padrao: false },
+    { chave: 'situacao', titulo: 'Situação', padrao: true },
+    { chave: 'preco', titulo: 'Preço de venda', padrao: true },
+    { chave: 'custoAquisicao', titulo: 'Custo de aquisição', padrao: true },
+    { chave: 'estoque', titulo: 'Estoque', padrao: true },
+    { chave: 'unidade', titulo: 'Unidade', padrao: false },
+    { chave: 'resultado', titulo: 'Resultado', padrao: true }
+  ];
+}
+
+function abrirPopupCopiarProdutosGzLote() {
+  const visiveis = obterResultadosGzLoteVisiveis();
+  if (!visiveis.length) return alert('Não há produtos visíveis para copiar.');
+
+  document.querySelector('.prod-gz-copy-overlay')?.remove();
+  const campos = camposCopiaProdutosGzLote();
+  const overlay = document.createElement('div');
+  overlay.className = 'prod-gz-copy-overlay';
+  overlay.innerHTML = `
+    <div class="prod-gz-copy-modal" role="dialog" aria-modal="true" aria-labelledby="prodGzCopyTitle">
+      <div class="prod-gz-copy-head">
+        <div>
+          <strong id="prodGzCopyTitle">Copiar dados</strong>
+          <span>Serão copiados somente os ${visiveis.length} produtos que estão visíveis, na ordem atual.</span>
+        </div>
+        <button type="button" class="prod-gz-copy-close" aria-label="Fechar">×</button>
+      </div>
+
+      <div class="prod-gz-copy-shortcuts">
+        <button type="button" data-copy-preset="codigos">Somente códigos</button>
+        <button type="button" data-copy-preset="completo">Consulta completa</button>
+      </div>
+
+      <div class="prod-gz-copy-fields">
+        ${campos.map((campo) => `<label><input type="checkbox" data-copy-field="${campo.chave}" ${campo.padrao ? 'checked' : ''}> <span>${campo.titulo}</span></label>`).join('')}
+      </div>
+
+      <label class="prod-gz-copy-header"><input id="prodGzCopyHeader" type="checkbox" checked> Incluir cabeçalho para colar no Excel</label>
+      <div id="prodGzCopyFeedback" class="prod-gz-copy-feedback"></div>
+
+      <div class="prod-gz-copy-actions">
+        <button type="button" class="prod-gz-copy-cancel">Cancelar</button>
+        <button type="button" id="btnProdGzConfirmarCopia" class="prod-gz-copy-confirm">Copiar para área de transferência</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  const fechar = () => overlay.remove();
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) fechar(); });
+  overlay.querySelector('.prod-gz-copy-close')?.addEventListener('click', fechar);
+  overlay.querySelector('.prod-gz-copy-cancel')?.addEventListener('click', fechar);
+
+  overlay.querySelector('[data-copy-preset="codigos"]')?.addEventListener('click', () => {
+    overlay.querySelectorAll('[data-copy-field]').forEach((input) => { input.checked = input.dataset.copyField === 'codigo'; });
+    const cabecalho = overlay.querySelector('#prodGzCopyHeader');
+    if (cabecalho) cabecalho.checked = false;
+  });
+
+  overlay.querySelector('[data-copy-preset="completo"]')?.addEventListener('click', () => {
+    overlay.querySelectorAll('[data-copy-field]').forEach((input) => { input.checked = true; });
+    const cabecalho = overlay.querySelector('#prodGzCopyHeader');
+    if (cabecalho) cabecalho.checked = true;
+  });
+
+  overlay.querySelector('#btnProdGzConfirmarCopia')?.addEventListener('click', () => copiarProdutosGzLoteSelecionados(overlay));
+  setTimeout(() => overlay.querySelector('#btnProdGzConfirmarCopia')?.focus(), 20);
+}
+
+function valorCampoCopiaLote(r, chave) {
+  const p = r?.produto || null;
+  const classificacao = classificarResultadoLote(r);
+  const limpar = (valor) => String(valor ?? '').replace(/[\t\r\n]+/g, ' ').trim();
+
+  switch (chave) {
+    case 'codigo': return limpar(r?.codigo);
+    case 'descricaoOrigem': return limpar(r?.descricaoOrigem);
+    case 'produto': return limpar(p?.descricao || p?.descpdv || '');
+    case 'ean': return limpar(p?.codigoEan || '');
+    case 'codigoInterno': return limpar(p?.codigo || '');
+    case 'situacao': return limpar(p ? produtoGzStatus(p) : '');
+    case 'preco': {
+      if (!p) return '';
+      const n = Number(p.precoVenda);
+      return Number.isFinite(n) ? n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+    }
+    case 'custoAquisicao': {
+      if (!p) return '';
+      const n = Number(p.valorCustoAquisicao);
+      return Number.isFinite(n) ? n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
+    }
+    case 'estoque': {
+      if (!p) return '';
+      const n = Number(p.quantidadeEstoque);
+      return Number.isFinite(n) ? n.toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : '';
+    }
+    case 'unidade': return limpar(p?.unidade || '');
+    case 'resultado': return limpar(classificacao.texto);
+    default: return '';
+  }
+}
+
+function montarHtmlTabelaCopiaLote(selecionados, visiveis, incluirCabecalho, tituloPorChave) {
+  const cabecalho = incluirCabecalho
+    ? `<thead><tr>${selecionados.map((chave) => `<th>${escapeHtml(tituloPorChave[chave] || chave)}</th>`).join('')}</tr></thead>`
+    : '';
+
+  const corpo = visiveis.map((r) => `
+    <tr>
+      ${selecionados.map((chave) => `<td>${escapeHtml(valorCampoCopiaLote(r, chave))}</td>`).join('')}
+    </tr>`).join('');
+
+  return `<!doctype html><html><head><meta charset="utf-8"></head><body><table>${cabecalho}<tbody>${corpo}</tbody></table></body></html>`;
+}
+
+async function escreverTabelaAreaTransferencia(textoTsv, htmlTabela) {
+  // Preferimos gravar simultaneamente texto TSV + tabela HTML.
+  // O Excel reconhece a tabela HTML como células/colunas separadas.
+  if (
+    navigator.clipboard?.write &&
+    window.ClipboardItem &&
+    window.isSecureContext
+  ) {
+    try {
+      const item = new ClipboardItem({
+        'text/plain': new Blob([textoTsv], { type: 'text/plain' }),
+        'text/html': new Blob([htmlTabela], { type: 'text/html' })
+      });
+
+      await navigator.clipboard.write([item]);
+      return;
+    } catch (_) {
+      // Continua para o fallback abaixo.
+    }
+  }
+
+  // Fallback: copia uma tabela HTML real selecionada no DOM.
+  // Esse formato também é entendido pelo Excel como linhas e colunas.
+  const area = document.createElement('div');
+  area.contentEditable = 'true';
+  area.setAttribute('aria-hidden', 'true');
+  area.style.position = 'fixed';
+  area.style.left = '-10000px';
+  area.style.top = '0';
+  area.style.opacity = '0';
+  area.innerHTML = htmlTabela;
+
+  document.body.appendChild(area);
+
+  const range = document.createRange();
+  range.selectNodeContents(area);
+
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  const ok = document.execCommand('copy');
+
+  selection.removeAllRanges();
+  area.remove();
+
+  if (!ok) {
+    // Última tentativa: texto tabulado tradicional com CRLF para Excel/Windows.
+    const textarea = document.createElement('textarea');
+    textarea.value = textoTsv;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-10000px';
+    textarea.style.top = '0';
+
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    const okTexto = document.execCommand('copy');
+    textarea.remove();
+
+    if (!okTexto) {
+      throw new Error('O navegador não permitiu copiar automaticamente.');
+    }
+  }
+}
+
+async function copiarProdutosGzLoteSelecionados(overlay) {
+  const camposDisponiveis = camposCopiaProdutosGzLote();
+  const selecionados = [...overlay.querySelectorAll('[data-copy-field]:checked')].map((input) => input.dataset.copyField);
+  const feedback = overlay.querySelector('#prodGzCopyFeedback');
+  const botao = overlay.querySelector('#btnProdGzConfirmarCopia');
+
+  if (!selecionados.length) {
+    if (feedback) feedback.textContent = 'Selecione pelo menos um campo para copiar.';
+    return;
+  }
+
+  const visiveis = obterResultadosGzLoteVisiveis();
+  const incluirCabecalho = Boolean(overlay.querySelector('#prodGzCopyHeader')?.checked);
+  const tituloPorChave = Object.fromEntries(camposDisponiveis.map((campo) => [campo.chave, campo.titulo]));
+  const linhas = [];
+
+  if (incluirCabecalho) linhas.push(selecionados.map((chave) => tituloPorChave[chave] || chave).join('\t'));
+  visiveis.forEach((r) => linhas.push(selecionados.map((chave) => valorCampoCopiaLote(r, chave)).join('\t')));
+
+  // CRLF é o separador de linha mais compatível com Excel no Windows.
+  const textoTsv = linhas.join('\r\n');
+  const htmlTabela = montarHtmlTabelaCopiaLote(
+    selecionados,
+    visiveis,
+    incluirCabecalho,
+    tituloPorChave
+  );
+
+  if (botao) {
+    botao.disabled = true;
+    botao.textContent = 'Copiando...';
+  }
+
+  try {
+    await escreverTabelaAreaTransferencia(textoTsv, htmlTabela);
+    if (feedback) feedback.textContent = `${visiveis.length} ${visiveis.length === 1 ? 'produto copiado' : 'produtos copiados'} para a área de transferência.`;
+    if (botao) botao.textContent = 'Copiado!';
+    setTimeout(() => overlay.remove(), 750);
+  } catch (err) {
+    if (feedback) feedback.textContent = err.message || 'Não foi possível copiar os dados.';
+    if (botao) {
+      botao.disabled = false;
+      botao.textContent = 'Copiar para área de transferência';
+    }
+  }
+}
+
 window.entrarProdutosGz = entrarProdutosGz;
+window.entrarProdutosGzLote = entrarProdutosGzLote;
 
 // =========================
 // V17 - Módulo RH
@@ -4917,6 +5705,7 @@ $('btnRhSolicitacoes')?.addEventListener('click', () => abrirRH('solicitacoes'))
 $('btnRhTipos')?.addEventListener('click', () => abrirRH('tipos'));
 $('btnRhNovaPublica')?.addEventListener('click', () => window.open('/solicitar-rh.html', '_blank'));
 $('btnProdutosGzConsulta')?.addEventListener('click', entrarProdutosGz);
+$('btnProdutosGzLote')?.addEventListener('click', entrarProdutosGzLote);
 $('btnCartazesRapido')?.addEventListener('click', () => entrarCartazes('rapido'));
 $('btnCartazesFila')?.addEventListener('click', () => entrarCartazes('fila'));
 $('btnCartazesImpressao')?.addEventListener('click', () => entrarCartazes('impressao'));

@@ -1,0 +1,12 @@
+VERSÃO V35 - CONSULTA EM LOTE: FILTROS, ORDENAÇÃO E CÓPIA
+
+- Mantém todas as funções da V34.
+- Filtros combináveis: Ativos, Inativos, Sem estoque, Sem cadastro e Erros.
+- Botão Todos para habilitar/desabilitar rapidamente todas as categorias.
+- Ordenação por ordem original, código, descrição, preço, estoque e prioridade de situação.
+- A categoria Sem estoque é independente da situação: um item ATIVO com estoque <= 0 pode ser filtrado como Sem estoque.
+- Botão Copiar dados copia somente os itens atualmente visíveis e na ordem atual.
+- Popup de cópia permite escolher os campos, incluir/remover cabeçalho e usar os atalhos Somente códigos ou Consulta completa.
+- Conteúdo copiado usa TAB entre colunas, pronto para colar no Excel.
+- Itens inativos continuam destacados em vermelho em todas as áreas da Consulta de Produtos.
+- Sem cadastro passa a usar a nomenclatura solicitada na consulta em lote.

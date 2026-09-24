@@ -1,0 +1,11 @@
+V37 - Consulta em lote com custo de aquisição
+
+Base: V36 - consulta em lote copia excel corrigida
+
+Alterações:
+- Adicionada coluna "Custo aquisição" na consulta em lote.
+- O valor usa o campo GZ valorCustoAquisicao, já disponível na integração.
+- Adicionadas ordenações "Custo aquisição: menor → maior" e "Custo aquisição: maior → menor".
+- Adicionado campo "Custo de aquisição" no popup "Copiar dados".
+- O custo de aquisição vem marcado por padrão para cópia e participa do preset "Consulta completa".
+- Mantidos filtros, ordenações, cópia compatível com Excel e destaque visual de itens inativos da V36.
