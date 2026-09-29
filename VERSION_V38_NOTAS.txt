@@ -1,0 +1,23 @@
+PLATAFORMA MANAIRA - V38
+========================
+
+Modulo Galpao - importacao do banco SQLite
+
+1. Correcao de deadlock PostgreSQL (40P01)
+- Importacao protegida por advisory lock transacional.
+- Retry automatico de ate 3 tentativas caso o PostgreSQL detecte deadlock.
+- Cada tentativa usa BEGIN/COMMIT e executa ROLLBACK integral em caso de erro.
+- Nenhuma tabela de outros modulos e apagada pela substituicao do Galpao.
+
+2. Importacao otimizada
+- Produtos, estoque e movimentacoes agora sao enviados ao PostgreSQL em lotes.
+- Reduz milhares de consultas individuais e diminui o tempo da transacao.
+- Mantida a regra de substituicao completa somente das tabelas galpao_*.
+
+3. Barra de progresso
+- Tela exibe barra de carregamento durante a importacao.
+- A barra chega a 100% somente depois da confirmacao do servidor.
+- Exibe as etapas visuais e aviso para nao fechar/atualizar a pagina.
+- Em erro, a tela informa que a importacao nao foi confirmada parcialmente.
+
+Base: V37 - consulta em lote com custo aquisicao.

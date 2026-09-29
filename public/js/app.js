@@ -3356,10 +3356,78 @@ async function renderGalpaoImportar() {
 }
 
 async function executarImportacaoGalpao(file, possuiDados) {
-  const substituir = possuiDados && Boolean($('galpaoSubstituir')?.checked); if (possuiDados && !substituir) return alert('Como já existem dados no módulo, marque a opção de substituir completamente os dados atuais.');
+  const substituir = possuiDados && Boolean($('galpaoSubstituir')?.checked);
+  if (possuiDados && !substituir) return alert('Como já existem dados no módulo, marque a opção de substituir completamente os dados atuais.');
   if (!confirm('Confirmar a migração deste banco para o módulo Galpão?' + (substituir ? ' Os dados atuais do Galpão serão substituídos.' : ''))) return;
-  const fd = new FormData(); fd.append('arquivo', file); fd.append('substituir', String(substituir)); fd.append('confirmacao', 'IMPORTAR'); const btn = $('galpaoExecutarImport'); btn.disabled = true; btn.textContent = 'Importando...';
-  try { const r = await apiForm('/api/galpao/importar', fd); const i = r.importacao; alert(`Migração concluída.\nProdutos: ${i.produtos_importados}\nEstoque: ${i.estoque_importado}\nEntradas: ${i.entradas_importadas}\nSaídas: ${i.saidas_importadas}`); state.galpaoProdutos = []; await abrirGalpao('dashboard'); } catch (err) { alert(err.message); btn.disabled = false; btn.textContent = 'Importar para a Plataforma'; }
+
+  const fd = new FormData();
+  fd.append('arquivo', file);
+  fd.append('substituir', String(substituir));
+  fd.append('confirmacao', 'IMPORTAR');
+
+  const btn = $('galpaoExecutarImport');
+  btn.disabled = true;
+  btn.textContent = 'Importando...';
+
+  const summary = btn.closest('.galpao-import-summary');
+  let loading = summary?.querySelector('.galpao-import-loading');
+  if (!loading && summary) {
+    loading = document.createElement('div');
+    loading.className = 'galpao-import-loading';
+    loading.innerHTML = `
+      <div class="galpao-import-loading-head">
+        <strong>Importando banco do Galpão...</strong>
+        <span id="galpaoImportPercent">0%</span>
+      </div>
+      <div class="galpao-import-progress"><div id="galpaoImportProgressBar"></div></div>
+      <span id="galpaoImportStatus">Preparando a substituição segura dos dados...</span>
+      <small>Não feche, atualize ou saia desta página até a conclusão.</small>
+    `;
+    btn.insertAdjacentElement('beforebegin', loading);
+  }
+
+  const bar = $('galpaoImportProgressBar');
+  const percent = $('galpaoImportPercent');
+  const status = $('galpaoImportStatus');
+  let progresso = 4;
+  const atualizar = () => {
+    if (!bar || !percent) return;
+    bar.style.width = `${progresso}%`;
+    percent.textContent = `${Math.round(progresso)}%`;
+    if (status) {
+      if (progresso < 25) status.textContent = 'Preparando produtos e estoque...';
+      else if (progresso < 55) status.textContent = 'Gravando estoque no PostgreSQL...';
+      else if (progresso < 82) status.textContent = 'Importando histórico de entradas e saídas...';
+      else status.textContent = 'Finalizando e validando a transação...';
+    }
+  };
+  atualizar();
+  const timer = setInterval(() => {
+    // Indicador visual: avança gradualmente ate 92% e so chega a 100% apos resposta do servidor.
+    const incremento = progresso < 35 ? 5 : progresso < 70 ? 3 : progresso < 88 ? 1.5 : 0.5;
+    progresso = Math.min(92, progresso + incremento);
+    atualizar();
+  }, 650);
+
+  try {
+    const r = await apiForm('/api/galpao/importar', fd);
+    clearInterval(timer);
+    progresso = 100;
+    atualizar();
+    if (status) status.textContent = 'Importação concluída com sucesso.';
+    const i = r.importacao;
+    await new Promise(resolve => setTimeout(resolve, 300));
+    alert(`Migração concluída.\nProdutos: ${i.produtos_importados}\nEstoque: ${i.estoque_importado}\nEntradas: ${i.entradas_importadas}\nSaídas: ${i.saidas_importadas}`);
+    state.galpaoProdutos = [];
+    await abrirGalpao('dashboard');
+  } catch (err) {
+    clearInterval(timer);
+    if (loading) loading.classList.add('erro');
+    if (status) status.textContent = 'A importação não foi concluída. Nenhuma importação parcial foi confirmada.';
+    alert(err.message);
+    btn.disabled = false;
+    btn.textContent = 'Tentar importar novamente';
+  }
 }
 
 window.abrirGalpao = abrirGalpao;

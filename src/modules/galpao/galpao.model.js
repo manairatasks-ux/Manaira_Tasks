@@ -178,48 +178,170 @@ async function expiry({ dias = 90, busca = '' } = {}) {
 async function hasData() { return get(`SELECT (EXISTS(SELECT 1 FROM galpao_produtos) OR EXISTS(SELECT 1 FROM galpao_estoque) OR EXISTS(SELECT 1 FROM galpao_movimentacoes)) AS possui`); }
 async function importByHash(hash) { return get('SELECT * FROM galpao_importacoes WHERE arquivo_hash=$1 ORDER BY id DESC LIMIT 1', [hash]); }
 
-async function importLegacy({ buffer, parsed, usuarioId, replaceExisting = false, nomeArquivo = '' }) {
+async function importLegacyOnce({ buffer, parsed, usuarioId, replaceExisting = false, nomeArquivo = '' }) {
   const hash = crypto.createHash('sha256').update(buffer).digest('hex');
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // V38: somente uma importacao do Galpao pode alterar estas tabelas por vez.
+    // O advisory lock dura apenas ate COMMIT/ROLLBACK e evita duas migracoes concorrentes.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('manaira_galpao_importacao_v38'))");
+
     const exists = (await client.query(`SELECT (EXISTS(SELECT 1 FROM galpao_produtos) OR EXISTS(SELECT 1 FROM galpao_estoque) OR EXISTS(SELECT 1 FROM galpao_movimentacoes)) AS possui`)).rows[0]?.possui;
     if (exists && !replaceExisting) { const e = new Error('O módulo Galpão já possui dados. Marque a opção de substituir os dados existentes para fazer uma migração completa.'); e.status = 409; throw e; }
     const same = (await client.query('SELECT id FROM galpao_importacoes WHERE arquivo_hash=$1 LIMIT 1', [hash])).rows[0];
     if (same && !replaceExisting) { const e = new Error('Este mesmo arquivo já foi importado anteriormente.'); e.status = 409; throw e; }
+
     if (replaceExisting) {
+      // Ordem fixa em todas as substituicoes. Tudo permanece dentro da mesma transacao.
       await client.query('DELETE FROM galpao_movimentacoes');
       await client.query('DELETE FROM galpao_estoque');
       await client.query('DELETE FROM galpao_produtos');
       await client.query('DELETE FROM galpao_importacoes');
     }
-    const map = new Map();
+
+    // Monta uma lista unica de produtos, inclusive codigos que porventura existam apenas no estoque.
+    const produtosPorCodigo = new Map();
     for (const p of parsed.produtos) {
-      const codigo = String(p.codigo_barra ?? '').trim(); if (!codigo) continue;
-      const descricao = String(p.descricao ?? '').trim() || codigo;
-      const row = (await client.query(`INSERT INTO galpao_produtos(codigo_barra,descricao) VALUES($1,$2) ON CONFLICT(codigo_barra) DO UPDATE SET descricao=EXCLUDED.descricao,atualizado_em=CURRENT_TIMESTAMP RETURNING id`, [codigo, descricao])).rows[0];
-      map.set(codigo, row.id);
+      const codigo = String(p.codigo_barra ?? '').trim();
+      if (!codigo) continue;
+      produtosPorCodigo.set(codigo, String(p.descricao ?? '').trim() || codigo);
     }
     for (const e of parsed.estoque) {
-      const codigo = String(e.codigo_barra ?? '').trim(); let produtoId = map.get(codigo);
-      if (!produtoId) {
-        const row = (await client.query(`INSERT INTO galpao_produtos(codigo_barra,descricao) VALUES($1,$2) ON CONFLICT(codigo_barra) DO UPDATE SET descricao=EXCLUDED.descricao RETURNING id`, [codigo, codigo])).rows[0]; produtoId = row.id; map.set(codigo, produtoId);
-      }
-      const validade = normalizedDate(e.validade); const ue = Math.max(Number(e.unidades_por_embalagem) || 1, 1); const qtd = Math.max(Number(e.quantidade) || 0, 0);
-      await client.query(`INSERT INTO galpao_estoque(produto_id,validade,unidades_por_embalagem,quantidade) VALUES($1,$2,$3,$4) ON CONFLICT (produto_id,(COALESCE(validade, DATE '0001-01-01')),unidades_por_embalagem) DO UPDATE SET quantidade=EXCLUDED.quantidade,atualizado_em=CURRENT_TIMESTAMP`, [produtoId, validade, ue, qtd]);
+      const codigo = String(e.codigo_barra ?? '').trim();
+      if (codigo && !produtosPorCodigo.has(codigo)) produtosPorCodigo.set(codigo, codigo);
     }
-    const inserirMov = async (tipo, lista) => {
+
+    // V38: gravacao em lotes reduz milhares de idas ao PostgreSQL e diminui muito
+    // a janela em que a transacao mantem locks abertos.
+    const produtoEntries = [...produtosPorCodigo.entries()];
+    const CHUNK_PRODUTOS = 400;
+    for (let i = 0; i < produtoEntries.length; i += CHUNK_PRODUTOS) {
+      const chunk = produtoEntries.slice(i, i + CHUNK_PRODUTOS);
+      const params = [];
+      const values = chunk.map(([codigo, descricao], idx) => {
+        params.push(codigo, descricao);
+        const b = idx * 2;
+        return `($${b + 1},$${b + 2})`;
+      });
+      await client.query(`
+        INSERT INTO galpao_produtos(codigo_barra,descricao)
+        VALUES ${values.join(',')}
+        ON CONFLICT(codigo_barra) DO UPDATE
+        SET descricao=EXCLUDED.descricao, atualizado_em=CURRENT_TIMESTAMP
+      `, params);
+    }
+
+    const map = new Map();
+    const codigos = [...produtosPorCodigo.keys()];
+    const CHUNK_SELECT = 1000;
+    for (let i = 0; i < codigos.length; i += CHUNK_SELECT) {
+      const rows = (await client.query('SELECT id,codigo_barra FROM galpao_produtos WHERE codigo_barra = ANY($1::text[])', [codigos.slice(i, i + CHUNK_SELECT)])).rows;
+      for (const row of rows) map.set(String(row.codigo_barra), row.id);
+    }
+
+    // Mantem a mesma regra da V37: para lote repetido, prevalece a ultima linha encontrada.
+    const estoqueUnico = new Map();
+    for (const e of parsed.estoque) {
+      const codigo = String(e.codigo_barra ?? '').trim();
+      const produtoId = map.get(codigo);
+      if (!produtoId) continue;
+      const validade = normalizedDate(e.validade);
+      const ue = Math.max(Number(e.unidades_por_embalagem) || 1, 1);
+      const qtd = Math.max(Number(e.quantidade) || 0, 0);
+      estoqueUnico.set(`${produtoId}|${validade || ''}|${ue}`, { produtoId, validade, ue, qtd });
+    }
+
+    const estoqueRows = [...estoqueUnico.values()];
+    const CHUNK_ESTOQUE = 500;
+    for (let i = 0; i < estoqueRows.length; i += CHUNK_ESTOQUE) {
+      const chunk = estoqueRows.slice(i, i + CHUNK_ESTOQUE);
+      const params = [];
+      const values = chunk.map((e, idx) => {
+        params.push(e.produtoId, e.validade, e.ue, e.qtd);
+        const b = idx * 4;
+        return `($${b + 1},$${b + 2},$${b + 3},$${b + 4})`;
+      });
+      await client.query(`
+        INSERT INTO galpao_estoque(produto_id,validade,unidades_por_embalagem,quantidade)
+        VALUES ${values.join(',')}
+        ON CONFLICT (produto_id,(COALESCE(validade, DATE '0001-01-01')),unidades_por_embalagem)
+        DO UPDATE SET quantidade=EXCLUDED.quantidade, atualizado_em=CURRENT_TIMESTAMP
+      `, params);
+    }
+
+    const inserirMovimentos = async (tipo, lista) => {
+      const preparados = [];
       for (const m of lista) {
-        const codigo = String(m.codigo_barra ?? '').trim(); let produtoId = map.get(codigo); if (!produtoId) continue;
-        await client.query(`INSERT INTO galpao_movimentacoes(produto_id,tipo,validade,unidades_por_embalagem,quantidade,data_movimento,observacao,usuario_id,saldo_anterior,saldo_posterior,origem,legacy_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULL,NULL,'SQLITE',$9) ON CONFLICT DO NOTHING`, [
-          produtoId, tipo, normalizedDate(m.validade), Math.max(Number(m.unidades_por_embalagem) || 1, 1), Math.max(Number(m.quantidade) || 0, 0), normalizedDate(m.data) || new Date().toISOString().slice(0, 10), 'Importado do sistema Python', usuarioId, Number(m.id) || null
-        ]);
+        const codigo = String(m.codigo_barra ?? '').trim();
+        const produtoId = map.get(codigo);
+        if (!produtoId) continue;
+        preparados.push({
+          produtoId,
+          validade: normalizedDate(m.validade),
+          ue: Math.max(Number(m.unidades_por_embalagem) || 1, 1),
+          qtd: Math.max(Number(m.quantidade) || 0, 0),
+          data: normalizedDate(m.data) || new Date().toISOString().slice(0, 10),
+          legacyId: Number(m.id) || null
+        });
+      }
+
+      const CHUNK_MOV = 350; // 9 parametros por linha; margem segura abaixo do limite do PostgreSQL.
+      for (let i = 0; i < preparados.length; i += CHUNK_MOV) {
+        const chunk = preparados.slice(i, i + CHUNK_MOV);
+        const params = [];
+        const values = chunk.map((m, idx) => {
+          params.push(m.produtoId, tipo, m.validade, m.ue, m.qtd, m.data, 'Importado do sistema Python', usuarioId, m.legacyId);
+          const b = idx * 9;
+          return `($${b + 1},$${b + 2},$${b + 3},$${b + 4},$${b + 5},$${b + 6},$${b + 7},$${b + 8},NULL,NULL,'SQLITE',$${b + 9})`;
+        });
+        await client.query(`
+          INSERT INTO galpao_movimentacoes(
+            produto_id,tipo,validade,unidades_por_embalagem,quantidade,data_movimento,
+            observacao,usuario_id,saldo_anterior,saldo_posterior,origem,legacy_id
+          ) VALUES ${values.join(',')}
+          ON CONFLICT DO NOTHING
+        `, params);
       }
     };
-    await inserirMov('ENTRADA', parsed.entradas); await inserirMov('SAIDA', parsed.saidas);
-    const result = (await client.query(`INSERT INTO galpao_importacoes(nome_arquivo,arquivo_hash,produtos_importados,estoque_importado,entradas_importadas,saidas_importadas,usuario_id) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`, [nomeArquivo || 'controle_estoque.db', hash, parsed.produtos.length, parsed.estoque.length, parsed.entradas.length, parsed.saidas.length, usuarioId])).rows[0];
-    await client.query('COMMIT'); return result;
-  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+
+    await inserirMovimentos('ENTRADA', parsed.entradas);
+    await inserirMovimentos('SAIDA', parsed.saidas);
+
+    const result = (await client.query(`
+      INSERT INTO galpao_importacoes(nome_arquivo,arquivo_hash,produtos_importados,estoque_importado,entradas_importadas,saidas_importadas,usuario_id)
+      VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *
+    `, [nomeArquivo || 'controle_estoque.db', hash, parsed.produtos.length, parsed.estoque.length, parsed.entradas.length, parsed.saidas.length, usuarioId])).rows[0];
+
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function importLegacy(args) {
+  // PostgreSQL pode escolher uma transacao como vitima de deadlock (40P01).
+  // V38 refaz automaticamente a operacao inteira; cada tentativa anterior ja sofreu ROLLBACK.
+  const maxTentativas = 3;
+  for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
+    try {
+      return await importLegacyOnce(args);
+    } catch (err) {
+      if (err?.code !== '40P01' || tentativa === maxTentativas) {
+        if (err?.code === '40P01') {
+          err.status = 503;
+          err.message = 'O banco ficou ocupado por outra operação. A importação foi cancelada com segurança. Aguarde alguns segundos e tente novamente.';
+        }
+        throw err;
+      }
+      await new Promise(resolve => setTimeout(resolve, 350 * tentativa));
+    }
+  }
 }
 
 module.exports = { dashboard, listProducts, getProduct, getProductByBarcode, createProduct, updateProduct, listStock, stockForProduct, createMovement, history, expiry, hasData, importByHash, importLegacy };
