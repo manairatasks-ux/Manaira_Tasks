@@ -1,0 +1,12 @@
+MANAIRA TASKS - V39
+Correcoes operacionais do estoque do Galpao
+
+1. Produtos sem saldo continuam visiveis na aba Estoque atual.
+2. Lotes zerados deixam de poluir a tela operacional: se o produto nao possui saldo, aparece apenas uma linha "Sem estoque".
+3. Lotes com quantidade zero nao sao mais apagados fisicamente ao zerar por uma saida; ficam preservados para rastreabilidade.
+4. A coluna "Lotes" do Cadastro foi renomeada para "Lotes ativos" e conta somente lotes com quantidade maior que zero.
+5. O resumo do Estoque atual tambem passou a contar somente lotes ativos.
+6. Embalagens e unidades continuam calculadas normalmente; lotes zerados nao alteram os totais.
+7. Filtros de validade e "Somente com saldo" trabalham somente com lotes ativos.
+
+Base: V38 - importacao Galpao segura com loading.

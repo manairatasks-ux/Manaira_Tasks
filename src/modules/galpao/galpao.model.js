@@ -39,7 +39,7 @@ async function listProducts({ busca = '' } = {}) {
   if (busca) { params.push(`%${busca}%`); where += ` AND (p.codigo_barra ILIKE $1 OR p.descricao ILIKE $1)`; }
   return all(`
     SELECT p.id,p.codigo_barra,p.descricao,p.ativo,p.criado_em,p.atualizado_em,
-           COUNT(e.id)::int AS lotes,
+           COUNT(e.id) FILTER (WHERE e.quantidade > 0)::int AS lotes,
            COALESCE(SUM(e.quantidade),0)::bigint AS embalagens,
            COALESCE(SUM((e.quantidade::bigint)*e.unidades_por_embalagem),0)::bigint AS unidades
     FROM galpao_produtos p LEFT JOIN galpao_estoque e ON e.produto_id=p.id
@@ -58,21 +58,66 @@ async function updateProduct(id, data) {
 }
 
 async function listStock({ busca = '', validade = '' } = {}) {
-  const params = []; const filtros = ['p.ativo=TRUE'];
-  if (busca) { params.push(`%${busca}%`); filtros.push(`(p.codigo_barra ILIKE $${params.length} OR p.descricao ILIKE $${params.length})`); }
-  if (validade === 'vencidos') filtros.push(`e.quantidade>0 AND e.validade IS NOT NULL AND e.validade < CURRENT_DATE`);
-  else if (validade === '60') filtros.push(`e.quantidade>0 AND e.validade IS NOT NULL AND e.validade BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '60 days'`);
-  else if (validade === 'sem') filtros.push(`e.validade IS NULL`);
-  else if (validade === 'saldo') filtros.push(`e.quantidade > 0`);
+  const params = [];
+  const buscaSql = busca
+    ? (() => { params.push(`%${busca}%`); return ` AND (p.codigo_barra ILIKE $${params.length} OR p.descricao ILIKE $${params.length})`; })()
+    : '';
+
+  // Filtros específicos trabalham somente com lotes ativos (com saldo).
+  // Na visão padrão, produtos sem saldo continuam aparecendo uma única vez,
+  // sem trazer todos os lotes antigos zerados para a tela operacional.
+  if (validade) {
+    const filtros = ['p.ativo=TRUE', 'e.quantidade > 0'];
+    if (busca) filtros.push(`(p.codigo_barra ILIKE $1 OR p.descricao ILIKE $1)`);
+    if (validade === 'vencidos') filtros.push(`e.validade IS NOT NULL AND e.validade < CURRENT_DATE`);
+    else if (validade === '60') filtros.push(`e.validade IS NOT NULL AND e.validade BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '60 days'`);
+    else if (validade === 'sem') filtros.push(`e.validade IS NULL`);
+    // "saldo" já está coberto por e.quantidade > 0.
+    return all(`
+      SELECT e.id,p.id AS produto_id,p.codigo_barra,p.descricao,e.validade,e.unidades_por_embalagem,e.quantidade,
+             (e.quantidade::bigint * e.unidades_por_embalagem)::bigint AS total_unidades,e.atualizado_em,
+             FALSE AS sem_estoque
+      FROM galpao_estoque e JOIN galpao_produtos p ON p.id=e.produto_id
+      WHERE ${filtros.join(' AND ')}
+      ORDER BY p.descricao,e.validade NULLS LAST,e.unidades_por_embalagem
+    `, params);
+  }
+
   return all(`
-    SELECT e.id,p.id AS produto_id,p.codigo_barra,p.descricao,e.validade,e.unidades_por_embalagem,e.quantidade,
-           (e.quantidade::bigint * e.unidades_por_embalagem)::bigint AS total_unidades,e.atualizado_em
-    FROM galpao_estoque e JOIN galpao_produtos p ON p.id=e.produto_id
-    WHERE ${filtros.join(' AND ')}
-    ORDER BY p.descricao,e.validade NULLS LAST,e.unidades_por_embalagem
+    WITH ativos AS (
+      SELECT e.id,p.id AS produto_id,p.codigo_barra,p.descricao,e.validade,e.unidades_por_embalagem,e.quantidade,
+             (e.quantidade::bigint * e.unidades_por_embalagem)::bigint AS total_unidades,e.atualizado_em,
+             FALSE AS sem_estoque
+      FROM galpao_estoque e
+      JOIN galpao_produtos p ON p.id=e.produto_id
+      WHERE p.ativo=TRUE AND e.quantidade > 0${buscaSql}
+    ),
+    zerados AS (
+      SELECT NULL::bigint AS id,p.id AS produto_id,p.codigo_barra,p.descricao,NULL::date AS validade,
+             COALESCE(ult.unidades_por_embalagem, mov.unidades_por_embalagem, 1)::int AS unidades_por_embalagem,
+             0::bigint AS quantidade,0::bigint AS total_unidades,
+             COALESCE(ult.atualizado_em,p.atualizado_em,p.criado_em) AS atualizado_em,
+             TRUE AS sem_estoque
+      FROM galpao_produtos p
+      LEFT JOIN LATERAL (
+        SELECT e.unidades_por_embalagem,e.atualizado_em
+        FROM galpao_estoque e WHERE e.produto_id=p.id
+        ORDER BY e.atualizado_em DESC,e.id DESC LIMIT 1
+      ) ult ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT m.unidades_por_embalagem
+        FROM galpao_movimentacoes m WHERE m.produto_id=p.id
+        ORDER BY m.id DESC LIMIT 1
+      ) mov ON TRUE
+      WHERE p.ativo=TRUE${buscaSql}
+        AND NOT EXISTS (SELECT 1 FROM galpao_estoque e2 WHERE e2.produto_id=p.id AND e2.quantidade > 0)
+    )
+    SELECT * FROM ativos
+    UNION ALL
+    SELECT * FROM zerados
+    ORDER BY descricao,validade NULLS LAST,unidades_por_embalagem
   `, params);
 }
-
 async function stockForProduct(produtoId) {
   return all(`SELECT id,validade,unidades_por_embalagem,quantidade,(quantidade::bigint*unidades_por_embalagem)::bigint AS total_unidades FROM galpao_estoque WHERE produto_id=$1 ORDER BY validade NULLS LAST,unidades_por_embalagem`, [produtoId]);
 }
@@ -96,27 +141,15 @@ async function createMovement({ produtoId, tipo, validade, unidadesPorEmbalagem,
 
     if (lote) {
 
-      if (posterior === 0) {
-
-        await client.query(
-          'DELETE FROM galpao_estoque WHERE id=$1',
-          [lote.id]
-        );
-
-        estoqueId = null;
-
-      } else {
-
-        await client.query(
-          `UPDATE galpao_estoque
-       SET quantidade=$1,
-           atualizado_em=CURRENT_TIMESTAMP
-       WHERE id=$2`,
-          [posterior, lote.id]
-        );
-
-        estoqueId = lote.id;
-      }
+      // V39: lote zerado não é apagado fisicamente. Mantemos o registro para
+      // rastreabilidade, mas ele deixa de contar como lote ativo.
+      await client.query(
+        `UPDATE galpao_estoque
+         SET quantidade=$1, atualizado_em=CURRENT_TIMESTAMP
+         WHERE id=$2`,
+        [posterior, lote.id]
+      );
+      estoqueId = lote.id;
 
     } else {
 

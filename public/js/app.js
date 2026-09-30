@@ -1957,7 +1957,7 @@ async function renderGalpaoProdutos(busca = '') {
     const produtos = await carregarGalpaoProdutos(busca);
     panel.innerHTML = `${galpaoFluxoBar('produtos')}<div class="dashboard-toolbar almox-toolbar"><div><strong>${produtos.length.toLocaleString('pt-BR')} produto(s)</strong><span>O código de barras identifica o produto em entradas e saídas.</span></div><button class="primary" onclick="galpaoProdutoForm()">+ Novo produto</button></div>
       <div class="almox-search"><input id="galpaoBuscaProduto" placeholder="Buscar código ou descrição..." value="${escapeHtml(busca)}"><button id="galpaoBuscarProduto">Buscar</button></div>
-      <section class="dash-panel wide almox-table-wrap"><table class="dash-table galpao-table"><thead><tr><th>Código</th><th>Descrição</th><th>Lotes</th><th>Emb.</th><th>Total unid.</th><th>Ação</th></tr></thead><tbody>${produtos.map(p => `<tr><td class="mono">${escapeHtml(p.codigo_barra)}</td><td><strong>${escapeHtml(p.descricao)}</strong></td><td>${Number(p.lotes)}</td><td>${Number(p.embalagens).toLocaleString('pt-BR')}</td><td>${Number(p.unidades).toLocaleString('pt-BR')}</td><td><button onclick="galpaoProdutoForm(${p.id})">Editar</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhum produto encontrado.</td></tr>'}</tbody></table></section>`;
+      <section class="dash-panel wide almox-table-wrap"><table class="dash-table galpao-table"><thead><tr><th>Código</th><th>Descrição</th><th>Lotes ativos</th><th>Emb.</th><th>Total unid.</th><th>Ação</th></tr></thead><tbody>${produtos.map(p => `<tr><td class="mono">${escapeHtml(p.codigo_barra)}</td><td><strong>${escapeHtml(p.descricao)}</strong></td><td>${Number(p.lotes)}</td><td>${Number(p.embalagens).toLocaleString('pt-BR')}</td><td>${Number(p.unidades).toLocaleString('pt-BR')}</td><td><button onclick="galpaoProdutoForm(${p.id})">Editar</button></td></tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhum produto encontrado.</td></tr>'}</tbody></table></section>`;
     const buscar = () => renderGalpaoProdutos($('galpaoBuscaProduto').value.trim()); $('galpaoBuscarProduto').onclick = buscar; $('galpaoBuscaProduto').onkeydown = e => { if (e.key === 'Enter') buscar(); };
   } catch (err) { panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`; }
 }
@@ -1985,10 +1985,10 @@ async function renderGalpaoEstoque(busca = '', validade = '') {
 
     const dados = await api(`/api/galpao/estoque?${qs}`);
 
-    // Estoque atual mostra somente lotes com saldo.
-    const estoque = dados.filter(
-      item => Number(item.quantidade) > 0
-    );
+    // V39: a visão padrão mantém produtos zerados visíveis.
+    // O backend devolve somente os lotes ativos e, quando o produto não tem
+    // saldo, uma única linha operacional marcada como sem_estoque.
+    const estoque = dados;
 
     // Agrupa os lotes pelo produto.
     const grupos = new Map();
@@ -2014,7 +2014,7 @@ async function renderGalpaoEstoque(busca = '', validade = '') {
     const resumo = gruposArray.reduce(
       (acc, grupo) => {
         acc.produtos += 1;
-        acc.lotes += grupo.lotes.length;
+        acc.lotes += grupo.lotes.filter(item => Number(item.quantidade || 0) > 0).length;
 
         grupo.lotes.forEach(item => {
           acc.embalagens += Number(
@@ -2131,8 +2131,9 @@ async function renderGalpaoEstoque(busca = '', validade = '') {
             const primeiroLote =
               loteIndex === 0;
 
-            const multiplo =
-              grupo.lotes.length > 1;
+            const semEstoque = item.sem_estoque === true || item.sem_estoque === 'true';
+            const lotesAtivos = grupo.lotes.filter(l => Number(l.quantidade || 0) > 0).length;
+            const multiplo = lotesAtivos > 1;
 
             totalEmbalagens += quantidade;
             totalUnidades += unidades;
@@ -2174,10 +2175,8 @@ async function renderGalpaoEstoque(busca = '', validade = '') {
                         ${multiplo
                   ? `
                               <small>
-                                ${grupo.lotes
-                    .length
-                  }
-                                lotes em estoque
+                                ${lotesAtivos}
+                                lotes ativos
                               </small>
                             `
                   : ''
@@ -2195,9 +2194,10 @@ async function renderGalpaoEstoque(busca = '', validade = '') {
                 </td>
 
                 <td>
-                  ${validadeEstoqueHtml(
-                item.validade
-              )}
+                  ${semEstoque
+                    ? '<span class="galpao-stock-validade sem-validade">Sem estoque</span>'
+                    : validadeEstoqueHtml(item.validade)
+                  }
                 </td>
 
                 <td
@@ -2212,7 +2212,7 @@ async function renderGalpaoEstoque(busca = '', validade = '') {
                   class="galpao-stock-number-cell"
                 >
                   <span
-                    class="almox-stock-number"
+                    class="almox-stock-number ${quantidade === 0 ? 'zero' : ''}"
                   >
                     ${quantidade.toLocaleString(
                 'pt-BR'
@@ -2239,7 +2239,7 @@ async function renderGalpaoEstoque(busca = '', validade = '') {
         // Só mostra TOTAL quando houver
         // mais de um lote.
         const total =
-          grupo.lotes.length > 1
+          grupo.lotes.filter(item => Number(item.quantidade || 0) > 0).length > 1
             ? `
               <tr
                 class="
@@ -2353,7 +2353,7 @@ async function renderGalpaoEstoque(busca = '', validade = '') {
         </div>
 
         <div>
-          <span>Lotes</span>
+          <span>Lotes ativos</span>
 
           <strong>
             ${resumo.lotes.toLocaleString(
