@@ -288,6 +288,14 @@ CREATE INDEX IF NOT EXISTS idx_galpao_mov_tipo ON galpao_movimentacoes(tipo);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_galpao_mov_legacy
 ON galpao_movimentacoes(origem,tipo,legacy_id) WHERE legacy_id IS NOT NULL;
 
+
+-- V41: estorno auditado de movimentações WEB por até 24 horas.
+ALTER TABLE galpao_movimentacoes ADD COLUMN IF NOT EXISTS estornado BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE galpao_movimentacoes ADD COLUMN IF NOT EXISTS estornado_em TIMESTAMP;
+ALTER TABLE galpao_movimentacoes ADD COLUMN IF NOT EXISTS estornado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+ALTER TABLE galpao_movimentacoes ADD COLUMN IF NOT EXISTS motivo_estorno TEXT;
+CREATE INDEX IF NOT EXISTS idx_galpao_mov_estornado ON galpao_movimentacoes(estornado);
+
 CREATE TABLE IF NOT EXISTS galpao_importacoes (
   id SERIAL PRIMARY KEY,
   nome_arquivo VARCHAR(255),

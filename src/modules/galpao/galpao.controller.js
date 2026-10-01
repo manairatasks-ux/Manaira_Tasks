@@ -9,6 +9,7 @@ exports.stockForProduct=async(req,res)=>{try{res.json(await service.stockForProd
 exports.entry=async(req,res)=>{try{res.status(201).json(await service.movement('ENTRADA',req.body,req.user));}catch(e){sendError(res,e);}};
 exports.exit=async(req,res)=>{try{res.status(201).json(await service.movement('SAIDA',req.body,req.user));}catch(e){sendError(res,e);}};
 exports.history=async(req,res)=>{try{res.json(await service.history(req.query));}catch(e){sendError(res,e);}};
+exports.reverseMovement=async(req,res)=>{try{res.json({ok:true,...await service.reverseMovement(req.params.id,req.body,req.user)});}catch(e){sendError(res,e);}};
 exports.expiry=async(req,res)=>{try{res.json(await service.expiry(req.query));}catch(e){sendError(res,e);}};
 exports.previewImport=async(req,res)=>{try{res.json(await service.previewImport(req.file,req.user));}catch(e){sendError(res,e);}};
 exports.executeImport=async(req,res)=>{try{res.json({ok:true,importacao:await service.executeImport(req.file,req.body,req.user)});}catch(e){sendError(res,e);}};

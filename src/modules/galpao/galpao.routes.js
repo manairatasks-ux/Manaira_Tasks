@@ -14,6 +14,7 @@ router.get('/produtos/:id/estoque',controller.stockForProduct);
 router.post('/entradas',controller.entry);
 router.post('/saidas',controller.exit);
 router.get('/historico',controller.history);
+router.post('/movimentacoes/:id/estornar',controller.reverseMovement);
 router.get('/validades',controller.expiry);
 router.post('/importar/preview',upload.single('arquivo'),controller.previewImport);
 router.post('/importar',upload.single('arquivo'),controller.executeImport);

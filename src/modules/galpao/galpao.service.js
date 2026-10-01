@@ -6,6 +6,7 @@ function text(v){return String(v??'').trim();}
 function positiveInt(v,nome){const n=Number(v);if(!Number.isInteger(n)||n<=0)fail(`${nome} deve ser um número inteiro maior que zero.`);return n;}
 function normalizeDate(v){const s=text(v);if(!s)return null;if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;fail('Data/validade inválida.');}
 function isPrincipal(user){return String(user?.perfil||'').toLowerCase()==='administrador_principal'||user?.administrador_principal===true;}
+function isAdmin(user){return ['administrador_principal','administrador','admin'].includes(String(user?.perfil||'').toLowerCase())||user?.administrador_principal===true;}
 
 async function getSqlJs(){
   if(!sqlPromise){
@@ -45,7 +46,8 @@ async function movement(tipo,body,user){
   return model.createMovement({produtoId,tipo,validade,unidadesPorEmbalagem,quantidade,dataMovimento,observacao:text(body.observacao),usuarioId:user.id});
 }
 async function history(q){const tipo=text(q.tipo).toUpperCase();if(tipo&&!['ENTRADA','SAIDA'].includes(tipo))fail('Tipo inválido.');return model.history({tipo,busca:text(q.busca),limite:q.limite});}
+async function reverseMovement(id,body,user){const movId=Number(id);if(!Number.isInteger(movId)||movId<=0)fail('Movimentação inválida.');const motivo=text(body.motivo);if(!motivo)fail('Informe o motivo do estorno.');if(motivo.length>500)fail('O motivo do estorno deve ter no máximo 500 caracteres.');return model.reverseMovement({id:movId,usuarioId:user.id,admin:isAdmin(user),motivo});}
 async function expiry(q){return model.expiry({dias:q.dias,busca:text(q.busca)});}
 async function previewImport(file,user){if(!isPrincipal(user))fail('Somente o Administrador Principal pode importar o banco antigo do Galpão.',403);const parsed=await parseLegacy(file?.buffer);const atual=await model.hasData();return{arquivo:file.originalname,tamanho:file.size,possui_dados_atuais:Boolean(atual?.possui),produtos:parsed.produtos.length,estoque:parsed.estoque.length,entradas:parsed.entradas.length,saidas:parsed.saidas.length};}
 async function executeImport(file,body,user){if(!isPrincipal(user))fail('Somente o Administrador Principal pode importar o banco antigo do Galpão.',403);if(text(body.confirmacao)!=='IMPORTAR')fail('Confirmação inválida. Digite IMPORTAR para continuar.');const parsed=await parseLegacy(file?.buffer);return model.importLegacy({buffer:file.buffer,parsed,usuarioId:user.id,replaceExisting:String(body.substituir||'false')==='true',nomeArquivo:file.originalname});}
-module.exports={dashboard,listProducts,createProduct,updateProduct,listStock,stockForProduct,movement,history,expiry,previewImport,executeImport};
+module.exports={dashboard,listProducts,createProduct,updateProduct,listStock,stockForProduct,movement,history,reverseMovement,expiry,previewImport,executeImport};

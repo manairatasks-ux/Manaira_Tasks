@@ -28,6 +28,7 @@ async function dashboard() {
     FROM galpao_movimentacoes m
     JOIN galpao_produtos p ON p.id=m.produto_id
     LEFT JOIN usuarios u ON u.id=m.usuario_id
+    WHERE COALESCE(m.estornado,FALSE)=FALSE
     ORDER BY m.data_movimento DESC,m.id DESC LIMIT 10
   `);
   return { resumo: resumo || {}, recentes };
@@ -194,11 +195,60 @@ async function history({ tipo = '', busca = '', limite = 300 } = {}) {
   if (busca) { params.push(`%${busca}%`); filtros.push(`(p.codigo_barra ILIKE $${params.length} OR p.descricao ILIKE $${params.length} OR COALESCE(m.observacao,'') ILIKE $${params.length})`); }
   params.push(Math.min(Math.max(Number(limite) || 300, 1), 1000));
   return all(`
-    SELECT m.*,p.codigo_barra,p.descricao,u.nome AS usuario_nome
+    SELECT m.*,p.codigo_barra,p.descricao,u.nome AS usuario_nome,ue.nome AS estornado_por_nome,
+           (m.origem='WEB' AND NOT m.estornado AND m.criado_em >= CURRENT_TIMESTAMP - INTERVAL '24 hours') AS dentro_prazo_estorno
     FROM galpao_movimentacoes m JOIN galpao_produtos p ON p.id=m.produto_id LEFT JOIN usuarios u ON u.id=m.usuario_id
+    LEFT JOIN usuarios ue ON ue.id=m.estornado_por
     ${filtros.length ? 'WHERE ' + filtros.join(' AND ') : ''}
     ORDER BY m.data_movimento DESC,m.id DESC LIMIT $${params.length}
   `, params);
+}
+
+
+async function reverseMovement({ id, usuarioId, admin = false, motivo }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const mov = (await client.query(`
+      SELECT m.*,p.codigo_barra,p.descricao
+      FROM galpao_movimentacoes m
+      JOIN galpao_produtos p ON p.id=m.produto_id
+      WHERE m.id=$1 FOR UPDATE OF m
+    `,[id])).rows[0];
+    if (!mov) { const e=new Error('Movimentação não encontrada.'); e.status=404; throw e; }
+    if (mov.origem !== 'WEB') { const e=new Error('Movimentações importadas não podem ser estornadas por esta função.'); e.status=400; throw e; }
+    if (mov.estornado) { const e=new Error('Esta movimentação já foi estornada.'); e.status=400; throw e; }
+    if (!admin && Number(mov.usuario_id) !== Number(usuarioId)) { const e=new Error('Você só pode estornar movimentações feitas por você.'); e.status=403; throw e; }
+    const idade = Date.now() - new Date(mov.criado_em).getTime();
+    if (!Number.isFinite(idade) || idade > 24*60*60*1000) { const e=new Error('O prazo de 24 horas para estornar esta movimentação expirou.'); e.status=400; throw e; }
+
+    const lote = (await client.query(`
+      SELECT * FROM galpao_estoque
+      WHERE produto_id=$1 AND unidades_por_embalagem=$2
+        AND (($3::date IS NULL AND validade IS NULL) OR validade=$3::date)
+      FOR UPDATE
+    `,[mov.produto_id,mov.unidades_por_embalagem,mov.validade])).rows[0];
+    const atual=Number(lote?.quantidade||0), qtd=Number(mov.quantidade);
+    let novo;
+    if (mov.tipo === 'ENTRADA') {
+      novo = atual - qtd;
+      if (novo < 0) { const e=new Error(`Não é possível estornar esta entrada: o lote possui ${atual} embalagem(ns), mas a entrada foi de ${qtd}. Houve saída/ajuste posterior que impede o estorno seguro.`); e.status=400; throw e; }
+      if (!lote) { const e=new Error('O lote desta entrada não existe mais. Use Ajuste de Estoque.'); e.status=400; throw e; }
+    } else {
+      novo = atual + qtd;
+    }
+    if (lote) {
+      await client.query('UPDATE galpao_estoque SET quantidade=$1,atualizado_em=CURRENT_TIMESTAMP WHERE id=$2',[novo,lote.id]);
+    } else {
+      await client.query(`INSERT INTO galpao_estoque(produto_id,validade,unidades_por_embalagem,quantidade) VALUES($1,$2,$3,$4)`,[mov.produto_id,mov.validade,mov.unidades_por_embalagem,novo]);
+    }
+    const atualizado=(await client.query(`
+      UPDATE galpao_movimentacoes SET estornado=TRUE,estornado_em=CURRENT_TIMESTAMP,estornado_por=$1,motivo_estorno=$2
+      WHERE id=$3 RETURNING *
+    `,[usuarioId,motivo,id])).rows[0];
+    await client.query('COMMIT');
+    return {movimentacao:atualizado,saldo:novo};
+  } catch(err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
 }
 
 async function expiry({ dias = 90, busca = '' } = {}) {
@@ -377,4 +427,4 @@ async function importLegacy(args) {
   }
 }
 
-module.exports = { dashboard, listProducts, getProduct, getProductByBarcode, createProduct, updateProduct, listStock, stockForProduct, createMovement, history, expiry, hasData, importByHash, importLegacy };
+module.exports = { dashboard, listProducts, getProduct, getProductByBarcode, createProduct, updateProduct, listStock, stockForProduct, createMovement, history, reverseMovement, expiry, hasData, importByHash, importLegacy };

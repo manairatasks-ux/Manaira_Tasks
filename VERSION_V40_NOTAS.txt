@@ -1,0 +1,15 @@
+MANAIRA TASKS - V40
+
+Alteracoes no modulo Galpao:
+1. Entrada sem validade
+- Adicionada opcao "Produto sem validade" na tela de entrada.
+- Ao marcar, o campo de validade e limpo/desabilitado.
+- A entrada e registrada com validade nula e aparece como "Sem validade" no estoque.
+
+2. Copiar selecionados consolidado
+- Historico de entradas e historico de saidas agora agrupam registros selecionados pelo codigo de barras.
+- Quantidades de lotes/validades diferentes do mesmo codigo sao somadas.
+- Saidas sao copiadas como quantidade positiva para uso operacional.
+- Formato permanece: codigo quantidade.
+
+Base: V39 - estoque zerado e lotes ativos.

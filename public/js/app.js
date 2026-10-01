@@ -2662,9 +2662,18 @@ async function renderGalpaoMovimento(tipo) {
                   <div>
                     <label>Validade</label>
                     <input
+                      id="galpaoMovValidade"
                       name="validade"
                       type="date"
                     >
+                    <label class="galpao-sem-validade-check" style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:500;cursor:pointer;">
+                      <input
+                        id="galpaoMovSemValidade"
+                        type="checkbox"
+                        style="width:auto;"
+                      >
+                      Produto sem validade
+                    </label>
                   </div>
 
                   <div>
@@ -2865,6 +2874,21 @@ async function renderGalpaoMovimento(tipo) {
       }
     });
 
+    if (!saida) {
+      const validadeInput = $('galpaoMovValidade');
+      const semValidadeCheck = $('galpaoMovSemValidade');
+
+      semValidadeCheck?.addEventListener('change', () => {
+        if (!validadeInput) return;
+        if (semValidadeCheck.checked) {
+          validadeInput.value = '';
+          validadeInput.disabled = true;
+        } else {
+          validadeInput.disabled = false;
+        }
+      });
+    }
+
     $('galpaoMovForm').onsubmit = async e => {
       e.preventDefault();
 
@@ -2927,6 +2951,49 @@ async function renderGalpaoMovimento(tipo) {
   }
 }
 
+function galpaoPodeEstornar(m) {
+  if (!m || m.estornado || !m.dentro_prazo_estorno || m.origem !== 'WEB') return false;
+  const perfil=String(state.usuario?.perfil||'').toLowerCase();
+  const admin=['administrador_principal','administrador','admin'].includes(perfil) || state.usuario?.administrador_principal===true;
+  return admin || Number(m.usuario_id)===Number(state.usuario?.id);
+}
+
+window.estornarGalpaoMov = (id) => {
+  const m=(state.galpaoHistoricoAtual||[]).find(x=>Number(x.id)===Number(id));
+  if(!m) return;
+  const acao=m.tipo==='ENTRADA'?'retirará':'devolverá';
+  openModal(`Estornar ${m.tipo==='ENTRADA'?'entrada':'saída'}`, `
+    <form id="galpaoEstornoForm">
+      <div class="task-detail">
+        <h3>${escapeHtml(m.descricao)}</h3>
+        <div class="detail-grid">
+          <span><b>Código</b>${escapeHtml(m.codigo_barra)}</span>
+          <span><b>Quantidade</b>${Number(m.quantidade).toLocaleString('pt-BR')} emb.</span>
+          <span><b>Validade</b>${galpaoValidadeLabel(m.validade)}</span>
+          <span><b>Impacto</b>O estorno ${acao} ${Number(m.quantidade).toLocaleString('pt-BR')} emb. do estoque.</span>
+        </div>
+      </div>
+      <label>Motivo do estorno</label>
+      <select id="galpaoEstornoMotivo" required>
+        <option value="">Selecione...</option>
+        <option>Erro de quantidade</option><option>Produto incorreto</option><option>Validade incorreta</option><option>Lançamento duplicado</option><option value="Outro">Outro</option>
+      </select>
+      <div id="galpaoEstornoOutroArea" class="hidden" style="margin-top:10px"><label>Descreva o motivo</label><textarea id="galpaoEstornoOutro" maxlength="500"></textarea></div>
+      <p class="hint">O registro não será apagado: ficará marcado como ESTORNADO para auditoria. Esta ação só é permitida nas primeiras 24 horas.</p>
+      <div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="danger" type="submit">Confirmar estorno</button></div>
+    </form>`);
+  const sel=$('galpaoEstornoMotivo'), area=$('galpaoEstornoOutroArea');
+  sel.onchange=()=>area.classList.toggle('hidden',sel.value!=='Outro');
+  $('galpaoEstornoForm').onsubmit=async e=>{
+    e.preventDefault(); let motivo=sel.value;
+    if(motivo==='Outro'){const detalhe=$('galpaoEstornoOutro').value.trim();if(!detalhe){alert('Descreva o motivo do estorno.');return;}motivo=`Outro: ${detalhe}`;}
+    if(!motivo)return;
+    const btn=e.target.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent='Estornando...';
+    try{await api(`/api/galpao/movimentacoes/${m.id}/estornar`,{method:'POST',body:JSON.stringify({motivo})});closeModal();await renderGalpaoHistorico('',m.tipo,true);alert('Movimentação estornada com sucesso. O estoque foi atualizado e a auditoria foi preservada.');}
+    catch(err){alert(err.message);btn.disabled=false;btn.textContent='Confirmar estorno';}
+  };
+};
+
 async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
   const panel = $('galpaoPanel');
   panel.innerHTML = '<div class="almox-loading">Carregando histórico...</div>';
@@ -2937,6 +3004,7 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
     if (tipo) qs.set('tipo', tipo);
 
     const data = await api(`/api/galpao/historico?${qs}`);
+    state.galpaoHistoricoAtual = data;
 
     const viewAtual =
       tipo === 'ENTRADA' && fixo
@@ -3053,6 +3121,7 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
               <th>Unid/Emb.</th>
               <th>Quantidade</th>
               <th>Usuário / observação</th>
+              <th>Ações</th>
             </tr>
           </thead>
 
@@ -3064,14 +3133,9 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
               >
                 ${podeCopiar ? `
                   <td class="galpao-select-col">
-                    <label class="galpao-history-check">
-                      <input
-                        type="checkbox"
-                        class="galpaoHistCheck"
-                        data-index="${index}"
-                        aria-label="Selecionar ${escapeHtml(m.descricao)}"
-                      >
-                    </label>
+                    ${m.estornado ? '<span title="Registro estornado">—</span>' : `<label class="galpao-history-check">
+                      <input type="checkbox" class="galpaoHistCheck" data-index="${index}" aria-label="Selecionar ${escapeHtml(m.descricao)}">
+                    </label>`}
                   </td>
                 ` : ''}
 
@@ -3125,12 +3189,16 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
                     `
           : ''
         }
+                  ${m.estornado ? `<small class="almox-cell-note"><strong>ESTORNADO</strong> • ${m.estornado_por_nome ? escapeHtml(m.estornado_por_nome) : 'Usuário'} • ${fmtDateTime(m.estornado_em)}<br>Motivo: ${escapeHtml(m.motivo_estorno || '—')}</small>` : ''}
+                </td>
+                <td>
+                  ${m.estornado ? '<span class="badge">Estornado</span>' : (galpaoPodeEstornar(m) ? `<button type="button" class="danger" onclick="estornarGalpaoMov(${m.id})">Estornar</button>` : '<span class="muted">—</span>')}
                 </td>
               </tr>
             `).join('') || `
               <tr>
                 <td
-                  colspan="${podeCopiar ? '8' : '7'}"
+                  colspan="${podeCopiar ? '9' : '8'}"
                   class="empty"
                 >
                   Nenhuma movimentação encontrada.
@@ -3286,18 +3354,34 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
             return;
           }
 
-          const linhas = marcados.map(check => {
+          // Consolida os registros selecionados pelo código do produto.
+          // Lotes/validades diferentes do mesmo código são somados antes da cópia.
+          const totaisPorCodigo = new Map();
+
+          marcados.forEach(check => {
             const registro =
               data[Number(check.dataset.index)];
 
             const codigo =
               String(registro.codigo_barra || '').trim();
 
-            const quantidade =
-              String(Number(registro.quantidade || 0));
+            if (!codigo) return;
 
-            return `${codigo} ${quantidade}`;
+            // A quantidade copiada representa a quantidade física movimentada.
+            // Por isso, tanto entradas quanto saídas são copiadas como valor positivo.
+            const quantidade =
+              Math.abs(Number(registro.quantidade || 0));
+
+            totaisPorCodigo.set(
+              codigo,
+              (totaisPorCodigo.get(codigo) || 0) + quantidade
+            );
           });
+
+          const linhas = [...totaisPorCodigo.entries()]
+            .map(([codigo, quantidade]) =>
+              `${codigo} ${quantidade}`
+            );
 
           const texto = linhas.join('\n');
           const textoOriginal = copiarBtn.textContent;
@@ -3306,7 +3390,7 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
             await copiarTexto(texto);
 
             copiarBtn.textContent =
-              `✓ ${marcados.length} copiado(s)`;
+              `✓ ${linhas.length} código(s) copiado(s)`;
 
             copiarBtn.classList.add('copiado');
 

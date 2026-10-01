@@ -1,0 +1,13 @@
+V41 - ESTORNO AUDITADO DE MOVIMENTAÇÕES (24H)
+
+- Permite estornar entradas e saídas WEB criadas há no máximo 24 horas.
+- Usuário comum só pode estornar a própria movimentação.
+- Administradores podem estornar movimentações de outros usuários.
+- Entrada estornada retira do estoque a quantidade original, desde que haja saldo suficiente no lote.
+- Saída estornada devolve a quantidade ao mesmo produto, validade e Unid/Emb.
+- O registro original não é apagado: fica marcado como ESTORNADO.
+- Auditoria registra data/hora, usuário responsável e motivo obrigatório.
+- Motivos disponíveis na interface: erro de quantidade, produto incorreto, validade incorreta, lançamento duplicado e outro.
+- Movimentações importadas do SQLite não podem ser estornadas por esta função.
+- Registros estornados deixam de aparecer nas movimentações recentes do dashboard.
+- Validação de prazo, autoria e saldo é feita no backend.
