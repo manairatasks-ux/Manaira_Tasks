@@ -407,6 +407,95 @@ async function importLegacyOnce({ buffer, parsed, usuarioId, replaceExisting = f
   }
 }
 
+async function adjustmentStock({ busca = '' } = {}) {
+  if (!busca) return [];
+  return all(`
+    SELECT e.id,p.id AS produto_id,p.codigo_barra,p.descricao,e.validade,e.unidades_por_embalagem,e.quantidade,
+           (e.quantidade::bigint*e.unidades_por_embalagem)::bigint AS total_unidades,e.atualizado_em
+    FROM galpao_estoque e JOIN galpao_produtos p ON p.id=e.produto_id
+    WHERE p.ativo=TRUE AND (p.codigo_barra ILIKE $1 OR p.descricao ILIKE $1)
+    ORDER BY p.descricao,e.validade NULLS LAST,e.unidades_por_embalagem,e.id
+    LIMIT 200
+  `,[`%${busca}%`]);
+}
+
+async function adjustmentHistory({ busca = '', limite = 200 } = {}) {
+  const params = [];
+  let filtro = '';
+  if (busca) {
+    params.push(`%${busca}%`);
+    filtro = `WHERE (p.codigo_barra ILIKE $1 OR p.descricao ILIKE $1 OR a.motivo ILIKE $1 OR a.observacao ILIKE $1)`;
+  }
+  params.push(Math.min(Math.max(Number(limite) || 200, 1), 500));
+  return all(`
+    SELECT a.*,p.codigo_barra,p.descricao,u.nome AS usuario_nome
+    FROM galpao_ajustes a
+    JOIN galpao_produtos p ON p.id=a.produto_id
+    LEFT JOIN usuarios u ON u.id=a.usuario_id
+    ${filtro}
+    ORDER BY a.criado_em DESC,a.id DESC
+    LIMIT $${params.length}
+  `, params);
+}
+
+async function adjustQuantity({ estoqueId, quantidadeFisica, motivo, observacao, usuarioId }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const lote = (await client.query(`
+      SELECT e.*,p.codigo_barra,p.descricao
+      FROM galpao_estoque e JOIN galpao_produtos p ON p.id=e.produto_id
+      WHERE e.id=$1 AND p.ativo=TRUE FOR UPDATE
+    `,[estoqueId])).rows[0];
+    if (!lote) { const e=new Error('Lote de estoque não encontrado.'); e.status=404; throw e; }
+    const anterior=Number(lote.quantidade||0);
+    const novo=Number(quantidadeFisica);
+    await client.query('UPDATE galpao_estoque SET quantidade=$1,atualizado_em=CURRENT_TIMESTAMP WHERE id=$2',[novo,lote.id]);
+    const ajuste=(await client.query(`
+      INSERT INTO galpao_ajustes(produto_id,tipo,validade_anterior,validade_nova,unidades_por_embalagem,quantidade_movida,saldo_anterior,saldo_posterior,motivo,observacao,usuario_id)
+      VALUES($1,'QUANTIDADE',$2,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *
+    `,[lote.produto_id,lote.validade,lote.unidades_por_embalagem,Math.abs(novo-anterior),anterior,novo,motivo,observacao,usuarioId])).rows[0];
+    await client.query('COMMIT');
+    return { ajuste, saldo_anterior:anterior, saldo_posterior:novo, diferenca:novo-anterior };
+  } catch(err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+async function correctValidity({ estoqueId, validadeNova, quantidade, motivo, observacao, usuarioId }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const origem=(await client.query(`
+      SELECT e.*,p.codigo_barra,p.descricao
+      FROM galpao_estoque e JOIN galpao_produtos p ON p.id=e.produto_id
+      WHERE e.id=$1 AND p.ativo=TRUE FOR UPDATE
+    `,[estoqueId])).rows[0];
+    if (!origem) { const e=new Error('Lote de origem não encontrado.'); e.status=404; throw e; }
+    const disponivel=Number(origem.quantidade||0), qtd=Number(quantidade);
+    if (qtd>disponivel) { const e=new Error(`Quantidade superior ao saldo do lote. Disponível: ${disponivel}.`); e.status=400; throw e; }
+    const atual = origem.validade ? new Date(origem.validade).toISOString().slice(0,10) : null;
+    if (atual===validadeNova) { const e=new Error('A nova validade deve ser diferente da validade atual.'); e.status=400; throw e; }
+    const novoSaldoOrigem=disponivel-qtd;
+    await client.query('UPDATE galpao_estoque SET quantidade=$1,atualizado_em=CURRENT_TIMESTAMP WHERE id=$2',[novoSaldoOrigem,origem.id]);
+    const destino=(await client.query(`
+      SELECT * FROM galpao_estoque
+      WHERE produto_id=$1 AND unidades_por_embalagem=$2
+        AND (($3::date IS NULL AND validade IS NULL) OR validade=$3::date)
+      FOR UPDATE
+    `,[origem.produto_id,origem.unidades_por_embalagem,validadeNova])).rows[0];
+    if (destino) {
+      await client.query('UPDATE galpao_estoque SET quantidade=quantidade+$1,atualizado_em=CURRENT_TIMESTAMP WHERE id=$2',[qtd,destino.id]);
+    } else {
+      await client.query(`INSERT INTO galpao_estoque(produto_id,validade,unidades_por_embalagem,quantidade) VALUES($1,$2,$3,$4)`,[origem.produto_id,validadeNova,origem.unidades_por_embalagem,qtd]);
+    }
+    const ajuste=(await client.query(`
+      INSERT INTO galpao_ajustes(produto_id,tipo,validade_anterior,validade_nova,unidades_por_embalagem,quantidade_movida,saldo_anterior,saldo_posterior,motivo,observacao,usuario_id)
+      VALUES($1,'VALIDADE',$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
+    `,[origem.produto_id,origem.validade,validadeNova,origem.unidades_por_embalagem,qtd,disponivel,novoSaldoOrigem,motivo,observacao,usuarioId])).rows[0];
+    await client.query('COMMIT');
+    return { ajuste, estoque_total_alterado:false };
+  } catch(err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
 async function importLegacy(args) {
   // PostgreSQL pode escolher uma transacao como vitima de deadlock (40P01).
   // V38 refaz automaticamente a operacao inteira; cada tentativa anterior ja sofreu ROLLBACK.
@@ -427,4 +516,4 @@ async function importLegacy(args) {
   }
 }
 
-module.exports = { dashboard, listProducts, getProduct, getProductByBarcode, createProduct, updateProduct, listStock, stockForProduct, createMovement, history, reverseMovement, expiry, hasData, importByHash, importLegacy };
+module.exports = { dashboard, listProducts, getProduct, getProductByBarcode, createProduct, updateProduct, listStock, stockForProduct, createMovement, history, reverseMovement, expiry, adjustmentStock, adjustmentHistory, adjustQuantity, correctValidity, hasData, importByHash, importLegacy };

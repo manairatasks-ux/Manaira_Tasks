@@ -285,13 +285,14 @@ function setView(view) {
   $('btnAlmoxDashboard')?.classList.remove('active');
   if (isAlmox) $('btnAlmoxDashboard')?.classList.add('active');
 
-  ['btnGalpaoDashboard', 'btnGalpaoValidades', 'btnGalpaoImportar']
+  ['btnGalpaoDashboard', 'btnGalpaoValidades', 'btnGalpaoImportar', 'btnGalpaoAjustes']
     .forEach(id => $(id)?.classList.remove('active'));
 
   const galpaoBtn = {
     dashboard: 'btnGalpaoDashboard',
     validades: 'btnGalpaoValidades',
-    importar: 'btnGalpaoImportar'
+    importar: 'btnGalpaoImportar',
+    ajustes: 'btnGalpaoAjustes'
   }[state.galpaoView];
 
   if (isGalpao && galpaoBtn) {
@@ -1912,7 +1913,8 @@ async function abrirGalpao(view = 'dashboard') {
     historico_entradas: ['Histórico de Entradas', 'Todas as entradas registradas no Galpão.'],
     historico_saidas: ['Histórico de Saídas', 'Todas as saídas registradas no Galpão.'],
     validades: ['Validades', 'Acompanhe lotes vencidos ou próximos do vencimento.'],
-    importar: ['Importar sistema antigo', 'Migre o controle_estoque.db do projeto Python para o PostgreSQL.']
+    importar: ['Importar sistema antigo', 'Migre o controle_estoque.db do projeto Python para o PostgreSQL.'],
+    ajustes: ['Ajuste de estoque', 'Regularize quantidades e validades com histórico completo de auditoria.']
   };
   const [titulo, descricao] = metas[view] || metas.dashboard;
   $('setorTitulo').textContent = titulo; $('setorDescricao').textContent = descricao;
@@ -1927,6 +1929,56 @@ async function abrirGalpao(view = 'dashboard') {
   if (view === 'historico_saidas') return renderGalpaoHistorico('', 'SAIDA', true);
   if (view === 'validades') return renderGalpaoValidades();
   if (view === 'importar') return renderGalpaoImportar();
+  if (view === 'ajustes') return renderGalpaoAjustes();
+}
+
+const GALPAO_AJUSTE_MOTIVOS = ['Erro de entrada','Erro de saída','Divergência de inventário','Avaria não registrada','Unidade/embalagem incorreta','Validade lançada incorretamente','Outro'];
+function galpaoMotivosOptions(preferido='') { return GALPAO_AJUSTE_MOTIVOS.map(m=>`<option value="${escapeHtml(m)}" ${m===preferido?'selected':''}>${escapeHtml(m)}</option>`).join(''); }
+
+async function renderGalpaoAjustes(busca='') {
+  const panel=$('galpaoPanel');
+  panel.innerHTML='<div class="almox-loading">Carregando ajustes...</div>';
+  try {
+    const hist=await api('/api/galpao/ajustes?limite=100');
+    panel.innerHTML=`
+      <div class="dashboard-toolbar almox-toolbar"><div><strong>Ajuste de estoque</strong><span>Corrija divergências sem apagar o histórico original.</span></div></div>
+      <div class="galpao-adjust-alert"><strong>Auditoria permanente</strong><span>Todo ajuste registra usuário, data/hora, motivo, observação e saldo anterior. Uma correção de validade nunca altera o estoque total do produto.</span></div>
+      <div class="galpao-filters galpao-adjust-search"><input id="galpaoAjusteBusca" placeholder="Digite código/EAN ou descrição do produto..." value="${escapeHtml(busca)}"><button id="galpaoAjusteBuscar">Buscar</button></div>
+      <div id="galpaoAjusteResultados">${busca?'<div class="almox-loading">Buscando produto...</div>':'<section class="dash-panel wide"><p class="empty">Pesquise um produto para selecionar o lote que precisa de ajuste.</p></section>'}</div>
+      <section class="dash-panel wide almox-table-wrap galpao-adjust-history"><div class="dashboard-toolbar"><div><strong>Histórico de ajustes</strong><span>Os ajustes não podem ser apagados.</span></div></div>
+        <table class="dash-table galpao-table"><thead><tr><th>Data/hora</th><th>Produto</th><th>Tipo</th><th>Alteração</th><th>Motivo</th><th>Usuário</th></tr></thead><tbody>
+        ${hist.map(a=>`<tr><td>${fmtDateTime(a.criado_em)}</td><td><strong>${escapeHtml(a.descricao)}</strong><small class="almox-cell-note mono">${escapeHtml(a.codigo_barra)}</small></td><td><span class="badge">${a.tipo==='QUANTIDADE'?'Quantidade':'Validade'}</span></td><td>${a.tipo==='QUANTIDADE'?`<strong>${Number(a.saldo_anterior)} → ${Number(a.saldo_posterior)}</strong><small class="almox-cell-note">Diferença: ${(Number(a.saldo_posterior)-Number(a.saldo_anterior))>0?'+':''}${Number(a.saldo_posterior)-Number(a.saldo_anterior)}</small>`:`<strong>${galpaoValidadeLabel(a.validade_anterior)} → ${galpaoValidadeLabel(a.validade_nova)}</strong><small class="almox-cell-note">${Number(a.quantidade_movida)} embalagem(ns)</small>`}</td><td>${escapeHtml(a.motivo)}<small class="almox-cell-note">${escapeHtml(a.observacao)}</small></td><td>${escapeHtml(a.usuario_nome||'—')}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">Nenhum ajuste registrado.</td></tr>'}
+        </tbody></table></section>`;
+    const executar=()=>buscarGalpaoAjuste($('galpaoAjusteBusca').value.trim());
+    $('galpaoAjusteBuscar').onclick=executar;
+    $('galpaoAjusteBusca').onkeydown=e=>{if(e.key==='Enter')executar();};
+    if(busca) await buscarGalpaoAjuste(busca);
+  } catch(err) { panel.innerHTML=`<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`; }
+}
+
+async function buscarGalpaoAjuste(busca) {
+  const box=$('galpaoAjusteResultados'); if(!box)return;
+  if(!busca){box.innerHTML='<section class="dash-panel wide"><p class="empty">Informe um código/EAN ou descrição.</p></section>';return;}
+  box.innerHTML='<div class="almox-loading">Buscando estoque...</div>';
+  try {
+    const itens=await api(`/api/galpao/ajustes/estoque?busca=${encodeURIComponent(busca)}`);
+    const ativos=itens.filter(i=>i.id && Number(i.quantidade)>=0);
+    box.innerHTML=`<section class="dash-panel wide almox-table-wrap"><table class="dash-table galpao-table"><thead><tr><th>Código</th><th>Produto</th><th>Validade</th><th>Unid/Emb.</th><th>Estoque sistema</th><th>Ações</th></tr></thead><tbody>
+      ${ativos.map(i=>`<tr><td class="mono">${escapeHtml(i.codigo_barra)}</td><td><strong>${escapeHtml(i.descricao)}</strong></td><td>${galpaoValidadeLabel(i.validade)}</td><td>${Number(i.unidades_por_embalagem)}</td><td><strong>${Number(i.quantidade).toLocaleString('pt-BR')}</strong></td><td><div class="galpao-adjust-actions"><button class="primary" onclick="abrirAjusteQuantidade(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(i))}')))">Ajustar quantidade</button><button ${Number(i.quantidade)<=0?'disabled title="Lote sem saldo"':''} onclick="abrirCorrecaoValidade(JSON.parse(decodeURIComponent('${encodeURIComponent(JSON.stringify(i))}')))">Corrigir validade</button></div></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Nenhum lote encontrado para este produto.</td></tr>'}
+      </tbody></table></section>`;
+  } catch(err){box.innerHTML=`<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;}
+}
+
+function abrirAjusteQuantidade(item) {
+  openModal('Ajustar quantidade',`<div class="galpao-adjust-modal"><div class="galpao-adjust-product"><strong>${escapeHtml(item.descricao)}</strong><span class="mono">${escapeHtml(item.codigo_barra)} • ${galpaoValidadeLabel(item.validade)} • Unid/Emb. ${Number(item.unidades_por_embalagem)}</span></div><div class="galpao-adjust-current"><span>Estoque no sistema</span><strong>${Number(item.quantidade).toLocaleString('pt-BR')}</strong></div><label>Quantidade física encontrada<input id="ajQtdFisica" type="number" min="0" step="1" value="${Number(item.quantidade)}"></label><div id="ajQtdDiferenca" class="galpao-adjust-diff"></div><label>Motivo<select id="ajMotivo"><option value="">Selecione...</option>${galpaoMotivosOptions()}</select></label><label>Observação<textarea id="ajObs" rows="3" maxlength="1000" placeholder="Descreva o que foi conferido e por que o saldo precisa ser corrigido."></textarea></label><button id="ajConfirmar" class="primary">Confirmar ajuste</button></div>`);
+  const atualizar=()=>{const n=Number($('ajQtdFisica').value),d=n-Number(item.quantidade);$('ajQtdDiferenca').innerHTML=`Diferença calculada: <strong>${d>0?'+':''}${d}</strong> embalagem(ns)`;}; atualizar(); $('ajQtdFisica').oninput=atualizar;
+  $('ajConfirmar').onclick=async()=>{if(!confirm(`Confirmar ajuste?\nEstoque atual: ${item.quantidade}\nNovo estoque: ${$('ajQtdFisica').value}`))return; try{await api('/api/galpao/ajustes/quantidade',{method:'POST',body:JSON.stringify({estoque_id:item.id,quantidade_fisica:$('ajQtdFisica').value,motivo:$('ajMotivo').value,observacao:$('ajObs').value})});closeModal();await renderGalpaoAjustes(item.codigo_barra);}catch(e){alert(e.message);}};
+}
+
+function abrirCorrecaoValidade(item) {
+  openModal('Corrigir validade',`<div class="galpao-adjust-modal"><div class="galpao-adjust-product"><strong>${escapeHtml(item.descricao)}</strong><span class="mono">${escapeHtml(item.codigo_barra)} • Unid/Emb. ${Number(item.unidades_por_embalagem)}</span></div><div class="galpao-adjust-current"><span>Validade atual</span><strong>${galpaoValidadeLabel(item.validade)}</strong><small>Saldo do lote: ${Number(item.quantidade)} embalagem(ns)</small></div><label>Quantidade a transferir<input id="ajValQtd" type="number" min="1" max="${Number(item.quantidade)}" step="1" value="${Number(item.quantidade)}"></label><label>Nova validade<input id="ajValNova" type="date"></label><label class="galpao-adjust-check"><input id="ajSemValidade" type="checkbox"> Produto/lote sem validade</label><label>Motivo<select id="ajValMotivo"><option value="">Selecione...</option>${galpaoMotivosOptions('Validade lançada incorretamente')}</select></label><label>Observação<textarea id="ajValObs" rows="3" maxlength="1000" placeholder="Descreva a correção realizada."></textarea></label><div class="galpao-adjust-alert compact"><span>A quantidade será transferida para a nova validade. O estoque total do produto permanecerá igual.</span></div><button id="ajValConfirmar" class="primary">Confirmar correção</button></div>`);
+  $('ajSemValidade').onchange=()=>{$('ajValNova').disabled=$('ajSemValidade').checked;if($('ajSemValidade').checked)$('ajValNova').value='';};
+  $('ajValConfirmar').onclick=async()=>{const qtd=$('ajValQtd').value,nova=$('ajValNova').value,sem=$('ajSemValidade').checked;if(!confirm(`Confirmar correção de validade?\nQuantidade: ${qtd}\nDe: ${galpaoValidadeLabel(item.validade)}\nPara: ${sem?'Sem validade':(nova||'não informada')}`))return;try{await api('/api/galpao/ajustes/validade',{method:'POST',body:JSON.stringify({estoque_id:item.id,quantidade:qtd,validade_nova:nova,sem_validade:sem,motivo:$('ajValMotivo').value,observacao:$('ajValObs').value})});closeModal();await renderGalpaoAjustes(item.codigo_barra);}catch(e){alert(e.message);}};
 }
 
 async function renderGalpaoDashboard() {
@@ -3091,7 +3143,7 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
           Marque os registros do carregamento e clique em
           <strong>Copiar selecionados</strong>.
           O texto será copiado no formato:
-          <span>código quantidade</span>
+          <span>código &nbsp;|&nbsp; quantidade (2 colunas no Excel)</span>
         </div>
       ` : ''}
 
@@ -3380,7 +3432,7 @@ async function renderGalpaoHistorico(busca = '', tipo = '', fixo = false) {
 
           const linhas = [...totaisPorCodigo.entries()]
             .map(([codigo, quantidade]) =>
-              `${codigo} ${quantidade}`
+              `${codigo}\t${quantidade}`
             );
 
           const texto = linhas.join('\n');
@@ -6012,6 +6064,7 @@ $('cardCartazes').onclick = () => entrarCartazes('rapido');
 $('btnGalpaoDashboard')?.addEventListener('click', () => abrirGalpao('dashboard'));
 $('btnGalpaoValidades')?.addEventListener('click', () => abrirGalpao('validades'));
 $('btnGalpaoImportar')?.addEventListener('click', () => abrirGalpao('importar'));
+$('btnGalpaoAjustes')?.addEventListener('click', () => abrirGalpao('ajustes'));
 $('btnRhDashboard')?.addEventListener('click', () => abrirRH('dashboard'));
 $('btnRhSolicitacoes')?.addEventListener('click', () => abrirRH('solicitacoes'));
 $('btnRhTipos')?.addEventListener('click', () => abrirRH('tipos'));

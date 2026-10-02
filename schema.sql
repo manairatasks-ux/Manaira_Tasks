@@ -296,6 +296,25 @@ ALTER TABLE galpao_movimentacoes ADD COLUMN IF NOT EXISTS estornado_por INTEGER 
 ALTER TABLE galpao_movimentacoes ADD COLUMN IF NOT EXISTS motivo_estorno TEXT;
 CREATE INDEX IF NOT EXISTS idx_galpao_mov_estornado ON galpao_movimentacoes(estornado);
 
+-- V44: ajustes auditados de estoque e correções de validade.
+CREATE TABLE IF NOT EXISTS galpao_ajustes (
+  id SERIAL PRIMARY KEY,
+  produto_id INTEGER NOT NULL REFERENCES galpao_produtos(id) ON DELETE RESTRICT,
+  tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('QUANTIDADE','VALIDADE')),
+  validade_anterior DATE,
+  validade_nova DATE,
+  unidades_por_embalagem INTEGER NOT NULL DEFAULT 1 CHECK (unidades_por_embalagem > 0),
+  quantidade_movida INTEGER,
+  saldo_anterior INTEGER,
+  saldo_posterior INTEGER,
+  motivo VARCHAR(120) NOT NULL,
+  observacao TEXT NOT NULL,
+  usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_galpao_ajustes_produto ON galpao_ajustes(produto_id);
+CREATE INDEX IF NOT EXISTS idx_galpao_ajustes_criado ON galpao_ajustes(criado_em DESC);
+
 CREATE TABLE IF NOT EXISTS galpao_importacoes (
   id SERIAL PRIMARY KEY,
   nome_arquivo VARCHAR(255),

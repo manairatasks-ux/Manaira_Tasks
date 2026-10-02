@@ -1,0 +1,31 @@
+V44 - AJUSTE AUDITADO DE ESTOQUE
+
+1. Histórico de Entradas e Saídas
+- "Copiar selecionados" agora usa TAB entre código e quantidade.
+- Ao colar no Excel, Código e Quantidade entram em duas colunas separadas.
+- Consolidação por código e quantidades positivas foram mantidas.
+
+2. Novo menu "Ajuste de estoque"
+- Incluído abaixo de "Importar banco" no módulo Galpão.
+- Pesquisa por código/EAN ou descrição.
+- Exibe lote, validade, Unid/Emb. e saldo atual.
+
+3. Ajuste de quantidade
+- Usuário informa a quantidade física correta.
+- Sistema calcula a diferença a partir do saldo atual.
+- Permite zerar o lote sem apagá-lo.
+- Exige motivo e observação.
+- Confirmação antes da gravação.
+
+4. Correção de validade
+- Transfere todo ou parte do saldo de uma validade para outra.
+- Permite Com validade -> Sem validade e Sem validade -> Com validade.
+- Se o lote de destino já existir, soma ao saldo existente.
+- Não altera o estoque total do produto.
+- Exige motivo e observação.
+
+5. Auditoria
+- Nova tabela galpao_ajustes.
+- Registra usuário, data/hora, produto, tipo, validade anterior/nova, quantidade movida, saldo anterior/posterior, motivo e observação.
+- Histórico de ajustes visível na própria tela.
+- Ajustes não são apagados; uma correção posterior gera novo ajuste.
