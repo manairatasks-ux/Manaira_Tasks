@@ -1,0 +1,17 @@
+MANAÍRA TASKS - V43
+Vendas por produto - consulta mensal GZ
+
+Alterações:
+- Corrigida a consulta dos últimos 12 meses em /movimento-estoque.
+- A API GZ aceita no máximo 30 dias de diferença por requisição; agora cada mês é consultado separadamente.
+- Meses de 31 dias são consultados normalmente do dia 01 ao dia 31 (diferença de 30 dias).
+- Mês atual é consultado do dia 01 até a data atual.
+- Consultas executadas em pequenos lotes paralelos (4 meses por vez).
+- HTTP 204 / sem conteúdo é tratado como mês com venda zero.
+- Corrigida leitura de dataMovimento real da GZ no formato DD-MM-AAAA.
+- Código de produto retornado pela GZ é normalizado com trim(), removendo espaços à esquerda.
+- Mantido o visual da aba Vendas da V42.
+
+Caso de validação conhecido:
+Produto 7893657014550 - ASA ESPONJA ACO INOX C/1UND
+Agosto/2026: quantidadeVendida = 35.

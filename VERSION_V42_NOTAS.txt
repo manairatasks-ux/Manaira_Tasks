@@ -1,0 +1,16 @@
+MANAÍRA TASKS - V42
+Vendas por produto - últimos 12 meses
+
+- Ativada a aba Vendas no módulo Consulta de Produtos.
+- Nova rota interna GET /api/produtos-gz/vendas.
+- Consulta somente leitura da rota GZ /movimento-estoque pela Ponte GZ.
+- Usa o código interno do produto selecionado.
+- Período padrão: primeiro dia de 11 meses atrás até a data atual (12 meses corridos incluindo o mês atual).
+- Exibe total vendido em 12 meses, média mensal, média diária e estoque atual.
+- Gráfico mensal simplificado.
+- Tabela mês a mês com quantidade vendida, média/dia e variação percentual contra o mês anterior.
+- Mês atual identificado como parcial.
+- Nenhuma informação é escrita/alterada na GZ.
+
+IMPORTANTE
+A Ponte GZ precisa permitir/proxyar GET /movimento-estoque. Se a ponte atual estiver limitada somente a /produtos, será necessário liberar essa rota nela.

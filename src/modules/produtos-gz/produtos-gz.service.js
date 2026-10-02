@@ -173,6 +173,79 @@ async function consultarProduto({
 }
 
 
+function isoDateLocal(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function inicioUltimos12Meses(hoje = new Date()) {
+  return new Date(hoje.getFullYear(), hoje.getMonth() - 11, 1);
+}
+
+function fimDoMes(date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function montarPeriodosMensais12Meses(hoje = new Date()) {
+  const periodos = [];
+  for (let i = 11; i >= 0; i--) {
+    const inicio = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    const ultimoDia = fimDoMes(inicio);
+    const ehMesAtual = inicio.getFullYear() === hoje.getFullYear() && inicio.getMonth() === hoje.getMonth();
+    const fim = ehMesAtual ? hoje : ultimoDia;
+    periodos.push({ inicio: isoDateLocal(inicio), fim: isoDateLocal(fim) });
+  }
+  return periodos;
+}
+
+function normalizarMovimentos(resposta) {
+  if (!resposta || resposta.status === 204 || resposta.data == null) return [];
+  if (Array.isArray(resposta.data)) return resposta.data;
+  if (Array.isArray(resposta.data?.content)) return resposta.data.content;
+  return resposta.data ? [resposta.data] : [];
+}
+
+async function consultarPeriodoVenda(codigoProduto, periodo) {
+  const resposta = await requestJson('/movimento-estoque', {
+    codigoProduto: String(codigoProduto).trim(),
+    dataInicio: periodo.inicio,
+    dataFim: periodo.fim,
+    loja: Number(gzLoja || 1),
+    retornaPrecoFechado: true
+  });
+  return normalizarMovimentos(resposta);
+}
+
+async function consultarVendasProduto({ codigoProduto }) {
+  if (!codigoProduto) throw new Error('Código interno do produto não informado.');
+
+  const hoje = new Date();
+  const periodos = montarPeriodosMensais12Meses(hoje);
+  const movimentos = [];
+
+  // A GZ limita /movimento-estoque a no máximo 30 dias de diferença entre
+  // dataInicio e dataFim. Consultamos cada mês separadamente e em pequenos
+  // lotes paralelos para não sobrecarregar a Ponte/API.
+  const concorrencia = 4;
+  for (let i = 0; i < periodos.length; i += concorrencia) {
+    const lote = periodos.slice(i, i + concorrencia);
+    const resultados = await Promise.all(lote.map(p => consultarPeriodoVenda(codigoProduto, p)));
+    for (const itens of resultados) movimentos.push(...itens);
+  }
+
+  return {
+    loja: Number(gzLoja || 1),
+    codigoProduto: String(codigoProduto).trim(),
+    dataInicio: periodos[0].inicio,
+    dataFim: periodos[periodos.length - 1].fim,
+    periodosConsultados: periodos,
+    movimentos
+  };
+}
+
 module.exports = {
-  consultarProduto
+  consultarProduto,
+  consultarVendasProduto
 };

@@ -4,5 +4,6 @@ const { auth } = require('../../middlewares/auth.middleware');
 const { requireModuleAccess } = require('../../middlewares/module-access.middleware');
 
 router.get('/consulta', auth, requireModuleAccess('consulta_produtos'), controller.consultar);
+router.get('/vendas', auth, requireModuleAccess('consulta_produtos'), controller.vendas);
 
 module.exports = router;

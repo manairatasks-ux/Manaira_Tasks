@@ -5138,3 +5138,28 @@ td:last-child {
 .galpao-import-loading.erro { border-color: #fecaca; background: #fff1f2; }
 .galpao-import-loading.erro .galpao-import-loading-head,
 .galpao-import-loading.erro > span { color: #9f1239; }
+
+/* =========================
+   V42 - Vendas por produto (12 meses)
+   ========================= */
+.prod-gz-vendas-sub { display:block; margin-top:6px; color:var(--muted,#667085); font-size:13px; }
+.prod-gz-vendas-resumo { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:22px; }
+.prod-gz-vendas-chart { min-height:250px; display:grid; grid-template-columns:repeat(12,minmax(42px,1fr)); gap:8px; align-items:end; padding:18px 8px 8px; border:1px solid var(--border,#e5e7eb); border-radius:14px; overflow-x:auto; }
+.prod-gz-vendas-bar-wrap { min-width:42px; display:grid; grid-template-rows:22px 160px auto; gap:6px; align-items:end; text-align:center; }
+.prod-gz-vendas-bar-value { font-size:11px; font-weight:800; color:var(--muted,#667085); white-space:nowrap; }
+.prod-gz-vendas-bar-track { height:160px; display:flex; align-items:flex-end; justify-content:center; border-bottom:1px solid var(--border,#e5e7eb); }
+.prod-gz-vendas-bar { width:min(34px,75%); min-height:0; background:var(--primary,#0b5ed7); border-radius:8px 8px 2px 2px; transition:height .2s ease; }
+.prod-gz-vendas-bar-label { font-size:11px; color:var(--muted,#667085); white-space:nowrap; }
+.prod-gz-vendas-table-wrap { margin-top:18px; overflow:auto; border:1px solid var(--border,#e5e7eb); border-radius:14px; }
+.prod-gz-vendas-table { width:100%; border-collapse:collapse; min-width:580px; }
+.prod-gz-vendas-table th,.prod-gz-vendas-table td { padding:11px 13px; border-bottom:1px solid var(--border,#e5e7eb); text-align:right; }
+.prod-gz-vendas-table th:first-child,.prod-gz-vendas-table td:first-child { text-align:left; }
+.prod-gz-vendas-table th { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted,#667085); background:rgba(127,127,127,.05); }
+.prod-gz-vendas-table tbody tr:last-child td { border-bottom:0; }
+.prod-gz-var { font-size:12px; font-weight:800; white-space:nowrap; }
+.prod-gz-var.alta { color:#18794e; }
+.prod-gz-var.baixa { color:#b42318; }
+.prod-gz-var.neutra { color:var(--muted,#667085); }
+.prod-gz-vendas-note { margin-top:12px; font-size:12px; color:var(--muted,#667085); }
+@media(max-width:760px) { .prod-gz-vendas-resumo { grid-template-columns:repeat(2,minmax(0,1fr)); } .prod-gz-vendas-chart { grid-template-columns:repeat(12,54px); } }
+@media(max-width:430px) { .prod-gz-vendas-resumo { grid-template-columns:1fr 1fr; } }

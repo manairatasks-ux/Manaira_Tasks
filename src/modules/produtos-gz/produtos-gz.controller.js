@@ -15,4 +15,17 @@ async function consultar(req, res) {
   }
 }
 
-module.exports = { consultar };
+async function vendas(req, res) {
+  try {
+    const { codigoProduto, dataInicio, dataFim } = req.query;
+    const data = await service.consultarVendasProduto({ codigoProduto, dataInicio, dataFim });
+    res.json(data);
+  } catch (err) {
+    const msg = /ECONNREFUSED|EHOSTUNREACH|ENETUNREACH|timeout|Tempo limite/i.test(String(err.message))
+      ? 'Não foi possível alcançar a API GZ pela Ponte GZ.'
+      : err.message;
+    res.status(err.status || 502).json({ error: msg, details: err.response || undefined });
+  }
+}
+
+module.exports = { consultar, vendas };

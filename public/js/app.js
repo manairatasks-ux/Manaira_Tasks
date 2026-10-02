@@ -3586,8 +3586,8 @@ function renderProdutosGz() {
         <div class="prod-gz-hint">Consulta somente leitura. Nenhuma informação é alterada na GZ.</div>
       </section>
       <div class="prod-gz-tabs">
-        <button class="prod-gz-tab active" type="button">Resumo</button>
-        <button class="prod-gz-tab disabled" type="button" title="Em desenvolvimento">Vendas · em desenvolvimento</button>
+        <button class="prod-gz-tab active" id="prodGzTabResumo" type="button">Resumo</button>
+        <button class="prod-gz-tab" id="prodGzTabVendas" type="button">Vendas</button>
         <button class="prod-gz-tab disabled" type="button" title="Em desenvolvimento">Movimentações · em desenvolvimento</button>
       </div>
       <div id="prodGzConteudo">${atual ? produtoGzCard(atual) : '<div class="prod-gz-empty">Pesquise um produto para visualizar as informações.</div>'}</div>
@@ -3602,6 +3602,8 @@ function renderProdutosGz() {
     e.preventDefault();
     await consultarProdutoGz(tipo.value, busca.value.trim());
   };
+  $('prodGzTabResumo').onclick = () => abrirAbaResumoProdutoGz();
+  $('prodGzTabVendas').onclick = () => abrirAbaVendasProdutoGz();
   setTimeout(() => busca?.focus(), 50);
 }
 
@@ -3621,6 +3623,7 @@ async function consultarProdutoGz(tipo, valor) {
     if (state.produtosGzResultados.length === 1) {
       state.produtoGzAtual = state.produtosGzResultados[0];
       conteudo.innerHTML = produtoGzCard(state.produtoGzAtual);
+      marcarAbaProdutoGz('resumo');
       return;
     }
 
@@ -3689,8 +3692,165 @@ function produtoGzCard(p) {
 window.selecionarProdutoGz = (index) => {
   state.produtoGzAtual = state.produtosGzResultados[index] || null;
   const conteudo = $('prodGzConteudo');
-  if (conteudo && state.produtoGzAtual) conteudo.innerHTML = produtoGzCard(state.produtoGzAtual);
+  if (conteudo && state.produtoGzAtual) {
+    conteudo.innerHTML = produtoGzCard(state.produtoGzAtual);
+    marcarAbaProdutoGz('resumo');
+  }
 };
+
+
+function marcarAbaProdutoGz(aba) {
+  $('prodGzTabResumo')?.classList.toggle('active', aba === 'resumo');
+  $('prodGzTabVendas')?.classList.toggle('active', aba === 'vendas');
+}
+
+function abrirAbaResumoProdutoGz() {
+  marcarAbaProdutoGz('resumo');
+  const conteudo = $('prodGzConteudo');
+  if (!conteudo) return;
+  conteudo.innerHTML = state.produtoGzAtual
+    ? produtoGzCard(state.produtoGzAtual)
+    : '<div class="prod-gz-empty">Pesquise um produto para visualizar as informações.</div>';
+}
+
+function mesChaveData(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function nomeMesCurto(date) {
+  const nome = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '');
+  return nome.charAt(0).toUpperCase() + nome.slice(1);
+}
+
+function montarMesesVendasGz(movimentos) {
+  const hoje = new Date();
+  const meses = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+    meses.push({
+      chave: mesChaveData(d),
+      data: d,
+      quantidade: 0,
+      diasComDados: new Set(),
+      parcial: d.getFullYear() === hoje.getFullYear() && d.getMonth() === hoje.getMonth()
+    });
+  }
+  const porChave = new Map(meses.map(m => [m.chave, m]));
+
+  for (const mov of (movimentos || [])) {
+    const raw = String(mov?.dataMovimento || '').trim().slice(0, 10);
+    const partes = raw.split('-').map(Number);
+    if (partes.length !== 3 || !partes[0] || !partes[1] || !partes[2]) continue;
+
+    // A GZ retorna dataMovimento como DD-MM-AAAA (ex.: 31-08-2026).
+    // Mantemos compatibilidade também com AAAA-MM-DD caso a API mude.
+    let ano, mesNum, dia;
+    if (partes[0] > 31) {
+      [ano, mesNum, dia] = partes;
+    } else {
+      [dia, mesNum, ano] = partes;
+    }
+    const chave = `${ano}-${String(mesNum).padStart(2, '0')}`;
+    const mes = porChave.get(chave);
+    if (!mes) continue;
+
+    const produtos = Array.isArray(mov.produto) ? mov.produto : [];
+    for (const prod of produtos) {
+      // O código da GZ pode vir preenchido com espaços à esquerda.
+      const codigo = String(prod?.codigo || '').trim();
+      if (!codigo || codigo === String(state.produtoGzAtual?.codigo || '').trim()) {
+        mes.quantidade += Number(prod?.quantidadeVendida || 0);
+      }
+    }
+    mes.diasComDados.add(`${ano}-${String(mesNum).padStart(2, '0')}-${String(dia).padStart(2, '0')}`);
+  }
+
+  return meses.map(m => {
+    const diasPeriodo = m.parcial
+      ? Math.max(1, hoje.getDate())
+      : new Date(m.data.getFullYear(), m.data.getMonth() + 1, 0).getDate();
+    return { ...m, mediaDia: m.quantidade / diasPeriodo };
+  });
+}
+
+function variacaoVenda(atual, anterior) {
+  const a = Number(atual || 0);
+  const b = Number(anterior || 0);
+  if (b === 0) return a === 0 ? '<span class="prod-gz-var neutra">—</span>' : '<span class="prod-gz-var neutra">Novo</span>';
+  const pct = ((a - b) / Math.abs(b)) * 100;
+  const classe = pct > 0 ? 'alta' : pct < 0 ? 'baixa' : 'neutra';
+  const seta = pct > 0 ? '↑' : pct < 0 ? '↓' : '→';
+  return `<span class="prod-gz-var ${classe}">${seta} ${numPt(Math.abs(pct), 1)}%</span>`;
+}
+
+function renderVendasProdutoGz(p, movimentos) {
+  const meses = montarMesesVendasGz(movimentos);
+  const total = meses.reduce((s, m) => s + m.quantidade, 0);
+  const mediaMensal = total / Math.max(1, meses.length);
+  const hoje = new Date();
+  const inicio = new Date(hoje.getFullYear(), hoje.getMonth() - 11, 1);
+  const diasPeriodo = Math.max(1, Math.floor((hoje - inicio) / 86400000) + 1);
+  const mediaDia = total / diasPeriodo;
+  const max = Math.max(1, ...meses.map(m => m.quantidade));
+  const atual = meses[meses.length - 1];
+
+  return `<section class="prod-gz-product prod-gz-vendas-card">
+    <div class="prod-gz-product-head">
+      <div class="prod-gz-product-title">
+        <small>${escapeHtml(p.codigoEan || p.codigo || '-')}</small>
+        <h3>${escapeHtml(p.descricao || p.descpdv || 'Produto')}</h3>
+        <span class="prod-gz-vendas-sub">Vendas dos últimos 12 meses${atual?.parcial ? ' · mês atual parcial' : ''}</span>
+      </div>
+      <span class="prod-gz-status">GZ · Loja ${escapeHtml(p.loja ?? '1')}</span>
+    </div>
+    <div class="prod-gz-vendas-resumo">
+      <div class="prod-gz-highlight"><span>Vendido em 12 meses</span><strong>${numPt(total)}</strong></div>
+      <div class="prod-gz-highlight"><span>Média mensal</span><strong>${numPt(mediaMensal, 2)}</strong></div>
+      <div class="prod-gz-highlight"><span>Média diária</span><strong>${numPt(mediaDia, 2)}</strong></div>
+      <div class="prod-gz-highlight"><span>Estoque atual</span><strong>${numPt(p.quantidadeEstoque)} ${escapeHtml(p.unidade || '')}</strong></div>
+    </div>
+    <div class="prod-gz-vendas-chart" aria-label="Gráfico de vendas mensais">
+      ${meses.map(m => `<div class="prod-gz-vendas-bar-wrap" title="${nomeMesCurto(m.data)}: ${numPt(m.quantidade)}">
+        <div class="prod-gz-vendas-bar-value">${numPt(m.quantidade)}</div>
+        <div class="prod-gz-vendas-bar-track"><div class="prod-gz-vendas-bar" style="height:${Math.max(m.quantidade > 0 ? 5 : 0, (m.quantidade / max) * 100)}%"></div></div>
+        <div class="prod-gz-vendas-bar-label">${nomeMesCurto(m.data)}${m.parcial ? '*' : ''}</div>
+      </div>`).join('')}
+    </div>
+    <div class="prod-gz-vendas-table-wrap">
+      <table class="prod-gz-vendas-table">
+        <thead><tr><th>Mês</th><th>Qtd. vendida</th><th>Média/dia</th><th>Variação</th></tr></thead>
+        <tbody>${meses.map((m, i) => `<tr>
+          <td><strong>${nomeMesCurto(m.data)}${m.parcial ? ' *' : ''}</strong></td>
+          <td>${numPt(m.quantidade)}</td>
+          <td>${numPt(m.mediaDia, 2)}</td>
+          <td>${i ? variacaoVenda(m.quantidade, meses[i - 1].quantidade) : '<span class="prod-gz-var neutra">—</span>'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    ${atual?.parcial ? '<div class="prod-gz-vendas-note">* O mês atual está em andamento. A quantidade e a média consideram os dias transcorridos até hoje.</div>' : ''}
+  </section>`;
+}
+
+async function abrirAbaVendasProdutoGz() {
+  const conteudo = $('prodGzConteudo');
+  const p = state.produtoGzAtual;
+  marcarAbaProdutoGz('vendas');
+  if (!conteudo) return;
+  if (!p?.codigo) {
+    conteudo.innerHTML = '<div class="prod-gz-empty">Pesquise e selecione um produto antes de consultar as vendas.</div>';
+    return;
+  }
+
+  conteudo.innerHTML = '<div class="prod-gz-loading">Consultando vendas dos últimos 12 meses na GZ...</div>';
+  try {
+    const params = new URLSearchParams({ codigoProduto: String(p.codigo) });
+    const data = await api(`/api/produtos-gz/vendas?${params.toString()}`);
+    state.produtoGzVendas = data;
+    conteudo.innerHTML = renderVendasProdutoGz(p, data.movimentos || []);
+  } catch (err) {
+    conteudo.innerHTML = `<div class="prod-gz-empty"><strong>Não foi possível consultar as vendas.</strong><br>${escapeHtml(err.message)}<br><br><small>Confirme se a Ponte GZ permite a rota /movimento-estoque.</small></div>`;
+  }
+}
 
 // -------------------------
 // Consulta em lote
