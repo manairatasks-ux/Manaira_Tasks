@@ -1,0 +1,19 @@
+V46 - AMOSTRA CONTROLADA DE 100 PRODUTOS ATIVOS
+
+Base: V45.
+
+Alterações:
+- piloto ampliado de 3 para 100 produtos ATIVOS selecionados do response.json da GZ
+- os 3 produtos originais do V45 foram preservados na amostra
+- amostra variada: estoque positivo, zero e negativo; estoque NÃO decide elegibilidade
+- antes das vendas, o sistema verifica a situação cadastral de cada produto na GZ (uma vez por dia)
+- regra de negócio: somente produto ATIVO integra a sincronização de vendas; INATIVO é exibido como ignorado e não consulta /movimento-estoque
+- intervalo padrão entre consultas: 3 segundos (GZ_SYNC_INTERVAL_MS)
+- mantém 3 tentativas por produto/dia e espera de 30 segundos entre tentativas
+- proteção adicional: após 5 falhas consecutivas, a execução é pausada (PAUSADA_PROTECAO) para não pressionar a API
+- sincronização continua incremental: consulta somente dias ainda ausentes no PostgreSQL
+- execução manual agora inicia em segundo plano, evitando timeout do navegador durante o lote maior
+- bloqueio em memória impede duas sincronizações simultâneas no mesmo processo
+
+IMPORTANTE PARA O PILOTO:
+A lista de 100 foi formada apenas por produtos que estavam ATIVOS no snapshot response.json de 06/10/2026. Nesta V46, a situação desses 100 é revalidada individualmente uma vez por dia. A descoberta automática do catálogo completo, sem baixar 43 MB de forma agressiva, será tratada separadamente após validarmos este lote.

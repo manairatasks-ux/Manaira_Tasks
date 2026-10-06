@@ -1,0 +1,10 @@
+V48 - Sincronização GZ: painel estável e diagnóstico
+
+- Base: V47 - sincronização otimizada.
+- Mantido intervalo sequencial de 1 segundo entre chamadas GZ.
+- Painel não é mais reconstruído a cada atualização; polling atualiza somente valores/tabelas necessários, eliminando o efeito de tela piscando.
+- Barra de progresso suave, produto atual e tempo decorrido durante execução.
+- Histórico ganhou: início, fim, duração, processados, erros e ritmo médio de processamentos/minuto.
+- Datas/horários formatados em pt-BR.
+- Últimas ocorrências permanecem disponíveis sem listar os milhares de produtos monitorados.
+- Execuções antigas deixadas em EM_ANDAMENTO após reinício do servidor passam a INTERROMPIDA ao consultar o status (quando não há worker local em execução).

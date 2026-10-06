@@ -1,0 +1,12 @@
+V47 - Sincronização GZ mais leve e rápida
+
+- Intervalo padrão entre chamadas GZ reduzido de 3s para 1s.
+- Mantida execução estritamente sequencial: uma chamada por vez.
+- Tela de Sincronização não lista todos os produtos monitorados.
+- Status da tela usa apenas dados agregados do PostgreSQL; não consulta a API GZ ao abrir.
+- Removida garantia/inserção do piloto do endpoint de status; ela permanece no início da execução.
+- Painel mostra Monitorados, Em dia, Pendentes, Inativos ignorados, Com erro e Esperado até.
+- Durante a execução mostra progresso, produto atual e intervalo configurado.
+- Atualização automática do painel a cada 3 segundos enquanto a sincronização estiver em andamento.
+- Últimas execuções limitadas a 10 e ocorrências a 15 para manter a tela leve.
+- Regras mantidas: INATIVO não consulta vendas; ATIVO consulta mesmo com estoque zero ou negativo; retries e circuit breaker preservados.

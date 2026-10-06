@@ -430,6 +430,8 @@ CREATE TABLE IF NOT EXISTS gz_produtos_monitorados (
   ultimo_erro TEXT,
   criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE gz_produtos_monitorados ADD COLUMN IF NOT EXISTS situacao_gz VARCHAR(20);
+ALTER TABLE gz_produtos_monitorados ADD COLUMN IF NOT EXISTS ultimo_status_em TIMESTAMPTZ;
 CREATE TABLE IF NOT EXISTS gz_vendas_diarias (
   id BIGSERIAL PRIMARY KEY,
   loja INTEGER NOT NULL DEFAULT 1,

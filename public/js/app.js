@@ -4988,27 +4988,69 @@ function renderConfig() {
 }
 
 
+function gzFmtDataHora(v) {
+  if (!v) return '-';
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleString('pt-BR');
+}
+function gzDuracao(inicio, fim) {
+  if (!inicio) return '-';
+  const a = new Date(inicio), b = fim ? new Date(fim) : new Date();
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return '-';
+  let s = Math.max(0, Math.floor((b-a)/1000));
+  const h=Math.floor(s/3600); s%=3600; const m=Math.floor(s/60); const seg=s%60;
+  return h ? `${h}h ${m}min ${seg}s` : (m ? `${m}min ${seg}s` : `${seg}s`);
+}
+function gzStatusLabel(v){ return String(v||'-').replaceAll('_',' '); }
+function gzExecRows(execs){
+  return (execs||[]).map(e=>{
+    const dur=gzDuracao(e.iniciado_em,e.finalizado_em);
+    const mins=Math.max(1/60,(new Date(e.finalizado_em||Date.now())-new Date(e.iniciado_em))/60000);
+    const ritmo=e.itens_processados ? `${(Number(e.itens_processados)/mins).toFixed(1)}/min` : '-';
+    return `<tr><td>${escapeHtml(gzFmtDataHora(e.iniciado_em))}</td><td>${escapeHtml(gzFmtDataHora(e.finalizado_em))}</td><td>${escapeHtml(dur)}</td><td>${escapeHtml(e.tipo)}</td><td>${escapeHtml(gzStatusLabel(e.status))}</td><td>${e.itens_processados||0}</td><td>${e.erros||0}</td><td>${escapeHtml(ritmo)}</td></tr>`;
+  }).join('')||'<tr><td colspan="8">Nenhuma execução ainda.</td></tr>';
+}
+function gzOcorrRows(ocorr){
+  return (ocorr||[]).map(o=>`<tr><td>${escapeHtml(o.codigo_produto||'-')}</td><td>${escapeHtml(String(o.data_movimento||'').slice(0,10))}</td><td>${escapeHtml(o.tipo||'-')}</td><td>${escapeHtml(o.mensagem||'')}</td></tr>`).join('')||'<tr><td colspan="4">Nenhuma ocorrência recente.</td></tr>';
+}
+function atualizarConfigSincronizacaoSilenciosa(d){
+  if(state.configTab!=='sincronizacao' || !$('gzSyncPainel')) return;
+  const r=d.resumo||{}, prog=d.progresso||{};
+  const total=Number(prog.total||r.monitorados||0), indice=Number(prog.indice||0);
+  const pct=total?Math.min(100,Math.round(indice/total*100)):0;
+  const set=(id,v)=>{const el=$(id);if(el && el.textContent!==String(v)) el.textContent=v;};
+  set('gzMon',r.monitorados||0); set('gzDia',r.em_dia||0); set('gzPend',r.pendentes||0); set('gzInat',r.inativos||0); set('gzErr',r.com_erro||0); set('gzEsperado',d.esperadoAte||'-');
+  const box=$('gzAndamento'); if(box) box.style.display=d.executando?'block':'none';
+  set('gzProg',`${indice}/${total} (${pct}%)`); set('gzAtual',prog.codigo||'-'); set('gzTempoAtual',d.executando?gzDuracao(prog.iniciadoEm,null):'-');
+  const barra=$('gzBarra'); if(barra) barra.style.width=`${pct}%`;
+  const btn=$('btnSyncGzAgora'); if(btn){btn.disabled=!!d.executando;btn.textContent=d.executando?'Sincronizando...':'Sincronizar agora';}
+  const tb=$('gzExecBody'); if(tb) tb.innerHTML=gzExecRows(d.execucoes);
+  const ob=$('gzOcorrBody'); if(ob) ob.innerHTML=gzOcorrRows(d.ocorrencias);
+}
+async function pollingConfigSincronizacao(){
+  clearTimeout(window._gzSyncRefreshTimer);
+  if(state.configTab!=='sincronizacao') return;
+  try{ const d=await api('/api/produtos-gz/sincronizacao'); atualizarConfigSincronizacaoSilenciosa(d); }
+  catch(e){ console.warn('Falha ao atualizar status GZ:',e.message); }
+  if(state.configTab==='sincronizacao') window._gzSyncRefreshTimer=setTimeout(pollingConfigSincronizacao,3000);
+}
 async function renderConfigSincronizacao() {
-  const conteudo = $('configConteudo');
-  conteudo.innerHTML = '<div class="prod-gz-loading">Carregando situação da sincronização...</div>';
-  try {
-    const d = await api('/api/produtos-gz/sincronizacao');
-    const esperado = d.esperadoAte || '-';
-    const produtos = d.produtos || [];
-    const execs = d.execucoes || [];
-    const ocorr = d.ocorrencias || [];
-    conteudo.innerHTML = `<div class="dashboard-toolbar"><div><strong>Sincronização de vendas GZ</strong><span>Piloto automático. O sistema identifica dias ausentes e recupera o histórico sem duplicar registros.</span></div><button class="primary" id="btnSyncGzAgora">Sincronizar agora</button></div>
+  const conteudo=$('configConteudo');
+  conteudo.innerHTML='<div class="prod-gz-loading">Carregando situação da sincronização...</div>';
+  try{
+    const d=await api('/api/produtos-gz/sincronizacao'), r=d.resumo||{}, prog=d.progresso||{};
+    const total=Number(prog.total||r.monitorados||0), indice=Number(prog.indice||0), pct=total?Math.min(100,Math.round(indice/total*100)):0;
+    conteudo.innerHTML=`<div id="gzSyncPainel"><div class="dashboard-toolbar"><div><strong>Sincronização de vendas GZ</strong><span>Consulta sequencial e controlada. O painel acompanha o PostgreSQL sem recarregar a tela.</span></div><button class="primary" id="btnSyncGzAgora" ${d.executando?'disabled':''}>${d.executando?'Sincronizando...':'Sincronizar agora'}</button></div>
       <section class="dash-panel wide"><div class="prod-gz-vendas-resumo">
-        <div class="prod-gz-highlight"><span>Produtos monitorados</span><strong>${produtos.length}</strong></div>
-        <div class="prod-gz-highlight"><span>Esperado até</span><strong>${escapeHtml(esperado)}</strong></div>
-        <div class="prod-gz-highlight"><span>Em dia</span><strong>${produtos.filter(p=>String(p.atualizado_ate||'').slice(0,10)>=esperado).length}</strong></div>
-        <div class="prod-gz-highlight"><span>Com erro</span><strong>${produtos.filter(p=>p.ultimo_erro).length}</strong></div>
+        <div class="prod-gz-highlight"><span>Monitorados</span><strong id="gzMon">${r.monitorados||0}</strong></div><div class="prod-gz-highlight"><span>Em dia</span><strong id="gzDia">${r.em_dia||0}</strong></div><div class="prod-gz-highlight"><span>Pendentes</span><strong id="gzPend">${r.pendentes||0}</strong></div><div class="prod-gz-highlight"><span>Inativos ignorados</span><strong id="gzInat">${r.inativos||0}</strong></div><div class="prod-gz-highlight"><span>Com erro</span><strong id="gzErr">${r.com_erro||0}</strong></div><div class="prod-gz-highlight"><span>Esperado até</span><strong id="gzEsperado">${escapeHtml(d.esperadoAte||'-')}</strong></div>
       </div></section>
-      <section class="dash-panel wide"><h3>Produtos do piloto</h3><table class="dash-table"><thead><tr><th>Código</th><th>Atualizado até</th><th>Status</th><th>Último erro</th></tr></thead><tbody>${produtos.map(p=>{const ate=String(p.atualizado_ate||'').slice(0,10);const ok=ate&&ate>=esperado;return `<tr><td>${escapeHtml(p.codigo_produto)}</td><td>${escapeHtml(ate||'Sem dados')}</td><td>${ok?'🟢 Em dia':p.ultimo_erro?'🔴 Erro':'🟡 Pendente'}</td><td>${escapeHtml(p.ultimo_erro||'-')}</td></tr>`}).join('')}</tbody></table></section>
-      <section class="dash-panel wide"><h3>Últimas execuções</h3><table class="dash-table"><thead><tr><th>Início</th><th>Tipo</th><th>Status</th><th>Processados</th><th>Erros</th></tr></thead><tbody>${execs.map(e=>`<tr><td>${escapeHtml(String(e.iniciado_em||''))}</td><td>${escapeHtml(e.tipo)}</td><td>${escapeHtml(e.status)}</td><td>${e.itens_processados||0}</td><td>${e.erros||0}</td></tr>`).join('')||'<tr><td colspan="5">Nenhuma execução ainda.</td></tr>'}</tbody></table></section>
-      ${ocorr.length?`<section class="dash-panel wide"><h3>Ocorrências</h3><table class="dash-table"><thead><tr><th>Produto</th><th>Data</th><th>Ocorrência</th></tr></thead><tbody>${ocorr.map(o=>`<tr><td>${escapeHtml(o.codigo_produto||'-')}</td><td>${escapeHtml(String(o.data_movimento||'').slice(0,10))}</td><td>${escapeHtml(o.mensagem||'')}</td></tr>`).join('')}</tbody></table></section>`:''}`;
-    $('btnSyncGzAgora').onclick=async()=>{if(!confirm('Executar a sincronização GZ agora?'))return; const b=$('btnSyncGzAgora');b.disabled=true;b.textContent='Sincronizando...';try{await api('/api/produtos-gz/sincronizacao/executar',{method:'POST'});await renderConfigSincronizacao();}catch(e){alert(e.message);b.disabled=false;b.textContent='Sincronizar agora';}};
-  } catch(e) { conteudo.innerHTML=`<div class="prod-gz-empty"><strong>Falha ao carregar sincronização.</strong><br>${escapeHtml(e.message)}</div>`; }
+      <section class="dash-panel wide" id="gzAndamento" style="display:${d.executando?'block':'none'}"><h3>Sincronização em andamento</h3><div class="prod-gz-vendas-resumo"><div class="prod-gz-highlight"><span>Progresso</span><strong id="gzProg">${indice}/${total} (${pct}%)</strong></div><div class="prod-gz-highlight"><span>Produto atual</span><strong id="gzAtual">${escapeHtml(prog.codigo||'-')}</strong></div><div class="prod-gz-highlight"><span>Tempo decorrido</span><strong id="gzTempoAtual">${d.executando?gzDuracao(prog.iniciadoEm,null):'-'}</strong></div><div class="prod-gz-highlight"><span>Intervalo API</span><strong>${Math.round((d.intervaloChamadasMs||1000)/1000)}s</strong></div></div><div style="height:8px;background:#e8edf5;border-radius:999px;overflow:hidden;margin-top:14px"><div id="gzBarra" style="height:100%;width:${pct}%;background:#2563eb;transition:width .35s ease"></div></div></section>
+      <section class="dash-panel wide"><h3>Últimas execuções</h3><table class="dash-table"><thead><tr><th>Início</th><th>Fim</th><th>Duração</th><th>Tipo</th><th>Status</th><th>Processados</th><th>Erros</th><th>Ritmo</th></tr></thead><tbody id="gzExecBody">${gzExecRows(d.execucoes)}</tbody></table></section>
+      <section class="dash-panel wide"><h3>Últimas ocorrências</h3><table class="dash-table"><thead><tr><th>Produto</th><th>Data</th><th>Tipo</th><th>Ocorrência</th></tr></thead><tbody id="gzOcorrBody">${gzOcorrRows(d.ocorrencias)}</tbody></table></section></div>`;
+    const btn=$('btnSyncGzAgora');
+    if(btn) btn.onclick=async()=>{if(!confirm('Executar a sincronização GZ agora?'))return;btn.disabled=true;btn.textContent='Iniciando...';try{await api('/api/produtos-gz/sincronizacao/executar',{method:'POST'});setTimeout(pollingConfigSincronizacao,500);}catch(e){alert(e.message);btn.disabled=false;btn.textContent='Sincronizar agora';}};
+    pollingConfigSincronizacao();
+  }catch(e){conteudo.innerHTML=`<div class="prod-gz-empty"><strong>Falha ao carregar sincronização.</strong><br>${escapeHtml(e.message)}</div>`;}
 }
 
 function renderConfigUsuarios() {
