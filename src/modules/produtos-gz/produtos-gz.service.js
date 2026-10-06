@@ -247,5 +247,6 @@ async function consultarVendasProduto({ codigoProduto }) {
 
 module.exports = {
   consultarProduto,
-  consultarVendasProduto
+  consultarVendasProduto,
+  consultarVendasPeriodo: async (codigoProduto, dataInicio, dataFim) => consultarPeriodoVenda(codigoProduto, { inicio: dataInicio, fim: dataFim })
 };

@@ -3639,7 +3639,7 @@ function renderProdutosGz() {
       </section>
       <div class="prod-gz-tabs">
         <button class="prod-gz-tab active" id="prodGzTabResumo" type="button">Resumo</button>
-        <button class="prod-gz-tab" id="prodGzTabVendas" type="button">Vendas</button>
+        ${state.usuario?.perfil === 'administrador_principal' ? '<button class="prod-gz-tab" id="prodGzTabVendas" type="button">Vendas</button>' : ''}
         <button class="prod-gz-tab disabled" type="button" title="Em desenvolvimento">Movimentações · em desenvolvimento</button>
       </div>
       <div id="prodGzConteudo">${atual ? produtoGzCard(atual) : '<div class="prod-gz-empty">Pesquise um produto para visualizar as informações.</div>'}</div>
@@ -3655,7 +3655,7 @@ function renderProdutosGz() {
     await consultarProdutoGz(tipo.value, busca.value.trim());
   };
   $('prodGzTabResumo').onclick = () => abrirAbaResumoProdutoGz();
-  $('prodGzTabVendas').onclick = () => abrirAbaVendasProdutoGz();
+  if ($('prodGzTabVendas')) $('prodGzTabVendas').onclick = () => abrirAbaVendasProdutoGz();
   setTimeout(() => busca?.focus(), 50);
 }
 
@@ -3898,7 +3898,11 @@ async function abrirAbaVendasProdutoGz() {
     const params = new URLSearchParams({ codigoProduto: String(p.codigo) });
     const data = await api(`/api/produtos-gz/vendas?${params.toString()}`);
     state.produtoGzVendas = data;
-    conteudo.innerHTML = renderVendasProdutoGz(p, data.movimentos || []);
+    const movimentos = (data.vendas || []).map(v => ({
+      dataMovimento: String(v.data_movimento || '').split('-').reverse().join('-'),
+      produto: [{ codigo: String(p.codigo), quantidadeVendida: Number(v.quantidade_vendida || 0) }]
+    }));
+    conteudo.innerHTML = renderVendasProdutoGz(p, movimentos);
   } catch (err) {
     conteudo.innerHTML = `<div class="prod-gz-empty"><strong>Não foi possível consultar as vendas.</strong><br>${escapeHtml(err.message)}<br><br><small>Confirme se a Ponte GZ permite a rota /movimento-estoque.</small></div>`;
   }
@@ -4958,7 +4962,8 @@ window.mudarAbaConfig = async (aba) => {
 function renderConfig() {
   const panel = $('configPanel');
   const principal = state.usuario?.perfil === 'administrador_principal';
-  const permitidas = principal ? ['usuarios', 'acessos', 'setores', 'hierarquia'] : ['usuarios', 'acessos', 'hierarquia'];
+  const adminSync = ['administrador_principal','administrador'].includes(state.usuario?.perfil);
+  const permitidas = principal ? ['usuarios', 'acessos', 'setores', 'hierarquia', 'sincronizacao'] : (adminSync ? ['usuarios', 'acessos', 'hierarquia', 'sincronizacao'] : ['usuarios', 'acessos', 'hierarquia']);
   if (!permitidas.includes(state.configTab)) state.configTab = 'usuarios';
   const tab = state.configTab;
   panel.innerHTML = `
@@ -4971,13 +4976,39 @@ function renderConfig() {
       <button class="${tab === 'acessos' ? 'active' : ''}" onclick="mudarAbaConfig('acessos')">🔐 Acessos aos módulos</button>
       ${principal ? `<button class="${tab === 'setores' ? 'active' : ''}" onclick="mudarAbaConfig('setores')">🗂️ Setores e proprietários</button>` : ''}
       <button class="${tab === 'hierarquia' ? 'active' : ''}" onclick="mudarAbaConfig('hierarquia')">🛡️ Hierarquia</button>
+      ${adminSync ? `<button class="${tab === 'sincronizacao' ? 'active' : ''}" onclick="mudarAbaConfig('sincronizacao')">🔄 Sincronização</button>` : ''}
     </div>
     <div id="configConteudo"></div>`;
 
   if (tab === 'usuarios') renderConfigUsuarios();
   else if (tab === 'acessos') renderConfigAcessos();
   else if (tab === 'setores') renderConfigSetores();
+  else if (tab === 'sincronizacao') renderConfigSincronizacao();
   else renderConfigHierarquia();
+}
+
+
+async function renderConfigSincronizacao() {
+  const conteudo = $('configConteudo');
+  conteudo.innerHTML = '<div class="prod-gz-loading">Carregando situação da sincronização...</div>';
+  try {
+    const d = await api('/api/produtos-gz/sincronizacao');
+    const esperado = d.esperadoAte || '-';
+    const produtos = d.produtos || [];
+    const execs = d.execucoes || [];
+    const ocorr = d.ocorrencias || [];
+    conteudo.innerHTML = `<div class="dashboard-toolbar"><div><strong>Sincronização de vendas GZ</strong><span>Piloto automático. O sistema identifica dias ausentes e recupera o histórico sem duplicar registros.</span></div><button class="primary" id="btnSyncGzAgora">Sincronizar agora</button></div>
+      <section class="dash-panel wide"><div class="prod-gz-vendas-resumo">
+        <div class="prod-gz-highlight"><span>Produtos monitorados</span><strong>${produtos.length}</strong></div>
+        <div class="prod-gz-highlight"><span>Esperado até</span><strong>${escapeHtml(esperado)}</strong></div>
+        <div class="prod-gz-highlight"><span>Em dia</span><strong>${produtos.filter(p=>String(p.atualizado_ate||'').slice(0,10)>=esperado).length}</strong></div>
+        <div class="prod-gz-highlight"><span>Com erro</span><strong>${produtos.filter(p=>p.ultimo_erro).length}</strong></div>
+      </div></section>
+      <section class="dash-panel wide"><h3>Produtos do piloto</h3><table class="dash-table"><thead><tr><th>Código</th><th>Atualizado até</th><th>Status</th><th>Último erro</th></tr></thead><tbody>${produtos.map(p=>{const ate=String(p.atualizado_ate||'').slice(0,10);const ok=ate&&ate>=esperado;return `<tr><td>${escapeHtml(p.codigo_produto)}</td><td>${escapeHtml(ate||'Sem dados')}</td><td>${ok?'🟢 Em dia':p.ultimo_erro?'🔴 Erro':'🟡 Pendente'}</td><td>${escapeHtml(p.ultimo_erro||'-')}</td></tr>`}).join('')}</tbody></table></section>
+      <section class="dash-panel wide"><h3>Últimas execuções</h3><table class="dash-table"><thead><tr><th>Início</th><th>Tipo</th><th>Status</th><th>Processados</th><th>Erros</th></tr></thead><tbody>${execs.map(e=>`<tr><td>${escapeHtml(String(e.iniciado_em||''))}</td><td>${escapeHtml(e.tipo)}</td><td>${escapeHtml(e.status)}</td><td>${e.itens_processados||0}</td><td>${e.erros||0}</td></tr>`).join('')||'<tr><td colspan="5">Nenhuma execução ainda.</td></tr>'}</tbody></table></section>
+      ${ocorr.length?`<section class="dash-panel wide"><h3>Ocorrências</h3><table class="dash-table"><thead><tr><th>Produto</th><th>Data</th><th>Ocorrência</th></tr></thead><tbody>${ocorr.map(o=>`<tr><td>${escapeHtml(o.codigo_produto||'-')}</td><td>${escapeHtml(String(o.data_movimento||'').slice(0,10))}</td><td>${escapeHtml(o.mensagem||'')}</td></tr>`).join('')}</tbody></table></section>`:''}`;
+    $('btnSyncGzAgora').onclick=async()=>{if(!confirm('Executar a sincronização GZ agora?'))return; const b=$('btnSyncGzAgora');b.disabled=true;b.textContent='Sincronizando...';try{await api('/api/produtos-gz/sincronizacao/executar',{method:'POST'});await renderConfigSincronizacao();}catch(e){alert(e.message);b.disabled=false;b.textContent='Sincronizar agora';}};
+  } catch(e) { conteudo.innerHTML=`<div class="prod-gz-empty"><strong>Falha ao carregar sincronização.</strong><br>${escapeHtml(e.message)}</div>`; }
 }
 
 function renderConfigUsuarios() {

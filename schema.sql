@@ -421,3 +421,35 @@ CREATE INDEX IF NOT EXISTS idx_tarefas_prazo ON tarefas(prazo);
 CREATE INDEX IF NOT EXISTS idx_tarefas_status_prazo ON tarefas(status, prazo);
 CREATE INDEX IF NOT EXISTS idx_tarefas_atualizado_em ON tarefas(atualizado_em DESC);
 CREATE INDEX IF NOT EXISTS idx_lembretes_criado_por_data ON lembretes_agenda(criado_por, data);
+
+-- V45 - histórico local e sincronização inteligente de vendas GZ
+CREATE TABLE IF NOT EXISTS gz_produtos_monitorados (
+  codigo_produto VARCHAR(40) PRIMARY KEY,
+  ativo BOOLEAN NOT NULL DEFAULT TRUE,
+  ultimo_sucesso TIMESTAMPTZ,
+  ultimo_erro TEXT,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS gz_vendas_diarias (
+  id BIGSERIAL PRIMARY KEY,
+  loja INTEGER NOT NULL DEFAULT 1,
+  codigo_produto VARCHAR(40) NOT NULL,
+  data_movimento DATE NOT NULL,
+  quantidade_vendida NUMERIC(18,3) NOT NULL DEFAULT 0,
+  valor_venda NUMERIC(18,2),
+  origem VARCHAR(30) NOT NULL DEFAULT 'API_GZ',
+  sincronizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(loja,codigo_produto,data_movimento)
+);
+CREATE INDEX IF NOT EXISTS idx_gz_vendas_produto_data ON gz_vendas_diarias(codigo_produto,data_movimento);
+CREATE TABLE IF NOT EXISTS gz_sync_execucoes (
+  id BIGSERIAL PRIMARY KEY, tipo VARCHAR(20) NOT NULL, status VARCHAR(40) NOT NULL,
+  iniciado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), finalizado_em TIMESTAMPTZ,
+  itens_processados INTEGER NOT NULL DEFAULT 0, erros INTEGER NOT NULL DEFAULT 0,
+  mensagem TEXT, usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL
+);
+CREATE TABLE IF NOT EXISTS gz_sync_ocorrencias (
+  id BIGSERIAL PRIMARY KEY, execucao_id BIGINT REFERENCES gz_sync_execucoes(id) ON DELETE SET NULL,
+  codigo_produto VARCHAR(40), data_movimento DATE, tipo VARCHAR(30) NOT NULL,
+  mensagem TEXT NOT NULL, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

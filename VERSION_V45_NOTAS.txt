@@ -1,0 +1,24 @@
+V45 - PILOTO DE SINCRONIZAÇÃO INTELIGENTE DE VENDAS GZ
+
+Produtos piloto:
+- 7894900700398
+- 5601252231164
+- 7891000359822
+
+Implementado:
+- histórico diário local em PostgreSQL
+- sincronização automática diária (02:00 por padrão; GZ_SYNC_HOUR pode alterar)
+- ponto inicial padrão 01/10/2026 (GZ_SYNC_START_DATE pode alterar)
+- detecção automática de dias faltantes por produto
+- 3 tentativas por dia/produto, com espera de 30 s
+- falha de um produto não impede os demais
+- grava dias com venda zero para marcar a data como verificada
+- UPSERT impede duplicação
+- painel Configurações > Sincronização para administradores
+- botão Sincronizar agora
+- histórico de execuções e ocorrências
+- aba Vendas visível e acessível somente ao Administrador Principal durante o piloto
+- aba Vendas passa a ler o PostgreSQL, evitando consulta pesada de 12 meses em tempo real
+
+IMPORTANTE:
+O agendador depende de o processo Node estar ativo no horário configurado. Se a hospedagem suspender o serviço durante a madrugada, use um scheduler externo/cron para chamar a sincronização.
