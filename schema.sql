@@ -485,3 +485,59 @@ CREATE TABLE IF NOT EXISTS gz_sync_api_logs (
   intervalo_ms INTEGER NOT NULL DEFAULT 0, erro TEXT, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_gz_sync_api_logs_exec ON gz_sync_api_logs(execucao_id,id DESC);
+
+
+-- V52 - fotografia completa do catálogo GZ, classificação ativo/inativo e histórico de cadastros
+CREATE TABLE IF NOT EXISTS gz_catalogo_produtos (
+  codigo_produto VARCHAR(40) PRIMARY KEY,
+  codigo_ean VARCHAR(60),
+  descricao VARCHAR(500),
+  situacao VARCHAR(30) NOT NULL DEFAULT 'DESCONHECIDO',
+  quantidade_estoque NUMERIC(18,3),
+  data_cadastro DATE,
+  unidade VARCHAR(30),
+  loja VARCHAR(30),
+  departamento VARCHAR(120),
+  grupo VARCHAR(120),
+  marca VARCHAR(120),
+  setor VARCHAR(120),
+  primeiro_visto_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ultimo_visto_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ultima_mudanca_status_em TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_gz_catalogo_situacao ON gz_catalogo_produtos(situacao);
+CREATE INDEX IF NOT EXISTS idx_gz_catalogo_data_cadastro ON gz_catalogo_produtos(data_cadastro);
+CREATE INDEX IF NOT EXISTS idx_gz_catalogo_ultimo_visto ON gz_catalogo_produtos(ultimo_visto_em DESC);
+
+CREATE TABLE IF NOT EXISTS gz_catalogo_eventos (
+  id BIGSERIAL PRIMARY KEY,
+  execucao_id BIGINT REFERENCES gz_sync_execucoes(id) ON DELETE SET NULL,
+  codigo_produto VARCHAR(40) NOT NULL,
+  tipo VARCHAR(30) NOT NULL,
+  situacao_anterior VARCHAR(30),
+  situacao_nova VARCHAR(30),
+  data_evento DATE NOT NULL DEFAULT CURRENT_DATE,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_gz_catalogo_eventos_data ON gz_catalogo_eventos(data_evento DESC,tipo);
+CREATE INDEX IF NOT EXISTS idx_gz_catalogo_eventos_codigo ON gz_catalogo_eventos(codigo_produto,criado_em DESC);
+
+CREATE TABLE IF NOT EXISTS gz_produtos_cadastrados (
+  codigo_produto VARCHAR(40) PRIMARY KEY,
+  codigo_ean VARCHAR(60),
+  descricao VARCHAR(500),
+  data_cadastro_gz DATE NOT NULL,
+  situacao_ao_detectar VARCHAR(30),
+  detectado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_gz_produtos_cadastrados_data ON gz_produtos_cadastrados(data_cadastro_gz DESC);
+
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_http INTEGER;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_tempo_ms BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_total INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_ativos INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_inativos INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_desconhecidos INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_novos_hoje INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_reativados INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_inativados INTEGER NOT NULL DEFAULT 0;

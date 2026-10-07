@@ -9,5 +9,6 @@ router.get('/vendas', auth, requireModuleAccess('consulta_produtos'), syncContro
 router.get('/sincronizacao', auth, syncController.admin, syncController.status);
 router.post('/sincronizacao/executar', auth, syncController.admin, syncController.executar);
 router.post('/sincronizacao/parar', auth, syncController.admin, syncController.parar);
+router.get('/sincronizacao/cadastrados', auth, syncController.admin, syncController.cadastrados);
 
 module.exports = router;

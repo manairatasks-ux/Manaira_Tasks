@@ -1,0 +1,39 @@
+MANAÍRA BOARD — V52
+Catálogo inteligente + histórico diário de produtos
+Data: 07/10/2026
+
+PRINCIPAIS ALTERAÇÕES
+1. Fotografia completa do catálogo GZ antes da sincronização de vendas.
+   - Usa GET /produtos/paginacao em uma única chamada.
+   - Timeout ampliado para 120 s por causa do JSON completo.
+   - Normaliza respostas em array/content/produtos/items/data.
+
+2. Ativos e inativos classificados em lote.
+   - Salva o catálogo em gz_catalogo_produtos.
+   - Atualiza em lote a situação dos produtos monitorados.
+   - Quando a fotografia completa funciona, deixa de fazer uma consulta /produtos para cada monitorado.
+   - Se a fotografia falhar, mantém fallback individual da V51 para não perder segurança.
+
+3. Histórico para relatórios.
+   - gz_produtos_cadastrados guarda código, EAN, descrição e dataCadastro informada pela GZ.
+   - O dashboard mostra os itens cadastrados no dia.
+   - Endpoint administrativo: GET /api/produtos-gz/sincronizacao/cadastrados?dataInicio=YYYY-MM-DD&dataFim=YYYY-MM-DD
+
+4. Mudanças cadastrais.
+   - Registra NOVO_DETECTADO, REATIVADO e INATIVADO em gz_catalogo_eventos.
+   - A primeira fotografia é tratada como base inicial; não gera dezenas de milhares de falsos "novos".
+
+5. Proteções.
+   - Se já houver catálogo e a nova resposta vier com menos de 50% do volume anterior, a fotografia é rejeitada como possivelmente incompleta.
+   - Itens ausentes de uma fotografia completa ficam como AUSENTE_CATALOGO, sem apagar o histórico.
+   - Se o catálogo completo falhar, a sincronização de vendas continua usando a verificação individual existente.
+
+6. Dashboard de sincronização.
+   - Total cadastrado, ativos, inativos, sem classificação.
+   - Cadastrados hoje, reativados hoje, inativados hoje.
+   - Última fotografia do catálogo.
+   - Fase atual: atualização do catálogo ou sincronização de vendas.
+   - Lista dos produtos cadastrados hoje.
+
+IMPORTANTE
+A V52 mantém o piloto/monitoramento existente da V51. Ela NÃO passa automaticamente os ~20 mil produtos ativos para a sincronização de vendas. O catálogo completo foi adicionado primeiro para eliminar consultas de status desnecessárias e construir uma base confiável para a futura auditoria noturna dos ativos.

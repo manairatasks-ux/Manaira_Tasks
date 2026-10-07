@@ -8,7 +8,7 @@ const { gzLoja } = require('../../config/env');
 const bridgeApiBase = (process.env.BRIDGE_API_BASE || '').trim();
 const bridgeApiKey = (process.env.BRIDGE_API_KEY || '').trim();
 
-function requestJson(pathname, params = {}) {
+function requestJson(pathname, params = {}, options = {}) {
   return new Promise((resolve, reject) => {
 
     if (!bridgeApiBase) {
@@ -59,7 +59,7 @@ function requestJson(pathname, params = {}) {
           Accept: 'application/json'
         },
 
-        timeout: 15000
+        timeout: Number(options.timeoutMs || 15000)
       },
 
       (res) => {
@@ -174,6 +174,36 @@ async function consultarProduto({
 }
 
 
+
+function normalizarListaProdutos(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.content)) return data.content;
+  if (Array.isArray(data.produtos)) return data.produtos;
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data.data)) return data.data;
+  if (data.data && typeof data.data === 'object') return normalizarListaProdutos(data.data);
+  return [];
+}
+
+async function consultarCatalogoCompleto() {
+  // O endpoint /produtos/paginacao da Ponte GZ já devolveu o catálogo completo
+  // em uma única resposta nos testes. O timeout maior é proposital: o JSON pode
+  // ultrapassar dezenas de MB e levar mais de 15 s para chegar.
+  const resposta = await requestJson('/produtos/paginacao', {}, { timeoutMs: 120000 });
+  const produtos = normalizarListaProdutos(resposta.data);
+  if (!produtos.length) {
+    const err = new Error('A consulta completa do catálogo GZ não retornou produtos.');
+    err.code = 'GZ_CATALOGO_VAZIO';
+    throw err;
+  }
+  return {
+    loja: Number(gzLoja || 1),
+    produtos,
+    httpStatus: resposta.status
+  };
+}
+
 function isoDateLocal(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -252,6 +282,7 @@ async function consultarVendasProduto({ codigoProduto }) {
 
 module.exports = {
   consultarProduto,
+  consultarCatalogoCompleto,
   consultarVendasProduto,
   consultarVendasPeriodo: async (codigoProduto, dataInicio, dataFim) => consultarPeriodoVenda(codigoProduto, { inicio: dataInicio, fim: dataFim }),
   consultarVendasPeriodoDetalhado: async (codigoProduto, dataInicio, dataFim) => consultarPeriodoVendaDetalhado(codigoProduto, { inicio: dataInicio, fim: dataFim })
