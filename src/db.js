@@ -13,6 +13,15 @@ if (!process.env.DATABASE_URL) {
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: useSsl ? { rejectUnauthorized: false } : false,
+  keepAlive: true,
+  connectionTimeoutMillis: Number(process.env.DB_CONNECTION_TIMEOUT_MS || 10000),
+  idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 30000),
+});
+
+// Impede que uma queda inesperada de uma conexão ociosa do PostgreSQL derrube o Node.
+// Consultas em andamento continuam recebendo a exceção normalmente e podem aplicar retry.
+pool.on('error', (err) => {
+  console.error('PostgreSQL pool: conexão encerrada inesperadamente:', err.message);
 });
 
 async function query(sql, params = []) {

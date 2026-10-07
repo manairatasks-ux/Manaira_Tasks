@@ -68,14 +68,23 @@ async function executarInterno(execId){
     let catalogoAtualizado=false;
     progressoAtual={fase:'CATALOGO',codigo:null,indice:0,total:0,iniciadoEm:new Date().toISOString(),intervaloMs:intervaloAtual,execucaoId:execId};
     try{
-      const cat=await catalogo.atualizarCatalogo(execId);
+      const cat=await catalogo.atualizarCatalogo(execId,{
+        onProgress: async info => {
+          const total=Number(info.total||0);
+          const indice=Number(info.processados||0);
+          const rotulo=info.etapa==='BAIXANDO'?'Baixando catálogo':info.etapa==='FINALIZANDO'?'Finalizando catálogo':`Lote ${info.loteAtual||0}/${info.totalLotes||0}`;
+          progressoAtual={...progressoAtual,fase:'CATALOGO',codigo:rotulo,indice,total,intervaloMs:intervaloAtual};
+          await query(`UPDATE gz_sync_execucoes SET heartbeat_em=NOW() WHERE id=$1`,[execId]);
+        }
+      });
       catalogoAtualizado=true;
+      const apiMs=Number(cat.apiDuracaoMs||cat.duracaoMs||0);
       metricas.chamadasProdutos++;
-      metricas.tempoProdutosMs+=Number(cat.duracaoMs||0);
-      metricas.maxApiMs=Math.max(metricas.maxApiMs,Number(cat.duracaoMs||0));
-      metricas.minApiMs=metricas.minApiMs===null?Number(cat.duracaoMs||0):Math.min(metricas.minApiMs,Number(cat.duracaoMs||0));
+      metricas.tempoProdutosMs+=apiMs;
+      metricas.maxApiMs=Math.max(metricas.maxApiMs,apiMs);
+      metricas.minApiMs=metricas.minApiMs===null?apiMs:Math.min(metricas.minApiMs,apiMs);
       contarStatus(Number(cat.httpStatus||200));
-      await logApi(execId,'/produtos/paginacao',null,null,cat.httpStatus||200,cat.duracaoMs||0,1,0);
+      await logApi(execId,'/produtos/paginacao',null,null,cat.httpStatus||200,apiMs,1,0);
       await query(`UPDATE gz_sync_execucoes SET catalogo_http=$2,catalogo_tempo_ms=$3,catalogo_total=$4,catalogo_ativos=$5,catalogo_inativos=$6,catalogo_desconhecidos=$7,catalogo_novos_hoje=$8,catalogo_reativados=$9,catalogo_inativados=$10,heartbeat_em=NOW() WHERE id=$1`,[execId,cat.httpStatus||200,cat.duracaoMs||0,cat.total||cat.totalRecebido||0,cat.ativos||0,cat.inativos||0,cat.desconhecidos||0,cat.novosHoje||0,cat.reativados||0,cat.inativados||0]);
     }catch(e){
       const ms=0,st=statusErro(e);
@@ -129,7 +138,8 @@ async function executarInterno(execId){
 
 async function parar(){ const r=await query(`UPDATE gz_sync_execucoes SET parada_solicitada=TRUE,mensagem=COALESCE(mensagem,'Parada manual solicitada pelo administrador.') WHERE status='EM_ANDAMENTO' RETURNING id`); return {solicitado:r.rowCount>0,execucoes:r.rows.map(x=>x.id)}; }
 async function status(){
-  await query(`UPDATE gz_sync_execucoes SET status='INTERROMPIDA',finalizado_em=COALESCE(finalizado_em,NOW()),mensagem=COALESCE(mensagem,'Execução interrompida sem heartbeat (reinício/encerramento do processo).') WHERE status='EM_ANDAMENTO' AND COALESCE(heartbeat_em,iniciado_em) < NOW() - INTERVAL '2 minutes'`);
+  const staleMin=Math.max(2,Number(process.env.GZ_SYNC_HEARTBEAT_STALE_MIN || 5));
+  await query(`UPDATE gz_sync_execucoes SET status='INTERROMPIDA',finalizado_em=COALESCE(finalizado_em,NOW()),mensagem=COALESCE(mensagem,'Execução interrompida sem heartbeat (reinício/encerramento do processo).') WHERE status='EM_ANDAMENTO' AND COALESCE(heartbeat_em,iniciado_em) < NOW() - ($1 * INTERVAL '1 minute')`,[staleMin]);
   const esperado=ontem();
   const resumo=await get(`WITH ult AS (SELECT codigo_produto,MAX(data_movimento) atualizado_ate FROM gz_vendas_diarias WHERE loja=1 GROUP BY codigo_produto) SELECT COUNT(*) FILTER (WHERE p.ativo=TRUE)::int AS monitorados,COUNT(*) FILTER (WHERE p.ativo=TRUE AND p.situacao_gz='INATIVO')::int AS inativos,COUNT(*) FILTER (WHERE p.ativo=TRUE AND p.situacao_gz IS DISTINCT FROM 'INATIVO' AND u.atualizado_ate >= $1::date)::int AS em_dia,COUNT(*) FILTER (WHERE p.ativo=TRUE AND p.ultimo_erro IS NOT NULL)::int AS com_erro,COUNT(*) FILTER (WHERE p.ativo=TRUE AND p.situacao_gz IS DISTINCT FROM 'INATIVO' AND (u.atualizado_ate IS NULL OR u.atualizado_ate < $1::date) AND p.ultimo_erro IS NULL)::int AS pendentes FROM gz_produtos_monitorados p LEFT JOIN ult u ON u.codigo_produto=p.codigo_produto`,[esperado]);
   const execucoes=await all(`SELECT * FROM gz_sync_execucoes ORDER BY id DESC LIMIT 10`); const ocorrencias=await all(`SELECT id,codigo_produto,data_movimento,tipo,mensagem,criado_em FROM gz_sync_ocorrencias ORDER BY id DESC LIMIT 15`); const apiLogs=await all(`SELECT rota,codigo_produto,data_movimento,http_status,latencia_ms,tentativa,intervalo_ms,erro,criado_em FROM gz_sync_api_logs ORDER BY id DESC LIMIT 30`); const ativa=await get(`SELECT id FROM gz_sync_execucoes WHERE status='EM_ANDAMENTO' ORDER BY id DESC LIMIT 1`);

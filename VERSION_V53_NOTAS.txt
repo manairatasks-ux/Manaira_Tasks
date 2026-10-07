@@ -1,0 +1,41 @@
+MANAÍRA - V53
+CATÁLOGO EM LOTES + HEARTBEAT + RECUPERAÇÃO POSTGRESQL
+
+Principais mudanças sobre a V52:
+
+1. Catálogo GZ processado em lotes
+- A fotografia completa continua sendo baixada em uma única chamada.
+- Os ~60 mil produtos não são mais enviados ao PostgreSQL em um único JSON/transação gigante.
+- A gravação passa a ocorrer em lotes de 2.000 itens por padrão.
+- Variável opcional: GZ_CATALOGO_BATCH_SIZE (250 a 5000).
+
+2. Transações curtas e retry do banco
+- Cada lote usa uma transação própria e libera a conexão ao terminar.
+- Em falha de conexão, o lote é tentado novamente com uma nova conexão.
+- Padrão: até 3 tentativas.
+- Variáveis opcionais: GZ_CATALOGO_DB_RETRIES e GZ_CATALOGO_DB_RETRY_MS.
+
+3. Proteção contra queda do Node por conexão PostgreSQL
+- O pool do pg agora possui listener de erro para conexões ociosas.
+- Uma conexão quebrada durante um lote é descartada em vez de voltar ao pool.
+
+4. Heartbeat real durante o catálogo
+- O heartbeat é renovado a cada lote.
+- A tela passa a receber progresso do catálogo (itens processados / total e lote atual).
+- Tolerância de ausência de heartbeat aumentada para 5 minutos como rede de segurança.
+- Variável opcional: GZ_SYNC_HEARTBEAT_STALE_MIN.
+
+5. Endpoint completo corrigido
+- A chamada usa /produtos/paginacao com loja, page=0 e size=10.
+- Timeout continua em 120 segundos.
+
+6. Métricas
+- A latência registrada para /produtos/paginacao mede a chamada da API, sem misturar o tempo de gravação no PostgreSQL.
+- catalogo_tempo_ms continua registrando o tempo total da etapa de catálogo.
+
+7. Primeira carga protegida
+- Uma primeira carga interrompida no meio não faz a execução seguinte classificar os produtos restantes como NOVO_DETECTADO.
+- A base só deixa de ser considerada inicial depois de uma execução completa anterior com catálogo substancial.
+
+Objetivo da V53:
+Evitar a falha "Connection terminated unexpectedly" observada na V52 durante a gravação de dezenas de milhares de produtos e tornar o andamento visível no dashboard.
