@@ -161,10 +161,10 @@ async function consultarProduto({
   const produtos = Array.isArray(resposta.data)
     ? resposta.data
     : (
-        resposta.data
-          ? [resposta.data]
-          : []
-      );
+      resposta.data
+        ? [resposta.data]
+        : []
+    );
 
   return {
     loja: Number(gzLoja || 1),
@@ -190,7 +190,15 @@ async function consultarCatalogoCompleto() {
   // O endpoint /produtos/paginacao da Ponte GZ já devolveu o catálogo completo
   // em uma única resposta nos testes. O timeout maior é proposital: o JSON pode
   // ultrapassar dezenas de MB e levar mais de 15 s para chegar.
-  const resposta = await requestJson('/produtos/paginacao', {}, { timeoutMs: 120000 });
+  const resposta = await requestJson(
+    '/produtos/paginacao',
+    {
+      loja: Number(gzLoja || 1),
+      page: 0,
+      size: 10
+    },
+    { timeoutMs: 120000 }
+  );
   const produtos = normalizarListaProdutos(resposta.data);
   if (!produtos.length) {
     const err = new Error('A consulta completa do catálogo GZ não retornou produtos.');
