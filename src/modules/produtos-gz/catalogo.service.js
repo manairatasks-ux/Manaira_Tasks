@@ -78,7 +78,7 @@ async function executarTransacaoComRetry(fn, contexto = 'catálogo') {
         try { await client.query('ROLLBACK'); } catch (_) {}
       }
       if (tentativa < TENTATIVAS_BANCO) {
-        console.warn(`[V54] Falha no banco durante ${contexto}; nova tentativa ${tentativa + 1}/${TENTATIVAS_BANCO}: ${e.message}`);
+        console.warn(`[V55] Falha no banco durante ${contexto}; nova tentativa ${tentativa + 1}/${TENTATIVAS_BANCO}: ${e.message}`);
         await sleep(ESPERA_RETRY_MS * tentativa);
       }
     } finally {
@@ -243,42 +243,30 @@ async function atualizarCatalogo(execucaoId = null, opcoes = {}) {
        AND situacao <> 'AUSENTE_CATALOGO'
   `, [marcaInicio]);
 
-  // Cruza os monitorados com a fotografia completa usando EAN como prioridade,
-  // mas também aceita código interno. Somente registros realmente encontrados
-  // recebem um status nesta etapa.
-  await query(`
-    UPDATE gz_produtos_monitorados m
-       SET situacao_gz = (
-             SELECT c.situacao
-               FROM gz_catalogo_produtos c
-              WHERE c.codigo_ean = m.codigo_produto
-                 OR c.codigo_produto = m.codigo_produto
-              ORDER BY CASE WHEN c.codigo_ean = m.codigo_produto THEN 0 ELSE 1 END
-              LIMIT 1
-           ),
-           ultimo_status_em = NOW()
-     WHERE m.ativo = TRUE
-       AND EXISTS (
-         SELECT 1
-           FROM gz_catalogo_produtos c
-          WHERE c.codigo_ean = m.codigo_produto
-             OR c.codigo_produto = m.codigo_produto
-       )
-  `);
+  // V55: o piloto de 500 produtos deixou de existir. A tabela de monitoramento
+  // passa a espelhar o catálogo completo usando o código interno da GZ.
+  // Somente produtos ATIVOS entram na fila de vendas; inativos ficam preservados
+  // apenas para status e histórico, sem gerar chamadas de movimento.
+  await query(`UPDATE gz_produtos_monitorados SET ativo=FALSE`);
 
-  // Se o monitorado não apareceu na fotografia atual, não reaproveita status antigo.
-  // Assim o vendas-sync cai no fallback individual por segurança.
   await query(`
-    UPDATE gz_produtos_monitorados m
-       SET situacao_gz = NULL,
-           ultimo_status_em = NULL
-     WHERE m.ativo = TRUE
-       AND NOT EXISTS (
-         SELECT 1
-           FROM gz_catalogo_produtos c
-          WHERE c.codigo_ean = m.codigo_produto
-             OR c.codigo_produto = m.codigo_produto
-       )
+    INSERT INTO gz_produtos_monitorados(
+      codigo_produto, ativo, situacao_gz, ultimo_status_em
+    )
+    SELECT
+      codigo_produto,
+      (situacao='ATIVO') AS ativo,
+      situacao,
+      NOW()
+    FROM gz_catalogo_produtos
+    ON CONFLICT(codigo_produto) DO UPDATE SET
+      ativo=EXCLUDED.ativo,
+      situacao_gz=EXCLUDED.situacao_gz,
+      ultimo_status_em=EXCLUDED.ultimo_status_em,
+      ultimo_erro=CASE
+        WHEN EXCLUDED.ativo THEN gz_produtos_monitorados.ultimo_erro
+        ELSE NULL
+      END
   `);
 
   const resumo = await get(`

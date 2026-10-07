@@ -1,0 +1,12 @@
+V55 - FLUXO COMPLETO DE PRODUTOS ATIVOS
+
+- Remove definitivamente o piloto fixo de 500 produtos.
+- Remove os CSVs AMOSTRA_100_PRODUTOS_V46.csv e AMOSTRA_500_PRODUTOS_V50.csv.
+- A tabela gz_produtos_monitorados passa a espelhar o catálogo GZ completo, usando código interno.
+- Somente produtos com situação ATIVO entram na fila de sincronização de vendas.
+- Produtos inativos são ignorados e contabilizados no painel.
+- A rotina automática inicia às 00:00 e trabalha até 07:00 (America/Fortaleza).
+- Ao chegar às 07:00, encerra de forma segura com status PAUSADA_JANELA e retoma pendências na madrugada seguinte.
+- Execuções manuais continuam permitidas fora da janela para testes/administração.
+- Pendências de cada produto são processadas da mais recente para a mais antiga.
+- Painel passa a exibir Produtos ativos em vez de Monitorados.
