@@ -465,3 +465,23 @@ ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS tempo_espera_ms BIGINT NO
 ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS api_min_ms INTEGER;
 ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS api_max_ms INTEGER;
 ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS api_media_ms INTEGER;
+
+
+-- V51 - trava global, parada manual, velocidade adaptativa e logs persistentes
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS parada_solicitada BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS heartbeat_em TIMESTAMPTZ;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS http_200 INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS http_204 INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS http_429 INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS http_5xx INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS time_outs INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS retries INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS backoffs INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS intervalo_final_ms INTEGER;
+CREATE TABLE IF NOT EXISTS gz_sync_api_logs (
+  id BIGSERIAL PRIMARY KEY, execucao_id BIGINT REFERENCES gz_sync_execucoes(id) ON DELETE CASCADE,
+  rota VARCHAR(60) NOT NULL, codigo_produto VARCHAR(40), data_movimento DATE,
+  http_status INTEGER, latencia_ms INTEGER NOT NULL DEFAULT 0, tentativa INTEGER NOT NULL DEFAULT 1,
+  intervalo_ms INTEGER NOT NULL DEFAULT 0, erro TEXT, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_gz_sync_api_logs_exec ON gz_sync_api_logs(execucao_id,id DESC);

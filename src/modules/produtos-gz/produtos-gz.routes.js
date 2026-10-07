@@ -8,5 +8,6 @@ router.get('/consulta', auth, requireModuleAccess('consulta_produtos'), controll
 router.get('/vendas', auth, requireModuleAccess('consulta_produtos'), syncController.principal, syncController.historico);
 router.get('/sincronizacao', auth, syncController.admin, syncController.status);
 router.post('/sincronizacao/executar', auth, syncController.admin, syncController.executar);
+router.post('/sincronizacao/parar', auth, syncController.admin, syncController.parar);
 
 module.exports = router;

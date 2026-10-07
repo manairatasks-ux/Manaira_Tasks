@@ -1,0 +1,14 @@
+V51 - sincronizacao protegida e adaptativa
+Base: V50 - 500 produtos.
+
+Melhorias:
+- Trava global PostgreSQL (advisory lock): apenas uma sincronizacao pode executar, inclusive com multiplas instancias/processos no Render.
+- Endpoint e botao "Parar sincronizacao": solicita parada segura apos a requisicao atual, preservando tudo ja gravado.
+- Intervalo inicial reduzido de 1000 ms para 500 ms (configuravel por GZ_SYNC_INTERVAL_MS).
+- Velocidade adaptativa: ao detectar 429/503 ou mensagem de limite de requisicoes, aplica backoff e aumenta temporariamente o intervalo; depois recupera gradualmente.
+- Log persistente de cada chamada API no PostgreSQL: rota, produto, data, HTTP, latencia, tentativa, intervalo e erro.
+- Diagnostico agregado: HTTP 200/204/429/5xx, retries, backoffs, latencias e espera controlada.
+- Painel mostra intervalo atual e log recente da API.
+- Heartbeat para identificar execucoes abandonadas apos reinicio/encerramento.
+- Agendamento mantido em 00:00 America/Fortaleza.
+- Amostra mantida em 500 produtos.

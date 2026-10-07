@@ -168,7 +168,8 @@ async function consultarProduto({
 
   return {
     loja: Number(gzLoja || 1),
-    produtos
+    produtos,
+    httpStatus: resposta.status
   };
 }
 
@@ -207,7 +208,7 @@ function normalizarMovimentos(resposta) {
   return resposta.data ? [resposta.data] : [];
 }
 
-async function consultarPeriodoVenda(codigoProduto, periodo) {
+async function consultarPeriodoVendaDetalhado(codigoProduto, periodo) {
   const resposta = await requestJson('/movimento-estoque', {
     codigoProduto: String(codigoProduto).trim(),
     dataInicio: periodo.inicio,
@@ -215,7 +216,11 @@ async function consultarPeriodoVenda(codigoProduto, periodo) {
     loja: Number(gzLoja || 1),
     retornaPrecoFechado: true
   });
-  return normalizarMovimentos(resposta);
+  return { movimentos: normalizarMovimentos(resposta), httpStatus: resposta.status };
+}
+
+async function consultarPeriodoVenda(codigoProduto, periodo) {
+  return (await consultarPeriodoVendaDetalhado(codigoProduto, periodo)).movimentos;
 }
 
 async function consultarVendasProduto({ codigoProduto }) {
@@ -248,5 +253,6 @@ async function consultarVendasProduto({ codigoProduto }) {
 module.exports = {
   consultarProduto,
   consultarVendasProduto,
-  consultarVendasPeriodo: async (codigoProduto, dataInicio, dataFim) => consultarPeriodoVenda(codigoProduto, { inicio: dataInicio, fim: dataFim })
+  consultarVendasPeriodo: async (codigoProduto, dataInicio, dataFim) => consultarPeriodoVenda(codigoProduto, { inicio: dataInicio, fim: dataFim }),
+  consultarVendasPeriodoDetalhado: async (codigoProduto, dataInicio, dataFim) => consultarPeriodoVendaDetalhado(codigoProduto, { inicio: dataInicio, fim: dataFim })
 };
