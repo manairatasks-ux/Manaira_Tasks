@@ -102,15 +102,60 @@ async function executarInterno(execId){
       let situacao='DESCONHECIDO';
       try{
         const hoje=hojeLocal(); const atual=await get(`SELECT situacao_gz,ultimo_status_em FROM gz_produtos_monitorados WHERE codigo_produto=$1`,[codigo]);
-        // Quando a fotografia V52 foi obtida nesta execução, o status de todos os monitorados
-        // já foi atualizado em lote. Não há motivo para repetir /produtos 500 vezes.
-        if(catalogoAtualizado && atual?.situacao_gz) situacao=String(atual.situacao_gz).toUpperCase();
-        else if(atual?.ultimo_status_em && String(atual.ultimo_status_em).slice(0,10)===hoje && atual.situacao_gz) situacao=String(atual.situacao_gz).toUpperCase();
+        // Quando a fotografia completa foi obtida nesta execução, só confiamos em status
+        // que o catálogo conseguiu relacionar por EAN ou código interno. Itens não encontrados
+        // tiveram situacao_gz limpa pelo catalogo.service e caem no fallback abaixo.
+        if(catalogoAtualizado && atual?.situacao_gz) situacao=String(atual.situacao_gz).trim().toUpperCase();
+        else if(atual?.ultimo_status_em && String(atual.ultimo_status_em).slice(0,10)===hoje && atual.situacao_gz) situacao=String(atual.situacao_gz).trim().toUpperCase();
         else{
-          const t=Date.now(); let r;
-          try{r=await produtosGz.consultarProduto({codigoInterno:String(codigo).trim()});}catch(e){const ms=Date.now()-t,st=statusErro(e);metricas.chamadasProdutos++;metricas.tempoProdutosMs+=ms;contarStatus(st);if(String(e.message||'').toLowerCase().includes('tempo limite'))metricas.timeOuts++;await logApi(execId,'/produtos',codigo,null,st,ms,1,intervaloAtual,e.message);if(ehLimitacao(e))await aliviar();throw e;}
-          const ms=Date.now()-t,st=r.httpStatus||200; metricas.chamadasProdutos++;metricas.tempoProdutosMs+=ms;metricas.maxApiMs=Math.max(metricas.maxApiMs,ms);metricas.minApiMs=metricas.minApiMs===null?ms:Math.min(metricas.minApiMs,ms);contarStatus(st);await logApi(execId,'/produtos',codigo,null,st,ms,1,intervaloAtual);
-          const p=(r?.produtos||[]).find(x=>String(x?.codigo||'').trim()===String(codigo).trim())||(r?.produtos||[])[0]; if(!p)throw new Error('Produto não encontrado na consulta de situação da GZ.'); situacao=String(p.situacao||'').trim().toUpperCase()||'DESCONHECIDO'; await query(`UPDATE gz_produtos_monitorados SET situacao_gz=$2,ultimo_status_em=NOW() WHERE codigo_produto=$1`,[codigo,situacao]); await esperar(intervaloAtual); estabilizar();
+          const t=Date.now();
+          const codigoBusca=String(codigo).trim();
+          let r=null;
+          let erroPrimeiraTentativa=null;
+
+          // Os 500 monitorados misturam EANs e códigos internos. Primeiro tenta como EAN;
+          // se não houver produto (ou a chamada falhar), tenta como código interno.
+          try{
+            r=await produtosGz.consultarProduto({codigoBarras:codigoBusca});
+          }catch(e){
+            erroPrimeiraTentativa=e;
+          }
+
+          if(!r?.produtos?.length){
+            try{
+              r=await produtosGz.consultarProduto({codigoInterno:codigoBusca});
+            }catch(e){
+              const erroFinal=e;
+              const ms=Date.now()-t,st=statusErro(erroFinal)||statusErro(erroPrimeiraTentativa);
+              metricas.chamadasProdutos++;
+              metricas.tempoProdutosMs+=ms;
+              contarStatus(st);
+              if(String(erroFinal.message||'').toLowerCase().includes('tempo limite'))metricas.timeOuts++;
+              await logApi(execId,'/produtos',codigo,null,st,ms,1,intervaloAtual,erroFinal.message);
+              if(ehLimitacao(erroFinal))await aliviar();
+              throw erroFinal;
+            }
+          }
+
+          const ms=Date.now()-t,st=r.httpStatus||200;
+          metricas.chamadasProdutos++;
+          metricas.tempoProdutosMs+=ms;
+          metricas.maxApiMs=Math.max(metricas.maxApiMs,ms);
+          metricas.minApiMs=metricas.minApiMs===null?ms:Math.min(metricas.minApiMs,ms);
+          contarStatus(st);
+          await logApi(execId,'/produtos',codigo,null,st,ms,1,intervaloAtual);
+
+          const p=(r?.produtos||[]).find(x=>{
+            const interno=String(x?.codigo??x?.codigoProduto??x?.codigoInterno??'').trim();
+            const ean=String(x?.codigoEan??x?.ean??x?.codigoBarras??'').trim();
+            return interno===codigoBusca || ean===codigoBusca;
+          })||(r?.produtos||[])[0];
+
+          if(!p)throw new Error('Produto não encontrado na consulta de situação da GZ.');
+          situacao=String(p.situacao||p.status||p.ativo||'').trim().toUpperCase()||'DESCONHECIDO';
+          await query(`UPDATE gz_produtos_monitorados SET situacao_gz=$2,ultimo_status_em=NOW() WHERE codigo_produto=$1`,[codigo,situacao]);
+          await esperar(intervaloAtual);
+          estabilizar();
         }
       }catch(e){ erros++;falhasConsecutivas++;const msg=`Falha ao verificar situação cadastral: ${String(e.message||e)}`;await query(`UPDATE gz_produtos_monitorados SET ultimo_erro=$2 WHERE codigo_produto=$1`,[codigo,msg.slice(0,1000)]);await query(`INSERT INTO gz_sync_ocorrencias(execucao_id,codigo_produto,tipo,mensagem) VALUES($1,$2,'ERRO_STATUS',$3)`,[execId,codigo,msg.slice(0,1000)]);if(falhasConsecutivas>=LIMITE_FALHAS_CONSECUTIVAS){pausadaProtecao=true;break;}continue;}
       if(situacao==='INATIVO'){await query(`UPDATE gz_produtos_monitorados SET ultimo_erro=NULL WHERE codigo_produto=$1`,[codigo]);falhasConsecutivas=0;continue;}

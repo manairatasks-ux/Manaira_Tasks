@@ -1,0 +1,8 @@
+V54 - Correção de cruzamento catálogo x monitorados
+
+- Catálogo continua em lotes com heartbeat/retry da V53.
+- Cruzamento dos monitorados passa a priorizar codigo_ean e também aceita codigo_produto.
+- Monitorados não encontrados na fotografia atual têm situacao_gz/ultimo_status_em limpos para forçar fallback seguro.
+- Fallback individual tenta primeiro codigoBarras e depois codigoInterno, pois a lista piloto mistura EANs e códigos internos.
+- Localização do produto no retorno individual aceita codigo/codigoProduto/codigoInterno e codigoEan/ean/codigoBarras.
+- Mantida a regra: INATIVO ignora; ATIVO segue para pendências/movimentos; situação desconhecida não consulta vendas por segurança.

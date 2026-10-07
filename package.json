@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "53.0.0",
-  "description": "Plataforma Manaíra V53 - Catálogo em lotes, heartbeat e recuperação PostgreSQL",
+  "version": "54.0.0",
+  "description": "Plataforma Manaíra V54 - Cruzamento seguro EAN/código interno e fallback individual",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",

@@ -78,7 +78,7 @@ async function executarTransacaoComRetry(fn, contexto = 'catálogo') {
         try { await client.query('ROLLBACK'); } catch (_) {}
       }
       if (tentativa < TENTATIVAS_BANCO) {
-        console.warn(`[V53] Falha no banco durante ${contexto}; nova tentativa ${tentativa + 1}/${TENTATIVAS_BANCO}: ${e.message}`);
+        console.warn(`[V54] Falha no banco durante ${contexto}; nova tentativa ${tentativa + 1}/${TENTATIVAS_BANCO}: ${e.message}`);
         await sleep(ESPERA_RETRY_MS * tentativa);
       }
     } finally {
@@ -243,11 +243,42 @@ async function atualizarCatalogo(execucaoId = null, opcoes = {}) {
        AND situacao <> 'AUSENTE_CATALOGO'
   `, [marcaInicio]);
 
+  // Cruza os monitorados com a fotografia completa usando EAN como prioridade,
+  // mas também aceita código interno. Somente registros realmente encontrados
+  // recebem um status nesta etapa.
   await query(`
     UPDATE gz_produtos_monitorados m
-       SET situacao_gz=c.situacao, ultimo_status_em=NOW()
-      FROM gz_catalogo_produtos c
-     WHERE c.codigo_produto=m.codigo_produto
+       SET situacao_gz = (
+             SELECT c.situacao
+               FROM gz_catalogo_produtos c
+              WHERE c.codigo_ean = m.codigo_produto
+                 OR c.codigo_produto = m.codigo_produto
+              ORDER BY CASE WHEN c.codigo_ean = m.codigo_produto THEN 0 ELSE 1 END
+              LIMIT 1
+           ),
+           ultimo_status_em = NOW()
+     WHERE m.ativo = TRUE
+       AND EXISTS (
+         SELECT 1
+           FROM gz_catalogo_produtos c
+          WHERE c.codigo_ean = m.codigo_produto
+             OR c.codigo_produto = m.codigo_produto
+       )
+  `);
+
+  // Se o monitorado não apareceu na fotografia atual, não reaproveita status antigo.
+  // Assim o vendas-sync cai no fallback individual por segurança.
+  await query(`
+    UPDATE gz_produtos_monitorados m
+       SET situacao_gz = NULL,
+           ultimo_status_em = NULL
+     WHERE m.ativo = TRUE
+       AND NOT EXISTS (
+         SELECT 1
+           FROM gz_catalogo_produtos c
+          WHERE c.codigo_ean = m.codigo_produto
+             OR c.codigo_produto = m.codigo_produto
+       )
   `);
 
   const resumo = await get(`
