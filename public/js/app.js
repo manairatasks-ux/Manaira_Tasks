@@ -5010,6 +5010,14 @@ function gzExecRows(execs){
     return `<tr><td>${escapeHtml(gzFmtDataHora(e.iniciado_em))}</td><td>${escapeHtml(gzFmtDataHora(e.finalizado_em))}</td><td>${escapeHtml(dur)}</td><td>${escapeHtml(e.tipo)}</td><td>${escapeHtml(gzStatusLabel(e.status))}</td><td>${e.itens_processados||0}</td><td>${e.erros||0}</td><td>${escapeHtml(ritmo)}</td></tr>`;
   }).join('')||'<tr><td colspan="8">Nenhuma execução ainda.</td></tr>';
 }
+function gzMs(v){ const n=Number(v||0); return n>=1000?`${(n/1000).toFixed(2)}s`:`${n}ms`; }
+function gzDiagRows(execs){
+  return (execs||[]).map(e=>{
+    const cp=Number(e.chamadas_produtos||0), cm=Number(e.chamadas_movimento||0);
+    const mp=cp?Math.round(Number(e.tempo_produtos_ms||0)/cp):0, mm=cm?Math.round(Number(e.tempo_movimento_ms||0)/cm):0;
+    return `<tr><td>${escapeHtml(gzFmtDataHora(e.iniciado_em))}</td><td>${cp}</td><td>${cm}</td><td>${cp?escapeHtml(gzMs(mp)):'-'}</td><td>${cm?escapeHtml(gzMs(mm)):'-'}</td><td>${e.api_media_ms!=null?escapeHtml(gzMs(e.api_media_ms)):'-'}</td><td>${e.api_max_ms!=null?escapeHtml(gzMs(e.api_max_ms)):'-'}</td><td>${escapeHtml(gzMs(e.tempo_espera_ms||0))}</td></tr>`;
+  }).join('')||'<tr><td colspan="8">Sem métricas registradas.</td></tr>';
+}
 function gzOcorrRows(ocorr){
   return (ocorr||[]).map(o=>`<tr><td>${escapeHtml(o.codigo_produto||'-')}</td><td>${escapeHtml(String(o.data_movimento||'').slice(0,10))}</td><td>${escapeHtml(o.tipo||'-')}</td><td>${escapeHtml(o.mensagem||'')}</td></tr>`).join('')||'<tr><td colspan="4">Nenhuma ocorrência recente.</td></tr>';
 }
@@ -5025,6 +5033,7 @@ function atualizarConfigSincronizacaoSilenciosa(d){
   const barra=$('gzBarra'); if(barra) barra.style.width=`${pct}%`;
   const btn=$('btnSyncGzAgora'); if(btn){btn.disabled=!!d.executando;btn.textContent=d.executando?'Sincronizando...':'Sincronizar agora';}
   const tb=$('gzExecBody'); if(tb) tb.innerHTML=gzExecRows(d.execucoes);
+  const db=$('gzDiagBody'); if(db) db.innerHTML=gzDiagRows(d.execucoes);
   const ob=$('gzOcorrBody'); if(ob) ob.innerHTML=gzOcorrRows(d.ocorrencias);
 }
 async function pollingConfigSincronizacao(){
@@ -5040,12 +5049,13 @@ async function renderConfigSincronizacao() {
   try{
     const d=await api('/api/produtos-gz/sincronizacao'), r=d.resumo||{}, prog=d.progresso||{};
     const total=Number(prog.total||r.monitorados||0), indice=Number(prog.indice||0), pct=total?Math.min(100,Math.round(indice/total*100)):0;
-    conteudo.innerHTML=`<div id="gzSyncPainel"><div class="dashboard-toolbar"><div><strong>Sincronização de vendas GZ</strong><span>Consulta sequencial e controlada. O painel acompanha o PostgreSQL sem recarregar a tela.</span></div><button class="primary" id="btnSyncGzAgora" ${d.executando?'disabled':''}>${d.executando?'Sincronizando...':'Sincronizar agora'}</button></div>
+    conteudo.innerHTML=`<div id="gzSyncPainel"><div class="dashboard-toolbar"><div><strong>Sincronização de vendas GZ</strong><span>Consulta sequencial e controlada. Automática às 00:00 (horário de Fortaleza). O painel acompanha o PostgreSQL sem recarregar a tela.</span></div><button class="primary" id="btnSyncGzAgora" ${d.executando?'disabled':''}>${d.executando?'Sincronizando...':'Sincronizar agora'}</button></div>
       <section class="dash-panel wide"><div class="prod-gz-vendas-resumo">
         <div class="prod-gz-highlight"><span>Monitorados</span><strong id="gzMon">${r.monitorados||0}</strong></div><div class="prod-gz-highlight"><span>Em dia</span><strong id="gzDia">${r.em_dia||0}</strong></div><div class="prod-gz-highlight"><span>Pendentes</span><strong id="gzPend">${r.pendentes||0}</strong></div><div class="prod-gz-highlight"><span>Inativos ignorados</span><strong id="gzInat">${r.inativos||0}</strong></div><div class="prod-gz-highlight"><span>Com erro</span><strong id="gzErr">${r.com_erro||0}</strong></div><div class="prod-gz-highlight"><span>Esperado até</span><strong id="gzEsperado">${escapeHtml(d.esperadoAte||'-')}</strong></div>
       </div></section>
       <section class="dash-panel wide" id="gzAndamento" style="display:${d.executando?'block':'none'}"><h3>Sincronização em andamento</h3><div class="prod-gz-vendas-resumo"><div class="prod-gz-highlight"><span>Progresso</span><strong id="gzProg">${indice}/${total} (${pct}%)</strong></div><div class="prod-gz-highlight"><span>Produto atual</span><strong id="gzAtual">${escapeHtml(prog.codigo||'-')}</strong></div><div class="prod-gz-highlight"><span>Tempo decorrido</span><strong id="gzTempoAtual">${d.executando?gzDuracao(prog.iniciadoEm,null):'-'}</strong></div><div class="prod-gz-highlight"><span>Intervalo API</span><strong>${Math.round((d.intervaloChamadasMs||1000)/1000)}s</strong></div></div><div style="height:8px;background:#e8edf5;border-radius:999px;overflow:hidden;margin-top:14px"><div id="gzBarra" style="height:100%;width:${pct}%;background:#2563eb;transition:width .35s ease"></div></div></section>
       <section class="dash-panel wide"><h3>Últimas execuções</h3><table class="dash-table"><thead><tr><th>Início</th><th>Fim</th><th>Duração</th><th>Tipo</th><th>Status</th><th>Processados</th><th>Erros</th><th>Ritmo</th></tr></thead><tbody id="gzExecBody">${gzExecRows(d.execucoes)}</tbody></table></section>
+      <section class="dash-panel wide"><h3>Diagnóstico de desempenho</h3><p class="muted">Ajuda a comparar execuções e identificar se a diferença de ritmo veio da resposta da GZ ou do intervalo de segurança.</p><table class="dash-table"><thead><tr><th>Execução</th><th>/produtos</th><th>/movimento</th><th>Média produtos</th><th>Média movimento</th><th>Média API</th><th>Pico API</th><th>Espera controlada</th></tr></thead><tbody id="gzDiagBody">${gzDiagRows(d.execucoes)}</tbody></table></section>
       <section class="dash-panel wide"><h3>Últimas ocorrências</h3><table class="dash-table"><thead><tr><th>Produto</th><th>Data</th><th>Tipo</th><th>Ocorrência</th></tr></thead><tbody id="gzOcorrBody">${gzOcorrRows(d.ocorrencias)}</tbody></table></section></div>`;
     const btn=$('btnSyncGzAgora');
     if(btn) btn.onclick=async()=>{if(!confirm('Executar a sincronização GZ agora?'))return;btn.disabled=true;btn.textContent='Iniciando...';try{await api('/api/produtos-gz/sincronizacao/executar',{method:'POST'});setTimeout(pollingConfigSincronizacao,500);}catch(e){alert(e.message);btn.disabled=false;btn.textContent='Sincronizar agora';}};

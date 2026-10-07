@@ -455,3 +455,13 @@ CREATE TABLE IF NOT EXISTS gz_sync_ocorrencias (
   codigo_produto VARCHAR(40), data_movimento DATE, tipo VARCHAR(30) NOT NULL,
   mensagem TEXT NOT NULL, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- V49 - métricas de diagnóstico da sincronização GZ
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS chamadas_produtos INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS chamadas_movimento INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS tempo_produtos_ms BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS tempo_movimento_ms BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS tempo_espera_ms BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS api_min_ms INTEGER;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS api_max_ms INTEGER;
+ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS api_media_ms INTEGER;

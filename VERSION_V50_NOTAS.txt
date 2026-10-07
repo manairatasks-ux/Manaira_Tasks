@@ -1,0 +1,13 @@
+V50 - SINCRONIZAÇÃO CONTROLADA DE 500 PRODUTOS
+
+Data: 07/10/2026
+
+Alterações desta versão:
+- Mantidos integralmente os 100 produtos monitorados da V49.
+- Adicionados 400 produtos ATIVOS do response(1).json, totalizando 500 produtos piloto.
+- Os 400 adicionais foram escolhidos entre produtos ATIVOS com estoque positivo, priorizando maior quantidade em estoque para aumentar a chance de itens com movimentação no teste.
+- Mantida a sincronização sequencial da V49, intervalo padrão de 1 segundo entre chamadas, até 3 tentativas e proteção por falhas consecutivas.
+- Mantido o início histórico em 01/10/2026 e o agendamento existente.
+- Nenhuma outra regra funcional foi alterada.
+
+Arquivo de conferência: AMOSTRA_500_PRODUTOS_V50.csv

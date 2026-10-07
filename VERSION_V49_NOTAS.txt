@@ -1,0 +1,12 @@
+V49 - Sincronização com diagnóstico
+Base: V48 - sincronização detalhada.
+
+Alterações:
+- sincronização automática padrão alterada para 00:00;
+- fuso horário explícito GZ_SYNC_TIMEZONE (padrão America/Fortaleza), evitando depender do fuso do servidor;
+- GZ_SYNC_HOUR e GZ_SYNC_MINUTE continuam configuráveis (padrão 00:00);
+- agendador verifica a janela a cada 30 segundos e executa uma única vez por dia;
+- métricas por execução: chamadas /produtos, chamadas /movimento-estoque, tempo médio por endpoint, média geral da API, menor/maior tempo e espera controlada;
+- novo quadro Diagnóstico de desempenho na Central de Sincronização;
+- mantém consultas sequenciais e intervalo padrão de 1 segundo;
+- não altera a amostra de 100 produtos desta fase de teste.
