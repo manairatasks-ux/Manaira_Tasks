@@ -10,6 +10,8 @@ router.get('/produtos',controller.listProducts);
 router.post('/produtos',controller.createProduct);
 router.put('/produtos/:id',controller.updateProduct);
 router.get('/estoque',controller.listStock);
+router.get('/estoque/relatorio.xlsx',controller.stockReportExcel);
+router.get('/estoque/relatorio.pdf',controller.stockReportPdf);
 router.get('/produtos/:id/estoque',controller.stockForProduct);
 router.post('/entradas',controller.entry);
 router.post('/saidas',controller.exit);

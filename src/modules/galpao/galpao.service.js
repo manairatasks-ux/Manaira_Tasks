@@ -38,6 +38,83 @@ async function listProducts(q){return model.listProducts({busca:text(q.busca)});
 async function createProduct(body){const codigo_barra=text(body.codigo_barra),descricao=text(body.descricao);if(!codigo_barra)fail('Código de barras é obrigatório.');if(!descricao)fail('Descrição é obrigatória.');try{return await model.createProduct({codigo_barra,descricao});}catch(e){if(e.code==='23505')fail('Já existe um produto com este código de barras.');throw e;}}
 async function updateProduct(id,body){const existente=await model.getProduct(id);if(!existente)fail('Produto não encontrado.',404);const codigo_barra=text(body.codigo_barra),descricao=text(body.descricao);if(!codigo_barra||!descricao)fail('Código de barras e descrição são obrigatórios.');try{return await model.updateProduct(id,{codigo_barra,descricao});}catch(e){if(e.code==='23505')fail('Já existe outro produto com este código de barras.');throw e;}}
 async function listStock(q){return model.listStock({busca:text(q.busca),validade:text(q.validade)});}
+
+async function stockReport(){
+  // Relatório completo agrupado por produto, preservando a discriminação dos lotes.
+  // A linha "TOTAL DO PRODUTO" só é exibida quando o item possui mais de um lote ativo.
+  // Produtos sem estoque continuam aparecendo com saldo zerado.
+  const linhas=await model.listStock({busca:'',validade:''});
+  const mapa=new Map();
+  let lotesAtivos=0,embalagens=0,unidades=0;
+
+  for(const item of linhas){
+    const produtoId=String(item.produto_id);
+    const qtd=Number(item.quantidade||0);
+    const total=Number(item.total_unidades||0);
+    const semEstoque=item.sem_estoque===true||item.sem_estoque==='true';
+
+    if(qtd>0)lotesAtivos++;
+    embalagens+=qtd;
+    unidades+=total;
+
+    if(!mapa.has(produtoId)){
+      mapa.set(produtoId,{
+        produto_id:item.produto_id,
+        codigo_barra:item.codigo_barra,
+        descricao:item.descricao,
+        lotes:[],
+        quantidade_total:0,
+        total_unidades:0,
+        sem_estoque:true
+      });
+    }
+
+    const ag=mapa.get(produtoId);
+    if(qtd>0 && !semEstoque){
+      ag.sem_estoque=false;
+      ag.quantidade_total+=qtd;
+      ag.total_unidades+=total;
+      ag.lotes.push({
+        validade:item.validade ? String(item.validade).slice(0,10) : null,
+        unidades_por_embalagem:Number(item.unidades_por_embalagem||0),
+        quantidade:qtd,
+        total_unidades:total,
+        sem_estoque:false
+      });
+    } else if(ag.lotes.length===0){
+      // Mantém uma linha sintética para itens sem estoque.
+      ag.lotes=[{
+        validade:null,
+        unidades_por_embalagem:Number(item.unidades_por_embalagem||0),
+        quantidade:0,
+        total_unidades:0,
+        sem_estoque:true
+      }];
+    }
+  }
+
+  const itens=[...mapa.values()].map(item=>{
+    const lotes=item.sem_estoque
+      ? item.lotes.slice(0,1)
+      : item.lotes.sort((a,b)=>{
+          const av=a.validade||'9999-12-31', bv=b.validade||'9999-12-31';
+          return av.localeCompare(bv) || Number(a.unidades_por_embalagem||0)-Number(b.unidades_por_embalagem||0);
+        });
+    return {
+      produto_id:item.produto_id,
+      codigo_barra:item.codigo_barra,
+      descricao:item.descricao,
+      lotes,
+      quantidade_total:item.sem_estoque?0:item.quantidade_total,
+      total_unidades:item.sem_estoque?0:item.total_unidades,
+      sem_estoque:item.sem_estoque,
+      mostrar_total:lotes.filter(l=>!l.sem_estoque && Number(l.quantidade||0)>0).length>1
+    };
+  }).sort((a,b)=>String(a.descricao||'').localeCompare(String(b.descricao||''),'pt-BR'));
+
+  const semEstoque=itens.filter(i=>i.sem_estoque).length;
+  return {itens,resumo:{produtos:itens.length,lotesAtivos,embalagens,unidades,semEstoque}};
+}
 async function stockForProduct(id){return model.stockForProduct(Number(id));}
 async function movement(tipo,body,user){
   const produtoId=Number(body.produto_id);if(!Number.isInteger(produtoId)||produtoId<=0)fail('Selecione um produto.');
@@ -74,4 +151,4 @@ async function correctValidity(body,user){
 }
 async function previewImport(file,user){if(!isPrincipal(user))fail('Somente o Administrador Principal pode importar o banco antigo do Galpão.',403);const parsed=await parseLegacy(file?.buffer);const atual=await model.hasData();return{arquivo:file.originalname,tamanho:file.size,possui_dados_atuais:Boolean(atual?.possui),produtos:parsed.produtos.length,estoque:parsed.estoque.length,entradas:parsed.entradas.length,saidas:parsed.saidas.length};}
 async function executeImport(file,body,user){if(!isPrincipal(user))fail('Somente o Administrador Principal pode importar o banco antigo do Galpão.',403);if(text(body.confirmacao)!=='IMPORTAR')fail('Confirmação inválida. Digite IMPORTAR para continuar.');const parsed=await parseLegacy(file?.buffer);return model.importLegacy({buffer:file.buffer,parsed,usuarioId:user.id,replaceExisting:String(body.substituir||'false')==='true',nomeArquivo:file.originalname});}
-module.exports={dashboard,listProducts,createProduct,updateProduct,listStock,stockForProduct,movement,history,reverseMovement,expiry,adjustmentStock,adjustmentHistory,adjustQuantity,correctValidity,previewImport,executeImport};
+module.exports={dashboard,listProducts,createProduct,updateProduct,listStock,stockReport,stockForProduct,movement,history,reverseMovement,expiry,adjustmentStock,adjustmentHistory,adjustQuantity,correctValidity,previewImport,executeImport};

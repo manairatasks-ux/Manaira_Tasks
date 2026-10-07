@@ -1,0 +1,12 @@
+PLATAFORMA MANAÍRA V56
+
+Módulo Galpão - relatórios do estoque atual
+
+- Adicionados botões Excel e PDF na tela Estoque do Galpão.
+- Os relatórios sempre exportam o estoque atual completo, independentemente dos filtros da tela.
+- Todos os produtos ativos do Galpão são incluídos.
+- Produtos sem estoque permanecem no relatório com Embalagens = 0 e Total unidades = 0.
+- Produtos com mais de um lote aparecem por lote, preservando validade e unidades por embalagem.
+- Excel em formato XLSX nativo, com cabeçalho, filtros e congelamento do cabeçalho.
+- PDF em A4 paisagem, paginado, com cabeçalho repetido e resumo geral.
+- Nenhuma alteração foi feita na lógica da sincronização GZ da V55 (janela 00:00-07:00).

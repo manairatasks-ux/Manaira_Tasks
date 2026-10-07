@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "55.0.0",
-  "description": "Plataforma Manaíra V55 - sincronização contínua de todos os produtos ativos entre 00:00 e 07:00",
+  "version": "56.0.0",
+  "description": "Plataforma Manaíra V56 - relatórios Excel/PDF do estoque atual do Galpão, mantendo sincronização V55",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",

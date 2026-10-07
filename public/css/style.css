@@ -5168,3 +5168,8 @@ td:last-child {
    V44 - Ajuste auditado de estoque
    ========================= */
 .galpao-adjust-alert{display:flex;flex-direction:column;gap:4px;padding:14px 16px;margin-bottom:14px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1e3a8a}.galpao-adjust-alert.compact{margin:0;padding:10px 12px}.galpao-adjust-search{margin-bottom:14px}.galpao-adjust-actions{display:flex;gap:7px;flex-wrap:wrap}.galpao-adjust-history{margin-top:18px}.galpao-adjust-modal{display:grid;gap:14px}.galpao-adjust-modal label{display:grid;gap:6px;font-weight:700}.galpao-adjust-modal input,.galpao-adjust-modal select,.galpao-adjust-modal textarea{width:100%;box-sizing:border-box}.galpao-adjust-product,.galpao-adjust-current{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--border,#e5e7eb);border-radius:12px}.galpao-adjust-current strong{font-size:20px}.galpao-adjust-diff{padding:10px 12px;border-radius:10px;background:rgba(127,127,127,.06)}.galpao-adjust-check{display:flex!important;grid-template-columns:none!important;flex-direction:row;align-items:center;gap:8px!important}.galpao-adjust-check input{width:auto!important}@media(max-width:760px){.galpao-adjust-actions{flex-direction:column}.galpao-adjust-actions button{width:100%}}
+
+/* V56 - Relatórios do estoque atual do Galpão */
+.galpao-stock-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.galpao-stock-actions button{min-width:72px}
+@media (max-width:720px){.galpao-stock-actions{width:100%;justify-content:stretch}.galpao-stock-actions button{flex:1}}

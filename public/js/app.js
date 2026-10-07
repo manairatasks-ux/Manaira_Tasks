@@ -114,6 +114,50 @@ function api(path, options = {}) {
   });
 }
 
+
+async function baixarArquivoAutenticado(path, nomeFallback) {
+  const res = await fetch(path, {
+    headers: {
+      ...(state.token ? { Authorization: `Bearer ${state.token}` } : {})
+    }
+  });
+
+  if (!res.ok) {
+    let mensagem = 'Não foi possível gerar o relatório.';
+    try {
+      const data = await res.json();
+      mensagem = data?.error || mensagem;
+    } catch (_) {}
+    throw new Error(mensagem);
+  }
+
+  const blob = await res.blob();
+  const cd = res.headers.get('content-disposition') || '';
+  const match = cd.match(/filename="?([^";]+)"?/i);
+  const nome = match?.[1] || nomeFallback;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nome;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+window.galpaoBaixarEstoque = async formato => {
+  const tipo = String(formato || '').toLowerCase();
+  const ext = tipo === 'pdf' ? 'pdf' : 'xlsx';
+  try {
+    setLoading(`Gerando relatório ${ext.toUpperCase()} do estoque...`);
+    await baixarArquivoAutenticado(`/api/galpao/estoque/relatorio.${ext}`, `estoque-galpao.${ext}`);
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    clearLoading();
+  }
+};
+
 function apiForm(path, formData, options = {}) {
   return fetch(path, {
     method: options.method || 'POST',
@@ -2382,12 +2426,30 @@ async function renderGalpaoEstoque(busca = '', validade = '') {
 
         </div>
 
-        <button
-          class="primary"
-          onclick="abrirGalpao('entrada')"
-        >
-          + Entrada
-        </button>
+        <div class="galpao-stock-actions">
+          <button
+            type="button"
+            onclick="galpaoBaixarEstoque('xlsx')"
+            title="Baixar todos os itens do estoque atual em Excel"
+          >
+            Excel
+          </button>
+
+          <button
+            type="button"
+            onclick="galpaoBaixarEstoque('pdf')"
+            title="Baixar todos os itens do estoque atual em PDF"
+          >
+            PDF
+          </button>
+
+          <button
+            class="primary"
+            onclick="abrirGalpao('entrada')"
+          >
+            + Entrada
+          </button>
+        </div>
 
       </div>
 
