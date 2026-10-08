@@ -1,0 +1,12 @@
+V59 — Pedidos ao Galpão (módulo adicional, somente leitura)
+- Card Pedidos ao Galpão ao lado do módulo Galpão.
+- Permissão própria 'pedidos_galpao', concedida em Administração > Usuários > Acessos.
+- Consulta GZ via Ponte /produtos/paginacao e estoque do Galpão em unidades.
+- Cálculo: loja estimada = estoque total GZ - estoque Galpão; % Galpão = Galpão / GZ * 100.
+- Comparações inválidas/sem saldo GZ aparecem sinalizadas e não são selecionáveis.
+- Filtro por porcentagem, pesquisa, seleção e quantidade manual.
+- PDF guia de separação com código, descrição, quantidade e campo de conferência.
+- Nenhuma operação de gravação ou movimentação de estoque no módulo novo.
+- Agendador automático de vendas permanece desligado no src/server.js.
+ATENÇÃO: validar em ambiente de testes se os campos 'codigoEan' e 'quantidadeEstoque' da Ponte GZ correspondem aos produtos do Galpão.
+O catálogo completo da GZ pode demorar alguns segundos/minutos conforme a Ponte.

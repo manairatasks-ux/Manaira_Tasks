@@ -7,7 +7,6 @@ const vendasSync=require('./modules/produtos-gz/vendas-sync.service');
 (async()=>{
   try{
     await initDb();
-    // app.listen(port,()=>{ console.log(`Plataforma Manaíra V57 rodando na porta ${port}`); vendasSync.iniciarAgendador(); });
     app.listen(port,()=>{ console.log(`Plataforma Manaíra V57 rodando na porta ${port}`); });
   }catch(err){
     console.error('Erro ao iniciar a aplicação:',err);

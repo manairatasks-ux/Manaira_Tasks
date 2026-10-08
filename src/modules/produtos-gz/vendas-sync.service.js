@@ -4,8 +4,8 @@ const catalogo = require('./catalogo.service');
 
 const INICIO = process.env.GZ_SYNC_START_DATE || '2026-10-01';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const INTERVALO_INICIAL_MS = Number(process.env.GZ_SYNC_INTERVAL_MS || 250);
-const INTERVALO_MIN_MS = Number(process.env.GZ_SYNC_INTERVAL_MIN_MS || 250);
+const INTERVALO_INICIAL_MS = Number(process.env.GZ_SYNC_INTERVAL_MS || 500);
+const INTERVALO_MIN_MS = Number(process.env.GZ_SYNC_INTERVAL_MIN_MS || 300);
 const INTERVALO_MAX_MS = Number(process.env.GZ_SYNC_INTERVAL_MAX_MS || 5000);
 const BACKOFF_MS = Number(process.env.GZ_SYNC_BACKOFF_MS || 10000);
 const LIMITE_FALHAS_CONSECUTIVAS = Number(process.env.GZ_SYNC_CIRCUIT_BREAKER || 5);

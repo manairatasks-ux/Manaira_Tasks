@@ -1,0 +1,1 @@
+V60: Pedidos ao Galpao consulta a rota /produtos por codigo de barras, sem usar /produtos/paginacao. Nenhuma movimentacao de estoque. Consultas com concorrencia limitada e cache de 3 minutos.

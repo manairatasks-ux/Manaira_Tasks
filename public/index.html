@@ -7,6 +7,7 @@
   <title>Plataforma Manaíra</title>
   <link rel="stylesheet" href="/css/style.css" />
   <link rel="stylesheet" href="/css/cartazes.css" />
+  <link rel="stylesheet" href="/css/pedidos-galpao.css" />
   <link rel="icon" type="image/png" href="/img/favicon.png">
 </head>
 
@@ -68,6 +69,7 @@
         <button class="nav-main" id="btnGalpaoImportar">⇧ Importar banco</button>
         <button class="nav-main" id="btnGalpaoAjustes">⚙ Ajuste de estoque</button>
       </div>
+      <div id="pedidosGalpaoMenu" class="module-menu hidden"><div class="module-menu-title">PEDIDOS AO GALPÃO</div><button class="nav-main" id="btnPedidosGalpao">▤ Sugestões e relatório</button></div>
       <div id="produtosGzMenu" class="module-menu hidden">
         <div class="module-menu-title">CONSULTA DE PRODUTOS</div>
         <button class="nav-main" id="btnProdutosGzConsulta">⌕ Consultar produto</button>
@@ -140,102 +142,37 @@
           <h2>Olá, <span id="homeUserName">usuário</span>.</h2>
           <p>Escolha um módulo para começar. Cada área agora funciona de forma independente.</p>
         </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
         <div class="module-grid">
           <button class="module-card" id="cardAtividades" type="button">
-            <span class="module-icon">✓</span>
-            <span class="module-card-copy">
-              <strong>Atividades</strong>
-              <small>Dashboard, setores, grupos, tarefas e acompanhamento.</small>
-            </span>
-            <span class="module-arrow">→</span>
+            <span class="module-icon">✓</span><span class="module-card-copy"><strong>Atividades</strong><small>Dashboard, setores, grupos, tarefas e acompanhamento.</small></span><span class="module-arrow">→</span>
           </button>
-
           <button class="module-card" id="cardOS" type="button">
-            <span class="module-icon">🛠</span>
-            <span class="module-card-copy">
-              <strong>Ordem de Serviço</strong>
-              <small>Recebimento, execução, pendências e histórico de OS.</small>
-            </span>
-            <span class="module-arrow">→</span>
+            <span class="module-icon">🛠</span><span class="module-card-copy"><strong>Ordem de Serviço</strong><small>Recebimento, execução, pendências e histórico de OS.</small></span><span class="module-arrow">→</span>
           </button>
-
-          <button class="module-card" id="cardProdutosGz" type="button">
-            <span class="module-icon">⌕</span>
-            <span class="module-card-copy">
-              <strong>Consulta de Produtos</strong>
-              <small>Preço, custo, margem e estoque direto da GZ, com acesso pelo celular.</small>
-            </span>
-            <span class="module-arrow">→</span>
-          </button>
-
-          <button class="module-card" id="cardCartazes" type="button">
-            <span class="module-icon">▧</span>
-            <span class="module-card-copy">
-              <strong>Cartazes</strong>
-              <small>Criação rápida, edição e fila de plaquinhas usando os preços da GZ.</small>
-            </span>
-            <span class="module-arrow">→</span>
-          </button>
-
-          <button class="module-card" id="cardRH" type="button">
-            <span class="module-icon">👥</span>
-            <span class="module-card-copy">
-              <strong>Recursos Humanos</strong>
-              <small>Chamados, pedidos e acompanhamento das solicitações dos colaboradores.</small>
-            </span>
-            <span class="module-arrow">→</span>
-          </button>
-
-          <button class="module-card" id="cardGalpao" type="button">
-            <span class="module-icon">🏬</span>
-            <span class="module-card-copy">
-              <strong>Galpão</strong>
-              <small>Produtos, estoque por validade, entradas, saídas e migração do sistema antigo.</small>
-            </span>
-            <span class="module-arrow">→</span>
-          </button>
-
-          <button class="module-card" id="cardAlmoxarifado" type="button">
-            <span class="module-icon">▣</span>
-            <span class="module-card-copy">
-              <strong>Almoxarifado</strong>
-              <small>Controle simples de estoque, entradas, saídas e histórico.</small>
-            </span>
-            <span class="module-arrow">→</span>
-          </button>
-
           <button class="module-card" id="cardAdmin" type="button">
-            <span class="module-icon">⚙</span>
-            <span class="module-card-copy">
-              <strong>Administração</strong>
-              <small>Usuários, hierarquia, setores, proprietários e permissões.</small>
-            </span>
-            <span class="module-arrow">→</span>
+            <span class="module-icon">⚙</span><span class="module-card-copy"><strong>Administração</strong><small>Usuários, hierarquia, setores, proprietários e permissões.</small></span><span class="module-arrow">→</span>
+          </button>
+          <button class="module-card" id="cardAlmoxarifado" type="button">
+            <span class="module-icon">▣</span><span class="module-card-copy"><strong>Almoxarifado</strong><small>Controle simples de estoque, entradas, saídas e histórico.</small></span><span class="module-arrow">→</span>
+          </button>
+          <button class="module-card" id="cardGalpao" type="button">
+            <span class="module-icon">🏬</span><span class="module-card-copy"><strong>Galpão</strong><small>Produtos, estoque por validade, entradas, saídas e migração do sistema antigo.</small></span><span class="module-arrow">→</span>
+          </button>
+          <button class="module-card" id="cardPedidosGalpao" type="button"><span class="module-icon">📋</span><span class="module-card-copy"><strong>Pedidos ao Galpão</strong><small>Compare estoques, selecione produtos e gere um guia de reposição em PDF.</small></span><span class="module-arrow">→</span></button>
+          <button class="module-card" id="cardRH" type="button">
+            <span class="module-icon">👥</span><span class="module-card-copy"><strong>Recursos Humanos</strong><small>Chamados, pedidos e acompanhamento das solicitações dos colaboradores.</small></span><span class="module-arrow">→</span>
+          </button>
+          <button class="module-card" id="cardProdutosGz" type="button">
+            <span class="module-icon">⌕</span><span class="module-card-copy"><strong>Consulta de Produtos</strong><small>Preço, custo, margem e estoque direto da GZ, com acesso pelo celular.</small></span><span class="module-arrow">→</span>
+          </button>
+          <button class="module-card" id="cardCartazes" type="button">
+            <span class="module-icon">▧</span><span class="module-card-copy"><strong>Cartazes</strong><small>Criação rápida, edição e fila de plaquinhas usando os preços da GZ.</small></span><span class="module-arrow">→</span>
           </button>
 
           <div class="module-card module-card-disabled">
-            <span class="module-icon">＋</span>
-            <span class="module-card-copy">
-              <strong>Novos módulos</strong>
-              <small>Estrutura preparada para expansão da plataforma.</small>
-            </span>
-            <span class="module-badge">Em breve</span>
+            <span class="module-icon">＋</span><span class="module-card-copy"><strong>Novos módulos</strong><small>Estrutura preparada para expansão da plataforma.</small></span><span class="module-badge">Em breve</span>
           </div>
         </div>
-
       </section>
       <section id="dashboard" class="dashboard hidden"></section>
       <section id="board" class="board hidden"></section>
@@ -244,6 +181,7 @@
       <section id="configPanel" class="dashboard hidden"></section>
       <section id="almoxPanel" class="dashboard hidden"></section>
       <section id="galpaoPanel" class="dashboard hidden"></section>
+      <section id="pedidosGalpaoPanel" class="dashboard hidden"></section>
       <section id="rhPanel" class="dashboard hidden"></section>
       <section id="produtosGzPanel" class="dashboard hidden"></section>
       <section id="cartazesPanel" class="dashboard hidden"></section>
@@ -262,6 +200,7 @@
     </div>
   </div>
 
+  <script src="/js/pedidos-galpao.js"></script>
   <script src="/js/app.js"></script>
 </body>
 
