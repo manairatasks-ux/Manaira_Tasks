@@ -1766,64 +1766,90 @@ async function renderAlmoxDashboard() {
 async function renderAlmoxEstoque(busca = '') {
   const panel = $('almoxPanel');
   if (!panel) return;
-  panel.innerHTML = '<div class="almox-loading">Carregando estoque...</div>';
+  panel.innerHTML = '<div class="almox-loading">Carregando produtos...</div>';
   try {
-    const itens = await carregarAlmoxItens(busca);
+    const produtos = await api(`/api/almoxarifado/produtos?busca=${encodeURIComponent(busca)}`);
+    state.almoxProdutos = produtos;
     panel.innerHTML = `
       ${almoxFluxoBar('estoque')}
       <div class="dashboard-toolbar almox-toolbar">
-        <div><strong>Estoque atual</strong><span>Quantidade só muda por entrada ou saída.</span></div>
-        <button class="primary" onclick="almoxItemForm()">+ Novo item</button>
+        <div><strong>Estoque por produto</strong><span>Expanda um produto para consultar os saldos por variação. Movimentações preservam o histórico.</span></div>
+        <button class="primary" onclick="almoxProdutoForm()">+ Novo produto</button>
       </div>
-      <div class="almox-search"><input id="almoxBuscaItem" placeholder="Buscar item, categoria ou patrimônio..." value="${escapeHtml(busca)}"><button id="almoxBuscarBtn">Buscar</button></div>
+      <div class="almox-search"><input id="almoxBuscaItem" placeholder="Buscar produto, categoria ou variação..." value="${escapeHtml(busca)}"><button id="almoxBuscarBtn">Buscar</button></div>
       <section class="dash-panel wide almox-table-wrap">
-        <table class="dash-table almox-table">
-          <thead><tr><th>Item</th><th>Categoria</th><th>Patrimônio</th><th>Quantidade</th><th>Unidade</th><th></th></tr></thead>
-          <tbody>${itens.map(i => `<tr>
-            <td><strong>${escapeHtml(i.descricao)}</strong>${i.observacao ? `<small class="almox-cell-note">${escapeHtml(i.observacao)}</small>` : ''}</td>
-            <td>${escapeHtml(i.categoria || '-')}</td>
-            <td>${escapeHtml(i.codigo_patrimonio || '-')}</td>
-            <td><span class="almox-stock-number ${Number(i.quantidade_atual) === 0 ? 'zero' : ''}">${Number(i.quantidade_atual)}</span></td>
-            <td>${escapeHtml(i.unidade || 'UND')}</td>
-            <td><button onclick="almoxItemForm(${i.id})">Editar</button></td>
-          </tr>`).join('') || '<tr><td colspan="6" class="empty">Nenhum item cadastrado.</td></tr>'}</tbody>
-        </table>
+        <table class="dash-table almox-table"><thead><tr><th>Produto / variações</th><th>Categoria</th><th>Saldo total</th><th>Unidade</th><th>Ações</th></tr></thead>
+        <tbody>${produtos.map(p => `<tr>
+          <td><details class="almox-product-details"><summary><strong>${escapeHtml(p.descricao)}</strong> <small>(${p.variacoes.length} ${p.variacoes.length===1?'variação':'variações'})</small></summary>
+          <div class="almox-variants-list">${p.variacoes.map(v=>`<div><span>${escapeHtml(v.rotulo)}</span><strong>${Number(v.quantidade_atual)} ${escapeHtml(p.unidade)}</strong></div>`).join('')}</div></details></td>
+          <td>${escapeHtml(p.categoria||'-')}</td>
+          <td><span class="almox-stock-number ${Number(p.quantidade_atual)===0?'zero':''}">${Number(p.quantidade_atual)}</span></td>
+          <td>${escapeHtml(p.unidade||'UND')}</td>
+          <td><button onclick="almoxProdutoForm(${p.id})">Editar / variações</button></td>
+        </tr>`).join('')||'<tr><td colspan="5" class="empty">Nenhum produto cadastrado. Se você ainda não migrou os itens antigos, execute primeiro o migrador V62.</td></tr>'}</tbody></table>
       </section>`;
-    $('almoxBuscarBtn').onclick = () => renderAlmoxEstoque($('almoxBuscaItem').value.trim());
-    $('almoxBuscaItem').onkeydown = e => { if (e.key === 'Enter') renderAlmoxEstoque(e.target.value.trim()); };
-  } catch (err) {
-    panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
-  }
+    $('almoxBuscarBtn').onclick=()=>renderAlmoxEstoque($('almoxBuscaItem').value.trim());
+    $('almoxBuscaItem').onkeydown=e=>{if(e.key==='Enter')renderAlmoxEstoque(e.target.value.trim());};
+  } catch(err) {panel.innerHTML=`<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;}
 }
 
-window.almoxItemForm = async (id = null) => {
-  if (!state.almoxItens.length) await carregarAlmoxItens();
-  const item = id ? state.almoxItens.find(i => Number(i.id) === Number(id)) : null;
-  const categorias = ['EPI', 'Fardamento', 'Eletrônicos', 'Equipamentos', 'Ferramentas', 'Material de escritório', 'Material de limpeza', 'Utensílios', 'Outros'];
-  openModal(item ? 'Editar item' : 'Novo item', `
-    <form id="almoxItemForm">
+window.almoxAdicionarLinhaVariacao = (tipo='Tamanho',valor='',quantidade='0') => {
+  const container=$('almoxLinhasVariacoes');
+  if(!container)return;
+  const div=document.createElement('div');
+  div.className='almox-variant-form-row';
+  div.innerHTML=`<input class="almox-variant-type" placeholder="Tipo: Tamanho, Cor..." value="${escapeHtml(tipo)}" aria-label="Tipo de variação">
+    <input class="almox-variant-label" placeholder="Ex.: 35 / Azul" value="${escapeHtml(valor)}" required aria-label="Variação">
+    <input class="almox-variant-qty" type="number" min="0" step="1" value="${escapeHtml(quantidade)}" required aria-label="Quantidade inicial">
+    <button type="button" title="Remover linha">×</button>`;
+  div.querySelector('button').onclick=()=>div.remove();
+  container.appendChild(div);
+};
+
+window.almoxProdutoForm = async (id=null) => {
+  const produto=id ? (state.almoxProdutos||[]).find(p=>Number(p.id)===Number(id)):null;
+  const categorias=['EPI','Fardamento','Manutenção','Equipamentos','Ferramentas','Material de limpeza','Outros'];
+  openModal(produto?'Editar produto e variações':'Novo produto', `
+    <form id="almoxProdutoForm">
       <div class="form-grid">
-        <div class="full"><label>Descrição</label><input name="descricao" value="${escapeHtml(item?.descricao || '')}" placeholder="Ex.: Bota de Segurança em couro preta Nº 40" required></div>
-        <div><label>Categoria</label><input name="categoria" list="almoxCategorias" value="${escapeHtml(item?.categoria || '')}" placeholder="Ex.: EPI"><datalist id="almoxCategorias">${categorias.map(c => `<option value="${c}">`).join('')}</datalist></div>
-        <div><label>Unidade</label><select name="unidade">${['UND', 'PAR', 'CX', 'PCT', 'KIT', 'M', 'KG'].map(u => `<option value="${u}" ${(item?.unidade || 'UND') === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
-        <div class="full"><label>Código do patrimônio <small>(opcional)</small></label><input name="codigo_patrimonio" value="${escapeHtml(item?.codigo_patrimonio || '')}" placeholder="Deixe em branco quando não houver"></div>
-        ${item ? '' : '<div><label>Quantidade inicial</label><input name="quantidade_inicial" type="number" min="0" step="1" value="0"></div>'}
-        <div class="full"><label>Observação <small>(opcional)</small></label><textarea name="observacao" rows="3">${escapeHtml(item?.observacao || '')}</textarea></div>
+        <div class="full"><label>Nome do produto principal</label><input name="descricao" value="${escapeHtml(produto?.descricao||'')}" placeholder="Ex.: Botina Branca" required maxlength="180"></div>
+        <div><label>Categoria</label><input name="categoria" value="${escapeHtml(produto?.categoria||'')}" list="almoxCategoriasV62" required><datalist id="almoxCategoriasV62">${categorias.map(c=>`<option value="${c}">`).join('')}</datalist></div>
+        <div><label>Unidade</label><select name="unidade">${['UND','PAR','CX','PCT','KIT','M','KG'].map(u=>`<option value="${u}" ${(produto?.unidade||'UND')===u?'selected':''}>${u}</option>`).join('')}</select></div>
+        <div class="full"><label>Observação</label><textarea name="observacao">${escapeHtml(produto?.observacao||'')}</textarea></div>
       </div>
-      ${item ? '<p class="hint">A quantidade atual não é editada aqui. Use Entrada ou Saída para manter o histórico correto.</p>' : ''}
-      <div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Salvar item</button></div>
+      <div class="almox-variant-header"><strong>${produto?'Adicionar novas variações':'Variações do produto'}</strong><button type="button" id="almoxAddVariant">+ Adicionar variação</button></div>
+      ${produto?`<p class="hint">Variações já cadastradas: ${produto.variacoes.map(v=>escapeHtml(v.rotulo)).join(', ')}. Para preservar o histórico, elas não são excluídas neste formulário.</p>`:''}
+      <div class="almox-variant-columns"><span>Tipo</span><span>Valor / Tamanho</span><span>Saldo inicial</span><span></span></div>
+      <div id="almoxLinhasVariacoes"></div>
+      <p class="hint">Produto sem tamanho/cor: use uma variação "Padrão". O saldo inicial cria uma entrada registrada no histórico; novos saldos não podem ser editados diretamente.</p>
+      <div class="modal-actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Salvar produto</button></div>
     </form>`);
-  $('almoxItemForm').onsubmit = async e => {
+  $('almoxAddVariant').onclick=()=>almoxAdicionarLinhaVariacao();
+  if(!produto)almoxAdicionarLinhaVariacao('Padrão','Padrão','0');
+  $('almoxProdutoForm').onsubmit=async e=>{
     e.preventDefault();
-    const data = Object.fromEntries(new FormData(e.target));
-    const btn = e.target.querySelector('button[type="submit"]');
-    btn.disabled = true; btn.textContent = 'Salvando...';
+    const form=e.target;
+    const dados=Object.fromEntries(new FormData(form));
+    const variacoes=[...form.querySelectorAll('.almox-variant-form-row')].map(row=>({
+      tipo:row.querySelector('.almox-variant-type').value.trim(),
+      rotulo:row.querySelector('.almox-variant-label').value.trim(),
+      quantidade_inicial:row.querySelector('.almox-variant-qty').value
+    }));
+    if(!produto && variacoes.length===0)return alert('Adicione pelo menos uma variação. Para produto simples, use Padrão.');
+    if(variacoes.some(v=>!v.rotulo))return alert('Informe o valor de cada variação.');
+    const btn=form.querySelector('[type="submit"]');btn.disabled=true;
     try {
-      await api(item ? `/api/almoxarifado/itens/${item.id}` : '/api/almoxarifado/itens', { method: item ? 'PUT' : 'POST', body: JSON.stringify(data) });
-      closeModal();
-      await carregarAlmoxItens();
-      renderAlmoxEstoque();
-    } catch (err) { alert(err.message); btn.disabled = false; btn.textContent = 'Salvar item'; }
+      if(produto){
+        // Atualiza os dados principais e insere as variações novas.
+        // Confirme antes de salvar para não adicionar variações por engano.
+        if(variacoes.length && !confirm(`Adicionar ${variacoes.length} nova(s) variação(ões) a este produto?`))return;
+        await api(`/api/almoxarifado/produtos/${produto.id}`,{method:'PUT',body:JSON.stringify(dados)});
+        for(const v of variacoes)await api(`/api/almoxarifado/produtos/${produto.id}/variacoes`,{method:'POST',body:JSON.stringify(v)});
+      }else{
+        await api('/api/almoxarifado/produtos',{method:'POST',body:JSON.stringify({...dados,variacoes})});
+      }
+      closeModal();await renderAlmoxEstoque();
+    }catch(err){alert(err.message);}finally{btn.disabled=false;}
   };
 };
 
@@ -1831,6 +1857,7 @@ async function renderAlmoxMovimento(tipo) {
   const panel = $('almoxPanel');
   if (!panel) return;
   try {
+    const produtos = await api('/api/almoxarifado/produtos');
     await carregarAlmoxItens();
     const saida = tipo === 'SAIDA';
     panel.innerHTML = `
@@ -1838,8 +1865,8 @@ async function renderAlmoxMovimento(tipo) {
       <div class="almox-form-shell">
         <div class="almox-form-head"><span class="almox-form-icon">${saida ? '−' : '+'}</span><div><strong>${saida ? 'Registrar saída' : 'Registrar entrada'}</strong><small>${saida ? 'Informe o material que foi entregue.' : 'Informe o material que chegou ao almoxarifado.'}</small></div></div>
         <form id="almoxMovForm" class="almox-movement-form">
-          <label>Item</label>
-          <select name="item_id" required><option value="">Selecione o item</option>${state.almoxItens.map(i => `<option value="${i.id}">${escapeHtml(i.descricao)} — saldo ${Number(i.quantidade_atual)} ${escapeHtml(i.unidade)}</option>`).join('')}</select>
+          <label>Produto / variação</label>
+          <select name="item_id" required><option value="">Selecione o produto e a variação</option>${produtos.map(p=>`<optgroup label="${escapeHtml(p.descricao)}">${p.variacoes.map(v=>`<option value="${v.item_id}">${escapeHtml(v.rotulo)} — saldo ${Number(v.quantidade_atual)} ${escapeHtml(p.unidade)}</option>`).join('')}</optgroup>`).join('')}</select>
           <label>Quantidade</label><input name="quantidade" type="number" min="1" step="1" value="1" required>
           ${saida ? '<label>Destino</label><input name="destino" placeholder="Ex.: Açougue, RH, Frente de Loja"><label>Responsável</label><input name="responsavel" placeholder="Nome de quem recebeu (opcional)">' : ''}
           <label>Observação <small>(opcional)</small></label><textarea name="observacao" rows="3" placeholder="Alguma informação importante sobre esta movimentação"></textarea>
@@ -1858,9 +1885,9 @@ async function renderAlmoxMovimento(tipo) {
         e.target.reset();
         msg.textContent = saida ? 'Saída registrada com sucesso.' : 'Entrada registrada com sucesso.';
         msg.className = 'almox-form-msg success';
-        await carregarAlmoxItens();
+        const produtosAtualizados = await api('/api/almoxarifado/produtos');
         const select = e.target.querySelector('[name="item_id"]');
-        select.innerHTML = '<option value="">Selecione o item</option>' + state.almoxItens.map(i => `<option value="${i.id}">${escapeHtml(i.descricao)} — saldo ${Number(i.quantidade_atual)} ${escapeHtml(i.unidade)}</option>`).join('');
+        select.innerHTML = '<option value="">Selecione o item</option>' + produtosAtualizados.map(p=>`<optgroup label="${escapeHtml(p.descricao)}">${p.variacoes.map(v=>`<option value="${v.item_id}">${escapeHtml(v.rotulo)} — saldo ${Number(v.quantidade_atual)} ${escapeHtml(p.unidade)}</option>`).join('')}</optgroup>`).join('');
       } catch (err) {
         msg.textContent = err.message; msg.className = 'almox-form-msg error';
       } finally { btn.disabled = false; btn.textContent = saida ? 'Confirmar saída' : 'Confirmar entrada'; }

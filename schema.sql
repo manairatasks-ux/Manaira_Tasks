@@ -241,6 +241,32 @@ CREATE INDEX IF NOT EXISTS idx_almox_mov_item ON almox_movimentacoes(item_id);
 CREATE INDEX IF NOT EXISTS idx_almox_mov_tipo ON almox_movimentacoes(tipo);
 CREATE INDEX IF NOT EXISTS idx_almox_mov_data ON almox_movimentacoes(criado_em DESC);
 
+
+-- V62: catálogo único com variações. O item legado permanece como fonte do saldo
+-- e das movimentações; cada variação aponta para exatamente um item existente.
+CREATE TABLE IF NOT EXISTS almox_produtos (
+ id SERIAL PRIMARY KEY,
+ descricao VARCHAR(180) NOT NULL,
+ categoria VARCHAR(100),
+ unidade VARCHAR(20) NOT NULL DEFAULT 'UND',
+ observacao TEXT,
+ ativo BOOLEAN NOT NULL DEFAULT TRUE,
+ criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ atualizado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_almox_produtos_nome_categoria
+ ON almox_produtos (LOWER(TRIM(descricao)), LOWER(TRIM(COALESCE(categoria,''))));
+CREATE TABLE IF NOT EXISTS almox_variacoes (
+ id SERIAL PRIMARY KEY,
+ produto_id INTEGER NOT NULL REFERENCES almox_produtos(id) ON DELETE RESTRICT,
+ item_id INTEGER NOT NULL UNIQUE REFERENCES almox_itens(id) ON DELETE RESTRICT,
+ atributos JSONB NOT NULL DEFAULT '{}'::jsonb,
+ rotulo VARCHAR(160) NOT NULL DEFAULT 'Padrão',
+ criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ UNIQUE(produto_id, rotulo)
+);
+CREATE INDEX IF NOT EXISTS idx_almox_variacoes_produto ON almox_variacoes(produto_id);
+
 -- V16: módulo Galpão - migração do antigo sistema Python/SQLite
 CREATE TABLE IF NOT EXISTS galpao_produtos (
   id SERIAL PRIMARY KEY,

@@ -5173,3 +5173,14 @@ td:last-child {
 .galpao-stock-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .galpao-stock-actions button{min-width:72px}
 @media (max-width:720px){.galpao-stock-actions{width:100%;justify-content:stretch}.galpao-stock-actions button{flex:1}}
+
+/* V62: variações do almoxarifado */
+.almox-product-details summary{cursor:pointer;list-style:revert;padding:5px 0}
+.almox-product-details summary small{color:#66788d;font-weight:400;margin-left:5px}
+.almox-variants-list{padding:9px 4px 3px 18px;max-width:420px}
+.almox-variants-list>div{display:flex;justify-content:space-between;gap:15px;border-bottom:1px solid #e0e7f0;padding:7px}
+.almox-variant-header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:14px 0 7px}
+.almox-variant-columns,.almox-variant-form-row{display:grid;grid-template-columns:1fr 1fr 100px 32px;gap:7px;margin:6px 0;align-items:center}
+.almox-variant-columns{font-size:12px;color:#6a7280}
+.almox-variant-form-row input{min-width:0;width:100%;box-sizing:border-box}
+@media(max-width:560px){.almox-variant-columns{display:none}.almox-variant-form-row{grid-template-columns:1fr 1fr;}.almox-variant-form-row input:nth-child(3){grid-column:1}.almox-variant-form-row button{grid-column:2}}

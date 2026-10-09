@@ -1,0 +1,532 @@
+{
+  "modo": "SIMULAR",
+  "em": "2026-10-09T18:05:36.563Z",
+  "itens_nao_mapeados": 48,
+  "saldo_nao_mapeado": 561,
+  "produtos": [
+    {
+      "descricao": "Calça Moletom Masculina",
+      "categoria": "Fardamento",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Calça Moletom Masculina",
+          "rotulo": "M",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 4,
+          "saldo": 108
+        },
+        {
+          "nome": "Calça Moletom Masculina",
+          "rotulo": "G",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 5,
+          "saldo": 44
+        },
+        {
+          "nome": "Calça Moletom Masculina",
+          "rotulo": "G1",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 6,
+          "saldo": 1
+        }
+      ]
+    },
+    {
+      "descricao": "Calça Moletom Feminina",
+      "categoria": "Fardamento",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Calça Moletom Feminina",
+          "rotulo": "P",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 7,
+          "saldo": 22
+        },
+        {
+          "nome": "Calça Moletom Feminina",
+          "rotulo": "M",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 8,
+          "saldo": 27
+        },
+        {
+          "nome": "Calça Moletom Feminina",
+          "rotulo": "G",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 9,
+          "saldo": 17
+        },
+        {
+          "nome": "Calça Moletom Feminina",
+          "rotulo": "GG",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 10,
+          "saldo": 13
+        }
+      ]
+    },
+    {
+      "descricao": "Casaco Moletom",
+      "categoria": "Fardamento",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Casaco Moletom",
+          "rotulo": "P",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 11,
+          "saldo": 15
+        },
+        {
+          "nome": "Casaco Moletom",
+          "rotulo": "M",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 12,
+          "saldo": 33
+        },
+        {
+          "nome": "Casaco Moletom",
+          "rotulo": "G",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 13,
+          "saldo": 43
+        },
+        {
+          "nome": "Casaco Moletom",
+          "rotulo": "GG",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 14,
+          "saldo": 24
+        },
+        {
+          "nome": "Casaco Moletom",
+          "rotulo": "G1",
+          "tipo": "Tamanho",
+          "categoria": "Fardamento",
+          "unidade": "UND",
+          "item_id": 15,
+          "saldo": 5
+        }
+      ]
+    },
+    {
+      "descricao": "Ventilador Gran Turbo",
+      "categoria": "Equipamentos",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Ventilador Gran Turbo",
+          "rotulo": "Novo",
+          "tipo": "Condição",
+          "categoria": "Equipamentos",
+          "unidade": "UND",
+          "item_id": 16,
+          "saldo": 3
+        },
+        {
+          "nome": "Ventilador Gran Turbo",
+          "rotulo": "Usado",
+          "tipo": "Condição",
+          "categoria": "Equipamentos",
+          "unidade": "UND",
+          "item_id": 17,
+          "saldo": 1
+        }
+      ]
+    },
+    {
+      "descricao": "Japona Térmica Azul",
+      "categoria": "EPI",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Japona Térmica Azul",
+          "rotulo": "M",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 19,
+          "saldo": 10
+        },
+        {
+          "nome": "Japona Térmica Azul",
+          "rotulo": "G",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 20,
+          "saldo": 11
+        },
+        {
+          "nome": "Japona Térmica Azul",
+          "rotulo": "GG",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 21,
+          "saldo": 14
+        }
+      ]
+    },
+    {
+      "descricao": "Calça Térmica Azul",
+      "categoria": "EPI",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Calça Térmica Azul",
+          "rotulo": "P",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 22,
+          "saldo": 3
+        },
+        {
+          "nome": "Calça Térmica Azul",
+          "rotulo": "M",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 23,
+          "saldo": 10
+        },
+        {
+          "nome": "Calça Térmica Azul",
+          "rotulo": "G",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 24,
+          "saldo": 18
+        }
+      ]
+    },
+    {
+      "descricao": "Gás Refrigerante R-22",
+      "categoria": "Manutenção",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Gás Refrigerante R-22",
+          "rotulo": "Padrão",
+          "tipo": "Padrão",
+          "categoria": "Manutenção",
+          "unidade": "UND",
+          "item_id": 25,
+          "saldo": 2
+        }
+      ]
+    },
+    {
+      "descricao": "Gás Refrigerante R-134a",
+      "categoria": "Manutenção",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Gás Refrigerante R-134a",
+          "rotulo": "Padrão",
+          "tipo": "Padrão",
+          "categoria": "Manutenção",
+          "unidade": "UND",
+          "item_id": 26,
+          "saldo": 3
+        }
+      ]
+    },
+    {
+      "descricao": "Gás Refrigerante R-404a",
+      "categoria": "Manutenção",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Gás Refrigerante R-404a",
+          "rotulo": "Padrão",
+          "tipo": "Padrão",
+          "categoria": "Manutenção",
+          "unidade": "UND",
+          "item_id": 27,
+          "saldo": 8
+        }
+      ]
+    },
+    {
+      "descricao": "Gás Refrigerante R-410a",
+      "categoria": "Manutenção",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Gás Refrigerante R-410a",
+          "rotulo": "Padrão",
+          "tipo": "Padrão",
+          "categoria": "Manutenção",
+          "unidade": "UND",
+          "item_id": 28,
+          "saldo": 2
+        }
+      ]
+    },
+    {
+      "descricao": "Calça Térmica Branca",
+      "categoria": "EPI",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Calça Térmica Branca",
+          "rotulo": "P",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 30,
+          "saldo": 4
+        },
+        {
+          "nome": "Calça Térmica Branca",
+          "rotulo": "M",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 31,
+          "saldo": 4
+        },
+        {
+          "nome": "Calça Térmica Branca",
+          "rotulo": "G",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 32,
+          "saldo": 1
+        },
+        {
+          "nome": "Calça Térmica Branca",
+          "rotulo": "GG",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 33,
+          "saldo": 11
+        },
+        {
+          "nome": "Calça Térmica Branca",
+          "rotulo": "XGG",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 34,
+          "saldo": 5
+        }
+      ]
+    },
+    {
+      "descricao": "Botina Preta",
+      "categoria": "EPI",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Botina Preta",
+          "rotulo": "36",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 35,
+          "saldo": 9
+        },
+        {
+          "nome": "Botina Preta",
+          "rotulo": "37",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 36,
+          "saldo": 13
+        },
+        {
+          "nome": "Botina Preta",
+          "rotulo": "38",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 37,
+          "saldo": 7
+        },
+        {
+          "nome": "Botina Preta",
+          "rotulo": "39",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 38,
+          "saldo": 11
+        },
+        {
+          "nome": "Botina Preta",
+          "rotulo": "40",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 39,
+          "saldo": 1
+        },
+        {
+          "nome": "Botina Preta",
+          "rotulo": "41",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 40,
+          "saldo": 5
+        },
+        {
+          "nome": "Botina Preta",
+          "rotulo": "42",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 41,
+          "saldo": 4
+        },
+        {
+          "nome": "Botina Preta",
+          "rotulo": "43",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 42,
+          "saldo": 15
+        },
+        {
+          "nome": "Botina Preta",
+          "rotulo": "44",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 43,
+          "saldo": 7
+        },
+        {
+          "nome": "Botina Preta",
+          "rotulo": "46",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 44,
+          "saldo": 2
+        }
+      ]
+    },
+    {
+      "descricao": "Botina Branca",
+      "categoria": "EPI",
+      "unidade": "UND",
+      "variacoes": [
+        {
+          "nome": "Botina Branca",
+          "rotulo": "35",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 45,
+          "saldo": 5
+        },
+        {
+          "nome": "Botina Branca",
+          "rotulo": "37",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 46,
+          "saldo": 5
+        },
+        {
+          "nome": "Botina Branca",
+          "rotulo": "39",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 47,
+          "saldo": 3
+        },
+        {
+          "nome": "Botina Branca",
+          "rotulo": "41",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 48,
+          "saldo": 2
+        },
+        {
+          "nome": "Botina Branca",
+          "rotulo": "42",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 49,
+          "saldo": 3
+        },
+        {
+          "nome": "Botina Branca",
+          "rotulo": "43",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 50,
+          "saldo": 1
+        },
+        {
+          "nome": "Botina Branca",
+          "rotulo": "44",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 51,
+          "saldo": 3
+        },
+        {
+          "nome": "Botina Branca",
+          "rotulo": "45",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 52,
+          "saldo": 2
+        },
+        {
+          "nome": "Botina Branca",
+          "rotulo": "46",
+          "tipo": "Tamanho",
+          "categoria": "EPI",
+          "unidade": "UND",
+          "item_id": 53,
+          "saldo": 1
+        }
+      ]
+    }
+  ],
+  "ambiguidades": []
+}

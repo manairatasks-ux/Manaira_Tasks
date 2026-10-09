@@ -68,4 +68,30 @@ async function movement(tipo, body, user) {
 
 async function history(query) { return model.history({ tipo: text(query.tipo).toUpperCase(), busca: text(query.busca), limite: query.limite }); }
 
-module.exports = { dashboard, listItems, createItem, updateItem, movement, history };
+
+function validateVariation(v) {
+  const rotulo = text(v.rotulo) || 'Padrão';
+  if (rotulo.length > 160) fail('Variação muito longa.');
+  return {rotulo, atributos: {tipo: text(v.tipo) || 'Variação', valor: rotulo},
+    codigo_patrimonio: text(v.codigo_patrimonio), quantidade_inicial: nonNegativeInt(v.quantidade_inicial)};
+}
+function validateProduct(body) {
+  const descricao=text(body.descricao);
+  if (!descricao || descricao.length>180) fail('Informe a descrição (até 180 caracteres).');
+  const variacoes=Array.isArray(body.variacoes) ? body.variacoes.map(validateVariation) : [];
+  if (!variacoes.length || variacoes.length>100) fail('Informe de 1 a 100 variações.');
+  const labels=variacoes.map(v=>v.rotulo.toLocaleLowerCase('pt-BR'));
+  if (new Set(labels).size !== labels.length) fail('Existem variações repetidas.');
+  return {descricao,categoria:text(body.categoria),unidade:text(body.unidade).toUpperCase()||'UND',
+    observacao:text(body.observacao), variacoes};
+}
+async function listProducts(query) {return model.listProducts({busca:text(query.busca)});}
+async function createProduct(body,user) {return model.createProduct(validateProduct(body),user.id);}
+async function addVariation(id,body,user) {return model.addVariation(id,validateVariation(body),user.id);}
+async function updateProduct(id,body) {
+ const descricao=text(body.descricao);
+ if(!descricao) fail('Descrição obrigatória.');
+ return model.updateProduct(id,{descricao,categoria:text(body.categoria),unidade:text(body.unidade)||'UND',observacao:text(body.observacao)});
+}
+
+module.exports = { listProducts, createProduct, addVariation, updateProduct, dashboard, listItems, createItem, updateItem, movement, history };

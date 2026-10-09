@@ -5,6 +5,10 @@ const { requireModuleAccess } = require('../../middlewares/module-access.middlew
 
 router.use(auth, requireModuleAccess('almoxarifado'));
 router.get('/dashboard', controller.dashboard);
+router.get('/produtos', controller.listProducts);
+router.post('/produtos', controller.createProduct);
+router.put('/produtos/:id', controller.updateProduct);
+router.post('/produtos/:id/variacoes', controller.addVariation);
 router.get('/itens', controller.listItems);
 router.post('/itens', controller.createItem);
 router.put('/itens/:id', controller.updateItem);
