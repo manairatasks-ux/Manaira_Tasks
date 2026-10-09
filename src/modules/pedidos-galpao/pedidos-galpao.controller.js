@@ -1,7 +1,8 @@
 const service=require('./pedidos-galpao.service');
 const PDFDocument=require('pdfkit');
 function erro(res,e){console.error('Pedidos ao Galpão:',e);res.status(e.status||502).json({error:e.message||'Falha ao consultar os estoques.'});}
-exports.sugestoes=async(req,res)=>{try{res.json(await service.sugestoes());}catch(e){erro(res,e);}};
+exports.iniciar=async(req,res)=>{try{res.json(await service.iniciar(req.body||{}));}catch(e){erro(res,e);}};
+exports.progresso=(req,res)=>{const j=service.progresso(req.params.id);if(!j)return res.status(404).json({error:'Consulta expirada ou não encontrada.'});res.json(j);};
 exports.relatorio=async(req,res)=>{
   try{
     const itens=req.body?.itens;
@@ -50,4 +51,26 @@ exports.relatorio=async(req,res)=>{
     doc.moveDown().text('Observações: ___________________________________');
     doc.end();
   }catch(e){if(!res.headersSent)erro(res,e);else res.destroy(e);}
+};
+
+exports.excel=async(req,res)=>{
+ try{
+  const itens=req.body?.itens;
+  if(!Array.isArray(itens)||!itens.length||itens.length>500)return res.status(400).json({error:'Selecione de 1 a 500 produtos.'});
+  const model=require('../galpao/galpao.model');
+  const todos=await model.listProducts({busca:''});
+  const mapa=new Map(todos.map(p=>[String(p.codigo_barra).trim(),p]));
+  const linhas=[];
+  for(const item of itens){
+   const cod=String(item.codigo_barra||'').trim(),qtd=Number(item.quantidade),p=mapa.get(cod);
+   if(!p||!Number.isSafeInteger(qtd)||qtd<=0||qtd>100000000)return res.status(400).json({error:'Produto ou quantidade inválida.'});
+   const n=v=>v===null||v===undefined||v===''?null:Number(v);
+   const gz=n(item.estoque_gz),gal=Number(p.unidades||0),valido=Number.isFinite(gz)&&gz>0&&gal<=gz;
+   linhas.push([cod,String(p.descricao||''),valido?gz:'',gal,valido?gz-gal:'',valido?gal/gz:'',qtd,valido?'Comparação válida':'Saldo GZ não confirmado']);
+  }
+  const buffer=require('./xlsx').criar(linhas);
+  res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition','attachment; filename="guia-pedidos-galpao.xlsx"');
+  res.send(buffer);
+ }catch(e){erro(res,e);}
 };
