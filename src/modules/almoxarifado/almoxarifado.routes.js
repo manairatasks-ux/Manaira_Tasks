@@ -9,6 +9,7 @@ router.get('/produtos', controller.listProducts);
 router.post('/produtos', controller.createProduct);
 router.put('/produtos/:id', controller.updateProduct);
 router.post('/produtos/:id/variacoes', controller.addVariation);
+router.patch('/produtos/:id/variacoes/:itemId/desativar', controller.deactivateVariation);
 router.get('/itens', controller.listItems);
 router.post('/itens', controller.createItem);
 router.put('/itens/:id', controller.updateItem);

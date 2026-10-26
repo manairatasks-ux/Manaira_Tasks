@@ -1,6 +1,6 @@
 {
   "name": "manaira-board-render",
-  "version": "63.0.0",
+  "version": "64.0.0",
   "description": "Plataforma Manaíra V62 - almoxarifado produtos e variações",
   "main": "src/server.js",
   "scripts": {

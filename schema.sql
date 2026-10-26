@@ -282,6 +282,18 @@ CREATE TABLE IF NOT EXISTS almox_ajustes (
 CREATE INDEX IF NOT EXISTS idx_almox_ajustes_data ON almox_ajustes(criado_em DESC);
 CREATE INDEX IF NOT EXISTS idx_almox_ajustes_item ON almox_ajustes(item_id);
 
+-- V64: auditoria de desativação de variações sem saldo.
+CREATE TABLE IF NOT EXISTS almox_desativacoes (
+ id SERIAL PRIMARY KEY,
+ item_id INTEGER NOT NULL REFERENCES almox_itens(id) ON DELETE RESTRICT,
+ produto_id INTEGER NOT NULL REFERENCES almox_produtos(id) ON DELETE RESTRICT,
+ rotulo VARCHAR(160) NOT NULL,
+ motivo TEXT NOT NULL,
+ usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+ criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_almox_desativacoes_data ON almox_desativacoes(criado_em DESC);
+
 -- V16: módulo Galpão - migração do antigo sistema Python/SQLite
 CREATE TABLE IF NOT EXISTS galpao_produtos (
   id SERIAL PRIMARY KEY,

@@ -1784,7 +1784,7 @@ async function renderAlmoxEstoque(busca = '') {
         <table class="dash-table almox-table"><thead><tr><th>Produto / variações</th><th>Categoria</th><th>Saldo total</th><th>Unidade</th><th>Ações</th></tr></thead>
         <tbody>${produtos.map(p => `<tr>
           <td><details class="almox-product-details"><summary><strong>${escapeHtml(p.descricao)}</strong> <small>(${p.variacoes.length} ${p.variacoes.length===1?'variação':'variações'})</small></summary>
-          <div class="almox-variants-list">${p.variacoes.map(v=>`<div><span>${escapeHtml(v.rotulo)}</span><strong>${Number(v.quantidade_atual)} ${escapeHtml(p.unidade)}</strong></div>`).join('')}</div></details></td>
+          <div class="almox-variants-list">${p.variacoes.map(v=>`<div><span>${escapeHtml(v.rotulo)}</span><span class="almox-variant-actions"><strong>${Number(v.quantidade_atual)} ${escapeHtml(p.unidade)}</strong>${Number(v.quantidade_atual)===0?`<button type="button" class="almox-deactivate-btn" onclick="almoxDesativarVariacao(${Number(p.id)},${Number(v.item_id)})">Desativar</button>`:''}</span></div>`).join('')}</div></details></td>
           <td>${escapeHtml(p.categoria||'-')}</td>
           <td><span class="almox-stock-number ${Number(p.quantidade_atual)===0?'zero':''}">${Number(p.quantidade_atual)}</span></td>
           <td>${escapeHtml(p.unidade||'UND')}</td>
@@ -1795,6 +1795,28 @@ async function renderAlmoxEstoque(busca = '') {
     $('almoxBuscaItem').onkeydown=e=>{if(e.key==='Enter')renderAlmoxEstoque(e.target.value.trim());};
   } catch(err) {panel.innerHTML=`<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;}
 }
+
+window.almoxDesativarVariacao = async (produtoId, itemId) => {
+  const produto = (state.almoxProdutos || []).find(p => Number(p.id) === Number(produtoId));
+  const variacao = produto?.variacoes.find(v => Number(v.item_id) === Number(itemId));
+  if (!produto || !variacao) return alert('Item não encontrado. Atualize a listagem.');
+  if (Number(variacao.quantidade_atual) !== 0) return alert('Somente itens sem estoque podem ser desativados.');
+  const ultimo = produto.variacoes.length === 1;
+  const aviso = `Desativar ${produto.descricao} — ${variacao.rotulo}?\n\n` +
+    'O item sairá do estoque, mas as movimentações e ajustes anteriores serão preservados.' +
+    (ultimo ? '\n\nEsta é a última variação ativa; o produto principal também será desativado.' : '');
+  if (!confirm(aviso)) return;
+  const motivo = prompt('Informe o motivo da desativação (mínimo 5 caracteres):', 'Cadastro sem estoque não utilizado');
+  if (motivo === null) return;
+  if (motivo.trim().length < 5 || motivo.trim().length > 500) return alert('Informe um motivo entre 5 e 500 caracteres.');
+  try {
+    await api(`/api/almoxarifado/produtos/${produtoId}/variacoes/${itemId}/desativar`, {
+      method: 'PATCH', body: JSON.stringify({ motivo: motivo.trim() })
+    });
+    await renderAlmoxEstoque($('almoxBuscaItem')?.value.trim() || '');
+    alert('Variação desativada. O histórico foi preservado.');
+  } catch (err) { alert(err.message); }
+};
 
 window.almoxAdicionarLinhaVariacao = (tipo='Tamanho',valor='',quantidade='0') => {
   const container=$('almoxLinhasVariacoes');

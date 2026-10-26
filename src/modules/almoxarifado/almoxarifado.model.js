@@ -229,6 +229,48 @@ async function updateProduct(id,data) {
 }
 
 
+// Inativação lógica: nunca apagar IDs ou movimentações de estoque.
+async function deactivateVariation({ produtoId, itemId, motivo, usuarioId }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(`
+      SELECT i.id, i.ativo, i.quantidade_atual, v.rotulo, p.id AS produto_id,
+             p.descricao AS produto_nome, p.ativo AS produto_ativo
+      FROM almox_itens i
+      JOIN almox_variacoes v ON v.item_id = i.id
+      JOIN almox_produtos p ON p.id = v.produto_id
+      WHERE i.id = $1 AND p.id = $2
+      FOR UPDATE OF i, p
+    `, [itemId, produtoId]);
+    const item = result.rows[0];
+    if (!item || !item.ativo || !item.produto_ativo) {
+      const e = new Error('Variação ativa não encontrada. Atualize a listagem.'); e.status = 404; throw e;
+    }
+    if (Number(item.quantidade_atual) !== 0) {
+      const e = new Error('Só é possível desativar uma variação com estoque zerado.'); e.status = 409; throw e;
+    }
+    const changed = await client.query(`
+      UPDATE almox_itens SET ativo = FALSE, atualizado_em = NOW()
+      WHERE id = $1 AND ativo = TRUE AND quantidade_atual = 0 RETURNING id`, [itemId]);
+    if (changed.rowCount !== 1) {
+      const e = new Error('O saldo mudou. Atualize a tela e tente novamente.'); e.status = 409; throw e;
+    }
+    await client.query(`INSERT INTO almox_desativacoes
+      (item_id, produto_id, rotulo, motivo, usuario_id)
+      VALUES ($1,$2,$3,$4,$5)`, [itemId, produtoId, item.rotulo, motivo, usuarioId]);
+    const ativos = await client.query(`SELECT COUNT(*)::int AS total
+      FROM almox_variacoes v JOIN almox_itens i ON i.id = v.item_id
+      WHERE v.produto_id = $1 AND i.ativo = TRUE`, [produtoId]);
+    const produtoDesativado = ativos.rows[0].total === 0;
+    if (produtoDesativado) await client.query(`
+      UPDATE almox_produtos SET ativo = FALSE, atualizado_em = NOW() WHERE id = $1`, [produtoId]);
+    await client.query('COMMIT');
+    return { ok: true, produto_desativado: produtoDesativado };
+  } catch (e) { await client.query('ROLLBACK'); throw e; }
+  finally { client.release(); }
+}
+
 // Ajustes de inventário: saldo único permanece em almox_itens.
 async function adjustStock({itemId, quantidadeFisica, saldoConferido, motivo, observacao, usuarioId}) {
   const client = await pool.connect();
@@ -266,4 +308,4 @@ async function adjustmentHistory({limite=100}={}) {
        [Math.min(Math.max(Number(limite)||100,1),300)]);
 }
 
-module.exports = { adjustStock, adjustmentHistory, listProducts, createProduct, addVariation, updateProduct, dashboard, listItems, getItem, createItem, updateItem, createMovement, history };
+module.exports = { deactivateVariation, adjustStock, adjustmentHistory, listProducts, createProduct, addVariation, updateProduct, dashboard, listItems, getItem, createItem, updateItem, createMovement, history };

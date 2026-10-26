@@ -104,6 +104,13 @@ async function adjustStock(body,user) {
  if(observacao.length<10||observacao.length>1000) fail('Descreva o motivo do ajuste (10 a 1000 caracteres).');
  return model.adjustStock({itemId,quantidadeFisica,saldoConferido,motivo,observacao,usuarioId:user.id});
 }
+async function deactivateVariation(produtoId, itemId, body, user) {
+  const p = Number(produtoId), i = Number(itemId);
+  if (!Number.isSafeInteger(p) || p < 1 || !Number.isSafeInteger(i) || i < 1) fail('Produto ou variação inválidos.');
+  const motivo = text(body?.motivo);
+  if (motivo.length < 5 || motivo.length > 500) fail('Informe o motivo da desativação (5 a 500 caracteres).');
+  return model.deactivateVariation({ produtoId: p, itemId: i, motivo, usuarioId: user.id });
+}
 async function adjustmentHistory(query){return model.adjustmentHistory({limite:query.limite});}
 
-module.exports = { adjustStock, adjustmentHistory, listProducts, createProduct, addVariation, updateProduct, dashboard, listItems, createItem, updateItem, movement, history };
+module.exports = { deactivateVariation, adjustStock, adjustmentHistory, listProducts, createProduct, addVariation, updateProduct, dashboard, listItems, createItem, updateItem, movement, history };

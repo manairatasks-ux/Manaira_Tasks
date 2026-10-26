@@ -13,6 +13,7 @@ async function createProduct(req,res) {try {res.status(201).json(await service.c
 async function addVariation(req,res) {try {res.status(201).json(await service.addVariation(req.params.id,req.body,req.user));}catch(e){error(res,e,'Erro ao adicionar variação.');}}
 async function updateProduct(req,res) {try {res.json(await service.updateProduct(req.params.id,req.body));}catch(e){error(res,e,'Erro ao editar produto.');}}
 
+async function deactivateVariation(req,res){try{res.json(await service.deactivateVariation(req.params.id,req.params.itemId,req.body,req.user));}catch(e){error(res,e,'Erro ao desativar variação.');}}
 async function adjustStock(req,res){try{res.status(201).json(await service.adjustStock(req.body,req.user));}catch(e){error(res,e,'Erro ao ajustar estoque.');}}
 async function adjustmentHistory(req,res){try{res.json(await service.adjustmentHistory(req.query));}catch(e){error(res,e,'Erro ao carregar ajustes.');}}
-module.exports = { adjustStock, adjustmentHistory, listProducts, createProduct, addVariation, updateProduct, dashboard, listItems, createItem, updateItem, entry, exit, history };
+module.exports = { deactivateVariation, adjustStock, adjustmentHistory, listProducts, createProduct, addVariation, updateProduct, dashboard, listItems, createItem, updateItem, entry, exit, history };
