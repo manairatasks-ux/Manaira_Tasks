@@ -1,8 +1,9 @@
 const service=require('./pedidos-galpao.service');
 const PDFDocument=require('pdfkit');
 function erro(res,e){console.error('Pedidos ao Galpão:',e);res.status(e.status||502).json({error:e.message||'Falha ao consultar os estoques.'});}
-exports.iniciar=async(req,res)=>{try{res.json(await service.iniciar(req.body||{}));}catch(e){erro(res,e);}};
-exports.progresso=(req,res)=>{const j=service.progresso(req.params.id);if(!j)return res.status(404).json({error:'Consulta expirada ou não encontrada.'});res.json(j);};
+exports.iniciar=async(req,res)=>{try{res.json(await service.iniciar({manual:true}));}catch(e){erro(res,e);}};
+exports.atual=async(req,res)=>{try{res.json(await service.dadosAtuais());}catch(e){erro(res,e);}};
+exports.progresso=async(req,res)=>{try{const j=await service.progresso(req.params.id);if(!j)return res.status(404).json({error:'Consulta não encontrada.'});res.json(j);}catch(e){erro(res,e);}};
 exports.relatorio=async(req,res)=>{
   try{
     const itens=req.body?.itens;

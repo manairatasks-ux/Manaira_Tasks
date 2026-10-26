@@ -3,6 +3,7 @@ const {auth}=require('../../middlewares/auth.middleware');
 const {requireModuleAccess}=require('../../middlewares/module-access.middleware');
 const controller=require('./pedidos-galpao.controller');
 router.use(auth,requireModuleAccess('pedidos_galpao'));
+router.get('/atual',controller.atual);
 router.post('/sincronizar',controller.iniciar);
 router.get('/sincronizar/:id',controller.progresso);
 router.post('/relatorio.pdf',controller.relatorio);
