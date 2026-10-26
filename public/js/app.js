@@ -1688,7 +1688,8 @@ async function abrirAlmoxarifado(view = 'dashboard') {
     estoque: ['Estoque', 'Consulte os itens disponíveis e cadastre novos materiais.'],
     entrada: ['Registrar entrada', 'Adicione ao estoque o material que chegou ao almoxarifado.'],
     saida: ['Registrar saída', 'Registre o material entregue e mantenha o saldo atualizado.'],
-    historico: ['Histórico', 'Veja tudo que entrou e saiu do almoxarifado.']
+    historico: ['Histórico', 'Veja tudo que entrou e saiu do almoxarifado.'],
+    ajustes: ['Ajuste de estoque', 'Corrija divergências de inventário com auditoria.']
   };
   const [titulo, descricao] = titulos[view] || titulos.dashboard;
   $('setorTitulo').textContent = titulo;
@@ -1698,6 +1699,7 @@ async function abrirAlmoxarifado(view = 'dashboard') {
   if (view === 'estoque') return renderAlmoxEstoque();
   if (view === 'entrada') return renderAlmoxMovimento('ENTRADA');
   if (view === 'saida') return renderAlmoxMovimento('SAIDA');
+  if (view === 'ajustes') return renderAlmoxAjustes();
   return renderAlmoxHistorico();
 }
 
@@ -1712,7 +1714,8 @@ function almoxFluxoBar(view = '') {
     ['estoque', '1', 'Estoque'],
     ['entrada', '2', 'Entrada'],
     ['saida', '3', 'Saída'],
-    ['historico', '4', 'Histórico']
+    ['historico', '4', 'Histórico'],
+    ['ajustes', '5', 'Ajustes']
   ];
   return `
     <div class="almox-flow">
@@ -1895,6 +1898,66 @@ async function renderAlmoxMovimento(tipo) {
   } catch (err) {
     panel.innerHTML = `<section class="dash-panel wide"><p class="empty">${escapeHtml(err.message)}</p></section>`;
   }
+}
+
+async function renderAlmoxAjustes() {
+  const panel=$('almoxPanel');
+  if(!panel)return;
+  panel.innerHTML='<div class="almox-loading">Carregando ajustes do almoxarifado...</div>';
+  try {
+    const [produtos,historico]=await Promise.all([
+      api('/api/almoxarifado/produtos'),api('/api/almoxarifado/ajustes?limite=100')
+    ]);
+    const opcoes=produtos.flatMap(p=>p.variacoes.map(v=>({
+      id:Number(v.item_id),label:`${p.descricao} • ${v.rotulo}`,saldo:Number(v.quantidade_atual),unidade:p.unidade
+    })));
+    panel.innerHTML=`${almoxFluxoBar('ajustes')}
+      <div class="dashboard-toolbar almox-toolbar"><div><strong>Ajuste de estoque</strong><span>Conferência física com registro permanente de auditoria.</span></div></div>
+      <div class="galpao-adjust-alert"><strong>Atenção</strong><span>Use esta função para corrigir divergências de inventário. Entradas e saídas normais devem ser feitas nas respectivas abas. Todo ajuste registra o usuário, motivo e saldos antes/depois.</span></div>
+      <section class="dash-panel wide" style="padding:20px">
+        <div class="almox-form-shell" style="max-width:760px;margin:auto">
+          <label>Pesquisar produto ou variação<input id="almoxAjBusca" placeholder="Digite nome, tamanho ou tipo..."></label>
+          <label>Produto / variação<select id="almoxAjItem"><option value="">Selecione a variação</option></select></label>
+          <div class="galpao-adjust-current"><span>Saldo atual no sistema</span><strong id="almoxAjSaldo">—</strong></div>
+          <label>Quantidade física encontrada<input id="almoxAjFisico" type="number" min="0" step="1" placeholder="Informe a contagem física"></label>
+          <div class="galpao-adjust-diff" id="almoxAjDiferenca">Selecione uma variação para conferir.</div>
+          <label>Motivo<select id="almoxAjMotivo"><option value="">Selecione...</option><option>Inventário físico</option><option>Erro de lançamento</option><option>Divergência de contagem</option><option>Correção de saldo inicial</option><option>Outro</option></select></label>
+          <label>Observação<textarea id="almoxAjObs" rows="3" maxlength="1000" placeholder="Explique a conferência e a razão do ajuste (mínimo 10 caracteres)"></textarea></label>
+          <button class="primary" id="almoxAjConfirmar">Confirmar ajuste</button>
+        </div>
+      </section>
+      <section class="dash-panel wide almox-table-wrap"><div class="dashboard-toolbar"><div><strong>Histórico de ajustes</strong><span>Últimos 100 registros; não podem ser excluídos pela interface.</span></div></div>
+        <table class="dash-table"><thead><tr><th>Data</th><th>Produto / variação</th><th>Antes → Depois</th><th>Motivo / observação</th><th>Usuário</th></tr></thead><tbody>
+        ${historico.map(a=>`<tr><td>${fmtDateTime(a.criado_em)}</td><td><strong>${escapeHtml(a.produto||'Produto antigo')}</strong><small class="almox-cell-note">${escapeHtml(a.variacao||'')}</small></td><td><strong>${Number(a.saldo_anterior)} → ${Number(a.saldo_posterior)}</strong><small class="almox-cell-note">Diferença: ${Number(a.diferenca)>0?'+':''}${Number(a.diferenca)}</small></td><td>${escapeHtml(a.motivo)}<small class="almox-cell-note">${escapeHtml(a.observacao)}</small></td><td>${escapeHtml(a.usuario_nome||'—')}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">Nenhum ajuste registrado.</td></tr>'}
+        </tbody></table>
+      </section>`;
+    const busca=$('almoxAjBusca'),sel=$('almoxAjItem'),fisico=$('almoxAjFisico');
+    const atualizarOpcoes=()=>{
+      const termo=busca.value.trim().toLocaleLowerCase('pt-BR'),selected=sel.value;
+      sel.innerHTML='<option value="">Selecione a variação</option>'+opcoes.filter(o=>o.label.toLocaleLowerCase('pt-BR').includes(termo)).map(o=>`<option value="${o.id}">${escapeHtml(o.label)} — ${o.saldo} ${escapeHtml(o.unidade)}</option>`).join('');
+      if([...sel.options].some(o=>o.value===selected))sel.value=selected;
+      atualizarSaldo();
+    };
+    const selecionado=()=>opcoes.find(o=>String(o.id)===sel.value);
+    const atualizarSaldo=()=>{
+      const item=selecionado();
+      $('almoxAjSaldo').textContent=item?`${item.saldo} ${item.unidade}`:'—';
+      const n=Number(fisico.value);
+      $('almoxAjDiferenca').textContent=!item||fisico.value===''?'Informe a contagem física.':!Number.isSafeInteger(n)||n<0?'Quantidade inválida.':`Diferença: ${n-item.saldo>0?'+':''}${n-item.saldo} ${item.unidade}`;
+    };
+    busca.oninput=atualizarOpcoes;sel.onchange=atualizarSaldo;fisico.oninput=atualizarSaldo;atualizarOpcoes();
+    $('almoxAjConfirmar').onclick=async()=>{
+      const item=selecionado(),q=Number(fisico.value),motivo=$('almoxAjMotivo').value,obs=$('almoxAjObs').value.trim();
+      if(!item)return alert('Selecione uma variação.');
+      if(fisico.value===''||!Number.isSafeInteger(q)||q<0)return alert('Informe uma quantidade física válida.');
+      if(q===item.saldo)return alert('A quantidade informada é igual ao saldo atual.');
+      if(!motivo||obs.length<10)return alert('Selecione um motivo e informe uma observação com pelo menos 10 caracteres.');
+      if(!confirm(`Confirmar ajuste de ${item.label}?\nSaldo anterior: ${item.saldo}\nSaldo físico: ${q}\nDiferença: ${q-item.saldo}\nMotivo: ${motivo}`))return;
+      const btn=$('almoxAjConfirmar');btn.disabled=true;
+      try {await api('/api/almoxarifado/ajustes',{method:'POST',body:JSON.stringify({item_id:item.id,saldo_conferido:item.saldo,quantidade_fisica:q,motivo,observacao:obs})});await renderAlmoxAjustes();alert('Ajuste registrado com sucesso.');}
+      catch(e){alert(e.message);btn.disabled=false;}
+    };
+  }catch(e){panel.innerHTML=`<section class="dash-panel wide"><p class="empty">${escapeHtml(e.message)}</p></section>`;}
 }
 
 async function renderAlmoxHistorico(busca = '', tipo = '') {

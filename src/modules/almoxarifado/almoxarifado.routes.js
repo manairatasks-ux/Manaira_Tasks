@@ -15,5 +15,7 @@ router.put('/itens/:id', controller.updateItem);
 router.post('/entradas', controller.entry);
 router.post('/saidas', controller.exit);
 router.get('/historico', controller.history);
+router.get('/ajustes', controller.adjustmentHistory);
+router.post('/ajustes', controller.adjustStock);
 
 module.exports = router;

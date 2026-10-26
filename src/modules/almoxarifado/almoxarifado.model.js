@@ -228,4 +228,42 @@ async function updateProduct(id,data) {
   } catch(e) {await client.query('ROLLBACK');throw e;}finally{client.release();}
 }
 
-module.exports = { listProducts, createProduct, addVariation, updateProduct, dashboard, listItems, getItem, createItem, updateItem, createMovement, history };
+
+// Ajustes de inventário: saldo único permanece em almox_itens.
+async function adjustStock({itemId, quantidadeFisica, saldoConferido, motivo, observacao, usuarioId}) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const found = await client.query(`
+      SELECT i.id, i.quantidade_atual, i.unidade, p.descricao AS produto, v.rotulo
+      FROM almox_itens i
+      JOIN almox_variacoes v ON v.item_id=i.id
+      JOIN almox_produtos p ON p.id=v.produto_id
+      WHERE i.id=$1 AND i.ativo=TRUE AND p.ativo=TRUE FOR UPDATE OF i`, [itemId]);
+    const item=found.rows[0];
+    if (!item) { const e=new Error('Variação ativa não encontrada.');e.status=404;throw e; }
+    const anterior=Number(item.quantidade_atual);
+    if (anterior !== saldoConferido) {const e=new Error(`O saldo mudou desde a consulta (${anterior}). Atualize a página antes de ajustar.`);e.status=409;throw e;}
+    if (anterior === quantidadeFisica) {const e=new Error('Saldo físico igual ao saldo registrado. Nenhum ajuste necessário.');e.status=400;throw e;}
+    await client.query('UPDATE almox_itens SET quantidade_atual=$1,atualizado_em=NOW() WHERE id=$2', [quantidadeFisica,itemId]);
+    const resultado=await client.query(`INSERT INTO almox_ajustes
+       (item_id, saldo_anterior, saldo_posterior, motivo, observacao, usuario_id)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+       [itemId,anterior,quantidadeFisica,motivo,observacao,usuarioId]);
+    await client.query('COMMIT');
+    return {ajuste:resultado.rows[0],produto:item.produto,variacao:item.rotulo,unidade:item.unidade};
+  } catch(e) {await client.query('ROLLBACK');throw e;} finally {client.release();}
+}
+async function adjustmentHistory({limite=100}={}) {
+  return all(`SELECT a.id,a.item_id,a.saldo_anterior,a.saldo_posterior,
+       (a.saldo_posterior-a.saldo_anterior) AS diferenca,a.motivo,a.observacao,a.criado_em,
+       p.descricao AS produto,v.rotulo AS variacao,i.unidade,u.nome AS usuario_nome
+       FROM almox_ajustes a JOIN almox_itens i ON i.id=a.item_id
+       LEFT JOIN almox_variacoes v ON v.item_id=i.id
+       LEFT JOIN almox_produtos p ON p.id=v.produto_id
+       LEFT JOIN usuarios u ON u.id=a.usuario_id
+       ORDER BY a.criado_em DESC,a.id DESC LIMIT $1`,
+       [Math.min(Math.max(Number(limite)||100,1),300)]);
+}
+
+module.exports = { adjustStock, adjustmentHistory, listProducts, createProduct, addVariation, updateProduct, dashboard, listItems, getItem, createItem, updateItem, createMovement, history };

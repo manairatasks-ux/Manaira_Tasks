@@ -267,6 +267,21 @@ CREATE TABLE IF NOT EXISTS almox_variacoes (
 );
 CREATE INDEX IF NOT EXISTS idx_almox_variacoes_produto ON almox_variacoes(produto_id);
 
+-- V63: ajustes de inventário do almoxarifado, auditáveis e independentes das entradas e saídas.
+CREATE TABLE IF NOT EXISTS almox_ajustes (
+ id SERIAL PRIMARY KEY,
+ item_id INTEGER NOT NULL REFERENCES almox_itens(id) ON DELETE RESTRICT,
+ saldo_anterior INTEGER NOT NULL CHECK(saldo_anterior>=0),
+ saldo_posterior INTEGER NOT NULL CHECK(saldo_posterior>=0),
+ motivo VARCHAR(160) NOT NULL,
+ observacao TEXT NOT NULL,
+ usuario_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+ criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ CHECK(saldo_anterior<>saldo_posterior)
+);
+CREATE INDEX IF NOT EXISTS idx_almox_ajustes_data ON almox_ajustes(criado_em DESC);
+CREATE INDEX IF NOT EXISTS idx_almox_ajustes_item ON almox_ajustes(item_id);
+
 -- V16: módulo Galpão - migração do antigo sistema Python/SQLite
 CREATE TABLE IF NOT EXISTS galpao_produtos (
   id SERIAL PRIMARY KEY,

@@ -94,4 +94,16 @@ async function updateProduct(id,body) {
  return model.updateProduct(id,{descricao,categoria:text(body.categoria),unidade:text(body.unidade)||'UND',observacao:text(body.observacao)});
 }
 
-module.exports = { listProducts, createProduct, addVariation, updateProduct, dashboard, listItems, createItem, updateItem, movement, history };
+async function adjustStock(body,user) {
+ const itemId=Number(body.item_id), quantidadeFisica=Number(body.quantidade_fisica),saldoConferido=Number(body.saldo_conferido);
+ if(!Number.isSafeInteger(itemId)||itemId<1) fail('Selecione uma variação válida.');
+ if(!Number.isSafeInteger(quantidadeFisica)||quantidadeFisica<0) fail('A quantidade física deve ser um inteiro igual ou maior que zero.');
+ if(!Number.isSafeInteger(saldoConferido)||saldoConferido<0) fail('Saldo conferido inválido. Atualize a página.');
+ const motivo=text(body.motivo),observacao=text(body.observacao);
+ if(motivo.length<3||motivo.length>160) fail('Informe um motivo válido.');
+ if(observacao.length<10||observacao.length>1000) fail('Descreva o motivo do ajuste (10 a 1000 caracteres).');
+ return model.adjustStock({itemId,quantidadeFisica,saldoConferido,motivo,observacao,usuarioId:user.id});
+}
+async function adjustmentHistory(query){return model.adjustmentHistory({limite:query.limite});}
+
+module.exports = { adjustStock, adjustmentHistory, listProducts, createProduct, addVariation, updateProduct, dashboard, listItems, createItem, updateItem, movement, history };
