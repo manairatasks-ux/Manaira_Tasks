@@ -1,6 +1,6 @@
 {
   "name": "manaira-board-render",
-  "version": "67.0.0",
+  "version": "67.4.0",
   "description": "Plataforma Manaíra V67 - Recebimento e CPD",
   "main": "src/server.js",
   "scripts": {

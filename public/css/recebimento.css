@@ -1,1 +1,70 @@
 #recebimentoPanel{width:100%;max-width:1280px;margin:auto}.rec-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}.rec-btn{background:#176a4e;color:#fff;padding:10px 15px;border:0;border-radius:8px;cursor:pointer;font-weight:600}.rec-btn.secondary{background:#e6eee9;color:#184b3b}.rec-btn.danger{background:#a93434}.rec-card{background:var(--card-bg,#fff);border:1px solid #dde5df;border-radius:12px;padding:18px;margin:12px 0;box-shadow:0 3px 12px #173b2410}.rec-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}.rec-grid label{display:block;font-weight:600;font-size:13px;color:#435f52;margin-bottom:6px}.rec-grid input,.rec-grid select,.rec-grid textarea,.rec-filter{width:100%;box-sizing:border-box;padding:10px;border:1px solid #c9d8ce;border-radius:7px;background:#fff;color:#162c20;font:inherit}.rec-grid input:focus,.rec-grid select:focus{outline:2px solid #9acbb6}.rec-table-wrap{overflow:auto}.rec-table{border-collapse:collapse;width:100%;min-width:690px}.rec-table th,.rec-table td{padding:11px;border-bottom:1px solid #e5ede8;text-align:left;font-size:13px}.rec-table th{background:#f0f6f2;color:#315746}.rec-muted{color:#60786c;font-size:13px}.rec-kpi{font-size:29px;font-weight:800;color:#176a4e}.rec-status{padding:5px 9px;border-radius:30px;background:#edf3ee;font-weight:700;font-size:11px;white-space:nowrap}.rec-status.LANCADA{background:#d9f6e8;color:#12673e}.rec-status.PRODUTOS_CADASTRAR,.rec-status.DIVERGENCIA{background:#fff0cf;color:#835a00}.rec-notice{padding:12px;border-radius:8px;background:#f8f2e6;border:1px solid #edd49b;margin:12px 0}.rec-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}.rec-dup{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:9px;margin:8px 0}.rec-dup input{min-width:0}.rec-top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+/* V67.2: painel de detalhes imediatamente acima da lista */
+.rec-detail-panel{scroll-margin-top:28px}
+.rec-detail-panel:empty{display:none}
+.rec-detail-panel:not(:empty){outline:2px solid #9dcdb8;outline-offset:2px;border-radius:12px;margin:14px 0}
+.rec-btn:disabled{opacity:.65;cursor:wait}
+
+/* V67.3: detalhes de nota em janela modal, sem empurrar a listagem. */
+body.rec-modal-open{overflow:hidden}
+.rec-modal-overlay{position:fixed;inset:0;z-index:20000;background:rgba(14,30,25,.62);display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
+.rec-modal{width:min(920px,100%);max-height:calc(100dvh - 40px);min-height:0;display:flex;flex-direction:column;background:#fff;color:#172f24;border-radius:14px;box-shadow:0 20px 70px rgba(0,0,0,.35);overflow:hidden}
+.rec-modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-shrink:0;padding:13px 20px;background:#176a4e;color:white}
+.rec-modal-head strong{font-size:16px}
+.rec-modal-close{display:grid;place-items:center;border:0;border-radius:8px;width:36px;height:36px;background:rgba(255,255,255,.16);color:#fff;font-size:25px;line-height:1;cursor:pointer}
+.rec-modal-close:hover,.rec-modal-close:focus-visible{background:rgba(255,255,255,.3)}
+.rec-modal-content{padding:18px 22px 24px;overflow-y:auto;overscroll-behavior:contain;min-height:0}
+.rec-modal-content>.rec-card{margin:0;border:0;padding:0;box-shadow:none}
+.rec-modal-content h4{margin:20px 0 9px}
+.rec-modal-content .rec-table{min-width:520px}
+@media(max-width:650px){.rec-modal-overlay{padding:8px}.rec-modal{max-height:calc(100dvh - 16px)}.rec-modal-content{padding:14px}.rec-modal-content .rec-table{min-width:500px}}
+
+/* V67.4: mobile-first ajustes do Recebimento / CPD */
+#recebimentoPanel, #recebimentoPanel *{min-width:0}
+#recebimentoPanel .rec-btn{min-height:42px;touch-action:manipulation}
+#recebimentoPanel input,#recebimentoPanel select,#recebimentoPanel textarea,.rec-modal input,.rec-modal select,.rec-modal textarea{font-size:16px;max-width:100%}
+.rec-file-hidden{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important}
+.rec-upload{padding:14px;background:#f4f8f5;border:1px solid #d6e6db;border-radius:12px;margin:12px 0}
+.rec-upload-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.rec-upload-actions .rec-btn{width:100%;min-height:48px}
+.rec-upload-preview{margin-top:12px;padding:10px;background:white;border:1px solid #d8e5dd;border-radius:9px;overflow-wrap:anywhere}
+.rec-preview-name{font-weight:600;font-size:13px;margin-bottom:8px}
+.rec-preview-image{max-width:100%;max-height:300px;width:auto;height:auto;display:block;object-fit:contain;margin:auto;border-radius:7px}
+.rec-modal-content{overflow-x:hidden}
+.rec-modal-content textarea{min-height:90px}
+@media(max-width:720px){
+ #recebimentoPanel{padding:0 2px}
+ #recebimentoPanel .rec-top{align-items:flex-start}
+ #recebimentoPanel .rec-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ #recebimentoPanel .rec-card{padding:13px;margin:9px 0}
+ #recebimentoPanel .rec-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ #recebimentoPanel .rec-tabs .rec-btn{white-space:normal;padding:11px 8px}
+ #recebimentoPanel .rec-filter{width:100%!important;max-width:none!important}
+ #recebimentoPanel #recBody > .rec-card > .rec-top{display:block}
+ #recebimentoPanel #recBody > .rec-card > .rec-top input{margin:5px 0 10px}
+ #recebimentoPanel .rec-dup{grid-template-columns:1fr 1fr;gap:7px;padding:10px;border:1px solid #d8e5dd;border-radius:9px}
+ #recebimentoPanel .rec-dup .dup-num{grid-column:span 2}
+ #recebimentoPanel .rec-dup button{width:100%}
+ #recebimentoPanel #recLinhas{display:block}
+ #recebimentoPanel .rec-table:has(#recLinhas){min-width:0;display:block}
+ #recebimentoPanel .rec-table:has(#recLinhas) thead{display:none}
+ #recebimentoPanel .rec-table:has(#recLinhas) tr{display:block;border:1px solid #d9e5df;border-radius:10px;padding:9px;margin-bottom:10px;background:#fff}
+ #recebimentoPanel .rec-table:has(#recLinhas) td{display:flex;justify-content:space-between;align-items:center;gap:12px;border:0;padding:7px 5px;overflow-wrap:anywhere;text-align:right}
+ #recebimentoPanel .rec-table:has(#recLinhas) td::before{content:attr(data-label);font-weight:600;color:#526a5e;text-align:left;flex:0 0 95px}
+ #recebimentoPanel .rec-table:has(#recLinhas) td.rec-list-action{display:block;text-align:initial}
+ #recebimentoPanel .rec-table:has(#recLinhas) td.rec-list-action::before{display:none}
+ #recebimentoPanel .rec-table:has(#recLinhas) td.rec-list-action button{width:100%}
+ .rec-modal-overlay{padding:0;align-items:stretch}
+ .rec-modal{width:100%;height:100dvh;max-height:100dvh;border-radius:0}
+ .rec-modal-head{padding:12px 14px;min-height:56px}
+ .rec-modal-close{min-width:44px;min-height:44px}
+ .rec-modal-content{padding:14px 12px 36px}
+ .rec-modal-content .rec-top{align-items:flex-start;gap:8px}
+ .rec-modal-content .rec-grid{grid-template-columns:1fr}
+ .rec-modal-content .rec-table{min-width:0}
+ .rec-modal-content .rec-table th,.rec-modal-content .rec-table td{padding:8px 6px;font-size:12px;overflow-wrap:anywhere}
+ .rec-modal-content .rec-actions{display:flex;flex-wrap:wrap}
+ .rec-modal-content .rec-actions .rec-btn{flex:1}
+ .rec-modal-content .rec-upload-actions{grid-template-columns:1fr}
+}
+@media(max-width:380px){#recebimentoPanel .rec-grid{grid-template-columns:1fr!important}}
