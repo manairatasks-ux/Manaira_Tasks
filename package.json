@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "67.4.0",
-  "description": "Plataforma Manaíra V67 - Recebimento e CPD",
+  "version": "67.6.0",
+  "description": "Plataforma Manaíra V67.5 - Quadro de notas fiscais por etapa",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",

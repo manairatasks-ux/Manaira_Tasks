@@ -31,6 +31,66 @@ router.get('/resumo',asyncRoute(async(req,res)=>{
  ]);
  res.json({notas:n.rows[0],caminhoes:c.rows});
 }));
+// V67.5: quadro por etapas com filtros de data e paginação independentes.
+router.get('/notas/painel',asyncRoute(async(req,res)=>{
+ const inicio=text(req.query.inicio,10),fim=text(req.query.fim,10),busca=text(req.query.busca,100);
+ if(!validDate(inicio)||!validDate(fim)||inicio>fim)return bad(res,'Informe um período válido (data inicial e final).');
+ const grupos={
+  recebidas:"n.status='NAO_RECEBIDA_CPD'",
+  cpd:"n.status='RECEBIDA_CPD'",
+  pendencias:"n.status IN ('PRODUTOS_CADASTRAR','DIVERGENCIA')",
+  lancadas:"n.status='LANCADA'"
+ };
+ const limite=8;
+ // Datas em intervalo, sem converter a coluna: permite aproveitar índice recebido_em.
+ const params=[inicio,fim,'%'+busca+'%'];
+ const filtro=`n.recebido_em >= ($1::date::timestamp AT TIME ZONE 'America/Fortaleza')
+  AND n.recebido_em < (($2::date + 1)::timestamp AT TIME ZONE 'America/Fortaleza')
+  AND (n.fornecedor ILIKE $3 OR n.numero ILIKE $3 OR n.codigo_fornecedor ILIKE $3)`;
+ // Uma consulta de contadores para as quatro colunas, evitando quatro COUNTs independentes.
+ const contagens=await query(`SELECT
+  COUNT(*) FILTER (WHERE n.status='NAO_RECEBIDA_CPD')::int AS recebidas,
+  COUNT(*) FILTER (WHERE n.status='RECEBIDA_CPD')::int AS cpd,
+  COUNT(*) FILTER (WHERE n.status IN ('PRODUTOS_CADASTRAR','DIVERGENCIA'))::int AS pendencias,
+  COUNT(*) FILTER (WHERE n.status='LANCADA')::int AS lancadas
+  FROM receb_notas n WHERE ${filtro}`,params);
+ const counts=contagens.rows[0];
+ const resultado={inicio,fim,limite,grupos:{}};
+ // Máximo de 8 notas por coluna. Duplicatas, anexos e histórico somente ao abrir nota.
+ await Promise.all(Object.entries(grupos).map(async([chave,condicao])=>{
+  const quantidade=Number(counts[chave]||0);
+  const paginas=Math.max(1,Math.ceil(quantidade/limite));
+  const solicitada=Math.min(100000,Math.max(1,parseInt(req.query['pagina_'+chave],10)||1));
+  const pagina=Math.min(solicitada,paginas);
+  if(!quantidade){resultado.grupos[chave]={total:0,pagina:1,paginas:1,itens:[]};return;}
+  const itens=await query(`SELECT n.id,n.codigo_fornecedor,n.fornecedor,n.numero,n.serie,n.valor,
+    n.origem,n.recebido_em,n.recebido_por,n.status,n.cpd_recebido_em,n.cpd_recebido_por,
+    n.pendencia,n.observacao,u.nome AS recebido_por_nome,c.nome AS cpd_por_nome
+    FROM receb_notas n
+    JOIN usuarios u ON u.id=n.recebido_por
+    LEFT JOIN usuarios c ON c.id=n.cpd_recebido_por
+    WHERE ${filtro} AND (${condicao})
+    ORDER BY n.recebido_em DESC,n.id DESC LIMIT $4 OFFSET $5`,
+    [...params,limite,(pagina-1)*limite]);
+  resultado.grupos[chave]={total:quantidade,pagina,paginas,itens:itens.rows};
+ }));
+ res.set('Cache-Control','private, no-store');
+ res.json(resultado);
+}));
+// Carregamento sob demanda: dados completos somente após abrir uma nota.
+router.get('/notas/:id/detalhe',asyncRoute(async(req,res)=>{
+ const id=Number(req.params.id);
+ if(!Number.isSafeInteger(id)||id<1)return bad(res,'Nota inválida.');
+ const r=await query(`SELECT n.*,u.nome AS recebido_por_nome,c.nome AS cpd_por_nome,
+  (SELECT COALESCE(json_agg(json_build_object('id',d.id,'numero',d.numero,
+     'vencimento',d.vencimento,'valor',d.valor) ORDER BY d.vencimento),'[]'::json)
+   FROM receb_duplicatas d WHERE d.nota_id=n.id) AS duplicatas
+  FROM receb_notas n JOIN usuarios u ON u.id=n.recebido_por
+  LEFT JOIN usuarios c ON c.id=n.cpd_recebido_por WHERE n.id=$1`,[id]);
+ if(!r.rowCount)return bad(res,'Nota não encontrada.',404);
+ res.set('Cache-Control','private, no-store');
+ res.json(r.rows[0]);
+}));
 router.get('/notas',asyncRoute(async(req,res)=>{
  const filtros=[]; const params=[];
  if(req.query.status){params.push(text(req.query.status,40)); filtros.push(`n.status=$${params.length}`)}
