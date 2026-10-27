@@ -91,7 +91,8 @@ async function initDb() {
       ('pedidos_galpao', 'Pedidos ao Galpão', 'Sugestões de reposição e guia PDF sem movimentação de estoque.', 55, TRUE),
       ('rh', 'RH', 'Chamados, pedidos e futuras rotinas de Recursos Humanos.', 60, TRUE),
       ('consulta_produtos', 'Consulta de Produtos', 'Consulta mobile de preço, custo, margem e estoque pela API GZ.', 70, TRUE),
-      ('cartazes', 'Cartazes', 'Criação rápida e edição de cartazes integrada à API GZ.', 80, TRUE)
+      ('cartazes', 'Cartazes', 'Criação rápida e edição de cartazes integrada à API GZ.', 80, TRUE),
+      ('recebimento_cpd', 'Recebimento e CPD', 'Notas fiscais, duplicatas, entrega ao CPD e caminhões.', 90, TRUE)
     ON CONFLICT (codigo) DO UPDATE SET
       nome = EXCLUDED.nome,
       descricao = EXCLUDED.descricao,

@@ -203,6 +203,7 @@ function configurarMenuPorPerfil() {
   const galpao = temAcessoModulo('galpao');
   const pedidosGalpao = temAcessoModulo('pedidos_galpao');
   const rh = temAcessoModulo('rh');
+  const recebimento = temAcessoModulo('recebimento_cpd');
   const produtosGz = temAcessoModulo('consulta_produtos');
   const cartazes = temAcessoModulo('cartazes');
 
@@ -219,6 +220,7 @@ function configurarMenuPorPerfil() {
   $('cardGalpao')?.classList.toggle('hidden', !galpao);
   $('cardPedidosGalpao')?.classList.toggle('hidden', !pedidosGalpao);
   $('cardRH')?.classList.toggle('hidden', !rh);
+  $('cardRecebimento')?.classList.toggle('hidden', !recebimento);
   $('cardProdutosGz')?.classList.toggle('hidden', !produtosGz);
   $('cardCartazes')?.classList.toggle('hidden', !cartazes);
   $('btnGalpaoImportar')?.classList.toggle('hidden', state.usuario?.perfil !== 'administrador_principal');
@@ -293,10 +295,11 @@ function setModule(module) {
   $('galpaoMenu')?.classList.toggle('hidden', module !== 'galpao');
   $('pedidosGalpaoMenu')?.classList.toggle('hidden', module !== 'pedidos-galpao');
   $('rhMenu')?.classList.toggle('hidden', module !== 'rh');
+  $('recebimentoMenu')?.classList.toggle('hidden', module !== 'recebimento');
   $('produtosGzMenu')?.classList.toggle('hidden', module !== 'produtos-gz');
   $('cartazesMenu')?.classList.toggle('hidden', module !== 'cartazes');
   $('btnHome')?.classList.toggle('active', module === 'home');
-  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', 'pedidos-galpao': 'Pedidos ao Galpão', rh: 'Módulo Recursos Humanos', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes' };
+  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', 'pedidos-galpao': 'Pedidos ao Galpão', rh: 'Módulo Recursos Humanos', recebimento: 'Recebimento e CPD', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes' };
   if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Plataforma Manaíra';
 }
 
@@ -312,6 +315,7 @@ function setView(view) {
   const isGalpao = view === 'galpao';
   const isPedidosGalpao = view === 'pedidos-galpao';
   const isRH = view === 'rh';
+  const isRecebimento = view === 'recebimento';
   const isProdutosGz = view === 'produtos-gz';
   const isCartazes = view === 'cartazes';
   $('homePanel')?.classList.toggle('hidden', !isHome);
@@ -324,6 +328,7 @@ function setView(view) {
   $('galpaoPanel')?.classList.toggle('hidden', !isGalpao);
   $('pedidosGalpaoPanel')?.classList.toggle('hidden', !isPedidosGalpao);
   $('rhPanel')?.classList.toggle('hidden', !isRH);
+  $('recebimentoPanel')?.classList.toggle('hidden', !isRecebimento);
   $('produtosGzPanel')?.classList.toggle('hidden', !isProdutosGz);
   $('cartazesPanel')?.classList.toggle('hidden', !isCartazes);
   $('printFooter').classList.toggle('hidden', isHome || isCartazes);
@@ -6343,6 +6348,8 @@ $('cardGalpao').onclick = entrarGalpao;
 $('cardPedidosGalpao').onclick = window.entrarPedidosGalpao;
 $('btnPedidosGalpao')?.addEventListener('click', window.entrarPedidosGalpao);
 $('cardRH').onclick = entrarRH;
+$('cardRecebimento').onclick = () => window.abrirRecebimento();
+$('btnRecebimento')?.addEventListener('click', () => window.abrirRecebimento());
 $('cardProdutosGz').onclick = entrarProdutosGz;
 $('cardCartazes').onclick = () => entrarCartazes('rapido');
 $('btnGalpaoDashboard')?.addEventListener('click', () => abrirGalpao('dashboard'));

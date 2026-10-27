@@ -594,3 +594,70 @@ ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_desconhecidos IN
 ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_novos_hoje INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_reativados INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE gz_sync_execucoes ADD COLUMN IF NOT EXISTS catalogo_inativados INTEGER NOT NULL DEFAULT 0;
+
+
+-- V67: Recebimento -> CPD (criação aditiva; preserva todos os módulos anteriores).
+CREATE TABLE IF NOT EXISTS receb_notas (
+ id BIGSERIAL PRIMARY KEY,
+ codigo_fornecedor VARCHAR(40) NOT NULL,
+ fornecedor VARCHAR(160) NOT NULL,
+ numero VARCHAR(40) NOT NULL,
+ serie VARCHAR(15) NOT NULL DEFAULT '',
+ valor NUMERIC(14,2) NOT NULL CHECK(valor>0),
+ origem VARCHAR(16) NOT NULL CHECK(origem IN ('PAPEL','MENSAGEM')),
+ status VARCHAR(32) NOT NULL DEFAULT 'NAO_RECEBIDA_CPD' CHECK(status IN ('NAO_RECEBIDA_CPD','RECEBIDA_CPD','PRODUTOS_CADASTRAR','DIVERGENCIA','LANCADA')),
+ observacao TEXT NOT NULL DEFAULT '',
+ pendencia TEXT NOT NULL DEFAULT '',
+ recebido_por INTEGER NOT NULL REFERENCES usuarios(id),
+ recebido_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+ cpd_recebido_por INTEGER REFERENCES usuarios(id),
+ cpd_recebido_em TIMESTAMPTZ,
+ lancado_por INTEGER REFERENCES usuarios(id),
+ lancado_em TIMESTAMPTZ,
+ atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+ UNIQUE(codigo_fornecedor,numero,serie)
+);
+CREATE TABLE IF NOT EXISTS receb_duplicatas (
+ id BIGSERIAL PRIMARY KEY,
+ nota_id BIGINT NOT NULL REFERENCES receb_notas(id) ON DELETE RESTRICT,
+ numero VARCHAR(30) NOT NULL,
+ vencimento DATE NOT NULL,
+ valor NUMERIC(14,2) NOT NULL CHECK(valor>0)
+);
+CREATE TABLE IF NOT EXISTS receb_eventos (
+ id BIGSERIAL PRIMARY KEY,
+ nota_id BIGINT NOT NULL REFERENCES receb_notas(id),
+ usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+ acao VARCHAR(40) NOT NULL,
+ detalhes TEXT NOT NULL DEFAULT '',
+ criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS receb_cpd_autorizados (
+ usuario_id INTEGER PRIMARY KEY REFERENCES usuarios(id),
+ pin_hash TEXT NOT NULL,
+ configurado_por INTEGER NOT NULL REFERENCES usuarios(id),
+ atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS receb_caminhoes (
+ id BIGSERIAL PRIMARY KEY,
+ dia DATE NOT NULL,
+ categoria VARCHAR(20) NOT NULL CHECK(categoria IN ('MERCEARIA','HORTIFRUTI','FRIOS')),
+ quantidade INTEGER NOT NULL CHECK(quantidade>0),
+ observacao VARCHAR(350) NOT NULL DEFAULT '',
+ registrado_por INTEGER NOT NULL REFERENCES usuarios(id),
+ criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS receb_anexos (
+ id BIGSERIAL PRIMARY KEY,
+ nota_id BIGINT NOT NULL REFERENCES receb_notas(id),
+ usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+ public_id TEXT NOT NULL UNIQUE,
+ resource_type VARCHAR(10) NOT NULL,
+ formato VARCHAR(16) NOT NULL,
+ nome_original VARCHAR(200) NOT NULL,
+ bytes INTEGER NOT NULL,
+ criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_receb_notas_status_data ON receb_notas(status,recebido_em DESC);
+CREATE INDEX IF NOT EXISTS ix_receb_duplicatas_nota ON receb_duplicatas(nota_id);
+CREATE INDEX IF NOT EXISTS ix_receb_caminhoes_dia ON receb_caminhoes(dia);
