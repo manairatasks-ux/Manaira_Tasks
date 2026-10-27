@@ -661,3 +661,19 @@ CREATE TABLE IF NOT EXISTS receb_anexos (
 CREATE INDEX IF NOT EXISTS ix_receb_notas_status_data ON receb_notas(status,recebido_em DESC);
 CREATE INDEX IF NOT EXISTS ix_receb_duplicatas_nota ON receb_duplicatas(nota_id);
 CREATE INDEX IF NOT EXISTS ix_receb_caminhoes_dia ON receb_caminhoes(dia);
+
+
+-- V67.7: Código do fornecedor opcional.
+-- Mantemos código vazio como '' para compatibilidade com os dados anteriores.
+-- A unicidade de notas SEM código passa a considerar o nome do fornecedor,
+-- permitindo numerações iguais para fornecedores diferentes.
+ALTER TABLE receb_notas ALTER COLUMN codigo_fornecedor SET DEFAULT '';
+UPDATE receb_notas SET codigo_fornecedor = '' WHERE codigo_fornecedor IS NULL;
+ALTER TABLE receb_notas ALTER COLUMN codigo_fornecedor SET NOT NULL;
+ALTER TABLE receb_notas DROP CONSTRAINT IF EXISTS receb_notas_codigo_fornecedor_numero_serie_key;
+CREATE UNIQUE INDEX IF NOT EXISTS receb_notas_codigo_nf_uk
+  ON receb_notas (codigo_fornecedor, numero, serie)
+  WHERE codigo_fornecedor <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS receb_notas_sem_codigo_nf_uk
+  ON receb_notas (lower(btrim(fornecedor)), numero, serie)
+  WHERE codigo_fornecedor = '';

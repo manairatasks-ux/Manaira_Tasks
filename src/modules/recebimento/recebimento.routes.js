@@ -107,7 +107,7 @@ router.post('/notas',asyncRoute(async(req,res)=>{
  const b=req.body||{};
  const codigo=text(b.codigo_fornecedor,40), fornecedor=text(b.fornecedor,160), numero=text(b.numero,40), serie=text(b.serie,15);
  const valor=num(b.valor);
- if(!codigo||!fornecedor||!numero||!Number.isFinite(valor)||valor<=0)return bad(res,'Informe código e nome do fornecedor, número e valor positivo da nota.');
+ if(!fornecedor||!numero||!Number.isFinite(valor)||valor<=0)return bad(res,'Informe nome do fornecedor, número e valor positivo da nota. O código do fornecedor é opcional.');
  if(!['PAPEL','MENSAGEM'].includes(b.origem))return bad(res,'Selecione papel ou mensagem.');
  const duplicatas=Array.isArray(b.duplicatas)?b.duplicatas:[];
  if(!duplicatas.length || duplicatas.length>24)return bad(res,'Informe de 1 a 24 duplicatas/vencimentos.');
@@ -121,7 +121,7 @@ router.post('/notas',asyncRoute(async(req,res)=>{
   for(let i=0;i<duplicatas.length;i++){const d=duplicatas[i];await client.query(`INSERT INTO receb_duplicatas(nota_id,numero,vencimento,valor) VALUES($1,$2,$3,$4)`,[r.rows[0].id,text(d.numero||String(i+1),30),d.vencimento,num(d.valor)])}
   await client.query(`INSERT INTO receb_eventos(nota_id,usuario_id,acao,detalhes) VALUES($1,$2,'CADASTRO',$3)`,[r.rows[0].id,req.user.id,'Nota registrada no recebimento']);
   await client.query('COMMIT'); res.status(201).json(r.rows[0]);
- }catch(e){await client.query('ROLLBACK');if(e.code==='23505')return bad(res,'Nota com o mesmo fornecedor, número e série já cadastrada.',409);throw e}finally{client.release()}
+ }catch(e){await client.query('ROLLBACK');if(e.code==='23505')return bad(res,'Já existe uma nota com este fornecedor, número e série.',409);throw e}finally{client.release()}
 }));
 router.get('/cpd/perfil',asyncRoute(async(req,res)=>{
  const r=await query('SELECT EXISTS(SELECT 1 FROM receb_cpd_autorizados WHERE usuario_id=$1) AS autorizado',[req.user.id]);
