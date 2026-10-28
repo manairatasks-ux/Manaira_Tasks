@@ -677,3 +677,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS receb_notas_codigo_nf_uk
 CREATE UNIQUE INDEX IF NOT EXISTS receb_notas_sem_codigo_nf_uk
   ON receb_notas (lower(btrim(fornecedor)), numero, serie)
   WHERE codigo_fornecedor = '';
+
+-- V68: Orçamentos. Tabelas novas; não modifica cadastros existentes.
+CREATE TABLE IF NOT EXISTS orcamentos (
+ id BIGSERIAL PRIMARY KEY, numero VARCHAR(30) UNIQUE, cliente VARCHAR(180) NOT NULL,
+ contato TEXT, observacoes TEXT, validade_em DATE, criado_por INTEGER REFERENCES usuarios(id),
+ desconto_tipo VARCHAR(15) DEFAULT 'nenhum', desconto_valor NUMERIC(14,4) DEFAULT 0,
+ subtotal_centavos BIGINT NOT NULL, desconto_itens_centavos BIGINT NOT NULL DEFAULT 0,
+ desconto_geral_centavos BIGINT NOT NULL DEFAULT 0,total_centavos BIGINT NOT NULL,
+ status VARCHAR(20) NOT NULL DEFAULT 'EMITIDO', criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS orcamento_itens (
+ id BIGSERIAL PRIMARY KEY, orcamento_id BIGINT NOT NULL REFERENCES orcamentos(id) ON DELETE RESTRICT,
+ codigo VARCHAR(40), ean VARCHAR(40), descricao TEXT NOT NULL,
+ quantidade NUMERIC(14,3) NOT NULL, preco_centavos BIGINT NOT NULL,
+ desconto_tipo VARCHAR(15) DEFAULT 'nenhum', desconto_valor NUMERIC(14,4) DEFAULT 0,
+ desconto_centavos BIGINT DEFAULT 0, total_centavos BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS orcamentos_criado_idx ON orcamentos(criado_em DESC);
+CREATE INDEX IF NOT EXISTS orcamento_itens_orc_idx ON orcamento_itens(orcamento_id);
