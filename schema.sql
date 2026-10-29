@@ -696,3 +696,19 @@ CREATE TABLE IF NOT EXISTS orcamento_itens (
 );
 CREATE INDEX IF NOT EXISTS orcamentos_criado_idx ON orcamentos(criado_em DESC);
 CREATE INDEX IF NOT EXISTS orcamento_itens_orc_idx ON orcamento_itens(orcamento_id);
+
+-- V68.3: novos campos e auditoria de orçamentos (migração não destrutiva).
+ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS tipo_destinatario VARCHAR(12) NOT NULL DEFAULT 'CLIENTE';
+ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS documento_cliente VARCHAR(24);
+ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS endereco_cliente TEXT;
+ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMPTZ;
+ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS atualizado_por INTEGER REFERENCES usuarios(id);
+ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS cancelado_em TIMESTAMPTZ;
+ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS cancelado_por INTEGER REFERENCES usuarios(id);
+ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT;
+CREATE TABLE IF NOT EXISTS orcamento_auditoria (
+ id BIGSERIAL PRIMARY KEY, orcamento_id BIGINT NOT NULL REFERENCES orcamentos(id),
+ acao VARCHAR(24) NOT NULL, usuario_id INTEGER REFERENCES usuarios(id),
+ dados_anteriores JSONB, detalhes TEXT, criado_em TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS orcamento_auditoria_orc_idx ON orcamento_auditoria(orcamento_id,criado_em DESC);
