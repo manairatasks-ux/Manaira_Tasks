@@ -76,7 +76,6 @@ router.get('/',...base,safe(async(req,res)=>{const r=await pool.query(`SELECT id
 router.get('/:id',...base,safe(async(req,res)=>{const o=(await pool.query('SELECT * FROM orcamentos WHERE id=$1',[req.params.id])).rows[0];if(!o)fail('Orçamento não encontrado',404);const items=(await pool.query('SELECT * FROM orcamento_itens WHERE orcamento_id=$1 ORDER BY id',[o.id])).rows;res.json({orcamento:o,itens:items})}));
 router.post('/',...base,safe(async(req,res)=>{
  const b=req.body||{},items=b.itens;validateRecipient(b);if(!Array.isArray(items)||!items.length||items.length>250)fail('Informe de 1 a 250 itens');if(!String(b.cliente||'').trim())fail('Informe o cliente');if(String(b.cliente).length>180)fail('Nome muito longo');
- if(items.some(x=>x.desconto_tipo&&x.desconto_tipo!=='nenhum')||(b.desconto?.tipo&&b.desconto.tipo!=='nenhum')){if(!isManager(req.user))fail('Descontos exigem perfil de gerente ou administrador.',403)}
  // Não confiar nos preços recebidos do navegador: verificar produtos diretamente na Ponte GZ.
  const checked=[];
  for(const x of items){const code=String(x.codigo||'').trim(),ean=String(x.ean||'').trim();if(!code&&!ean)fail('Produto sem código GZ');const matches=await product(code?{codigoInterno:code}:{codigoBarras:ean});const found=matches.find(p=>String(p.codigo||p.codigoInterno||'')===code || (ean&&String(p.codigoEan||p.codigoBarras||'')===ean));if(!found)fail('Produto não encontrado no GZ: '+(code||ean));if(situacaoProduto(found)==='INATIVO')fail('Produto inativo no GZ: '+(found.descricao||code));const cents=price(found);if(cents<=0)fail('Preço de terminal indisponível: '+(found.descricao||code));checked.push({codigo:code||String(found.codigo||''),ean:ean||String(found.codigoEan||''),descricao:String(found.descricao||found.descpdv||''),quantidade:x.quantidade,preco_centavos:cents,desconto_tipo:x.desconto_tipo||'nenhum',desconto_valor:x.desconto_valor||0})}
@@ -112,8 +111,6 @@ router.put('/:id',...base,safe(async(req,res)=>{
   await client.query('BEGIN');
   const before=await snapshot(client,req.params.id),o=before.orcamento;
   checkEdit(req.user,o);
-  const discountUsed=b.itens.some(x=>x.desconto_tipo&&x.desconto_tipo!=='nenhum')||(b.desconto?.tipo&&b.desconto.tipo!=='nenhum');
-  if(discountUsed&&!isManager(req.user))fail('Descontos exigem perfil de gerente ou administrador',403);
   // Na edição o preço originalmente emitido é preservado. Não o substituímos silenciosamente por preços novos.
   const oldByCode=new Map(before.itens.map(x=>[String(x.codigo||x.ean),x]));
   const items=[];

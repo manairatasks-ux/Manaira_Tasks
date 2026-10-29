@@ -1,6 +1,6 @@
 {
   "name": "manaira-board-render",
-  "version": "68.3.0",
+  "version": "68.4.0",
   "description": "Plataforma Manaíra V68.3 - Orçamentos: modelos PDF, edição e auditoria",
   "main": "src/server.js",
   "scripts": {

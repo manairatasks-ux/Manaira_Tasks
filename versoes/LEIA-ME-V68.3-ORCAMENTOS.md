@@ -15,7 +15,7 @@
 4. Use o Histórico para editar, cancelar, obter PDF ou CSV.
 
 ## Restrições e testes pendentes
-- Autorização de desconto: gerente/administrador; cancelamento: gerente/administrador; edição sem desconto: autor ou gerente/administrador.
+- Autorização de desconto: qualquer usuário com acesso ao módulo; cancelamento: gerente/administrador; edição sem desconto: autor ou gerente/administrador.
 - O cadastro do CPF é opcional; CNPJ para empresa é obrigatório nesta versão, sem validação algorítmica.
 - As alterações são não destrutivas no schema, mas **a aplicação com PostgreSQL real e a geração visual do PDF não foram testadas neste ambiente**.
 - O PDF empresarial reproduz a identidade/estrutura do documento de referência, não é um preenchimento pixel a pixel da folha original.
