@@ -712,3 +712,25 @@ CREATE TABLE IF NOT EXISTS orcamento_auditoria (
  dados_anteriores JSONB, detalhes TEXT, criado_em TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS orcamento_auditoria_orc_idx ON orcamento_auditoria(orcamento_id,criado_em DESC);
+
+
+-- V70: Pit Stop (migração aditiva, preserva todos os dados existentes).
+CREATE TABLE IF NOT EXISTS pitstop_sessoes (
+ id BIGSERIAL PRIMARY KEY, usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+ criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(), fechada_em TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS pitstop_entradas (
+ id BIGSERIAL PRIMARY KEY, sessao_id BIGINT NOT NULL REFERENCES pitstop_sessoes(id),
+ usuario_id INTEGER NOT NULL REFERENCES usuarios(id), ean VARCHAR(14) NOT NULL,
+ codigo_produto VARCHAR(60), descricao VARCHAR(300) NOT NULL,
+ quantidade INTEGER NOT NULL CHECK(quantidade>0), foto_public_id TEXT NOT NULL, foto_formato VARCHAR(10) DEFAULT 'jpg',
+ observacao VARCHAR(500), criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ cancelado_em TIMESTAMPTZ, cancelamento_motivo TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pitstop_entradas_sessao ON pitstop_entradas(sessao_id,id);
+CREATE INDEX IF NOT EXISTS idx_pitstop_entradas_data ON pitstop_entradas(criado_em DESC);
+CREATE TABLE IF NOT EXISTS pitstop_auditoria (
+ id BIGSERIAL PRIMARY KEY, entrada_id BIGINT NOT NULL REFERENCES pitstop_entradas(id),
+ usuario_id INTEGER NOT NULL REFERENCES usuarios(id), acao VARCHAR(40) NOT NULL,
+ detalhes JSONB NOT NULL DEFAULT '{}'::jsonb, criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

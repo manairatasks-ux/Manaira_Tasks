@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "69.0.0",
-  "description": "Manaíra Board V69 — identidade visual global, sem alterações nas regras de negócio",
+  "version": "70.0.0",
+  "description": "Manaíra Board V70 — módulo Pit Stop com fotos e relatórios",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
