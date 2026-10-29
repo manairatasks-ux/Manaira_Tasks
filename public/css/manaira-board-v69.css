@@ -1,0 +1,85 @@
+/* Manaíra Board V69 — camada visual global.
+   Preserva IDs, regras e estilos funcionais dos módulos da V68.5.
+   Azul é a cor operacional; amarelo/vermelho são acentos, não fundos extensos. */
+:root {
+  --blue: #176aa9;
+  --blue-dark: #0d477b;
+  --blue-soft: #e9f3fc;
+  --green: #168565;
+  --red: #cc4453;
+  --orange: #e3a62d;
+  --gray: #63758a;
+  --bg: #f3f7fc;
+  --line: #dbe5ef;
+  --text: #1d3148;
+  --card-shadow: 0 5px 24px rgba(20, 54, 88, .055);
+  --border: #dbe5ef;
+  --card: #fff;
+}
+body { background:var(--bg); color:var(--text); -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font-family: Arial, Helvetica, sans-serif; }
+button { transition: background-color .16s, border-color .16s, box-shadow .16s, transform .12s; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline:2px solid #e0aa27; outline-offset:2px; }
+button.primary, .primary, .login-card button[type="submit"] { background:#176aa9; border-color:#176aa9; color:white; }
+button.primary:hover, .primary:hover { background:#0e578f; border-color:#0e578f; }
+input:focus, select:focus, textarea:focus { border-color:#4395c9; box-shadow:0 0 0 3px rgba(27,110,173,.11); }
+/* Navigation: contrast without oversaturating every surface */
+.app { grid-template-columns: 244px minmax(0,1fr); }
+.sidebar { background:linear-gradient(180deg,#0c3155 0%,#0b2949 100%); border-right:1px solid #143d65; color:#e7f1fb; padding:20px 12px 15px; gap:12px; }
+.logo-row { padding:2px 6px 15px; gap:11px; border-bottom:1px solid rgba(255,255,255,.13); }
+.logo-row strong { color:#fff; font-size:15px; letter-spacing:.01em; }
+.logo-row span { color:#b0c7dc; font-size:11px; }
+.logo, .brand-mark { background:#fff; border:1px solid rgba(255,255,255,.55); border-radius:14px; width:45px; height:45px; box-shadow:0 4px 12px rgba(0,0,0,.08); overflow:hidden; }
+.logo img, .brand-mark img { width:86%; height:86%; object-fit:contain; display:block; }
+.nav-main, .sector-item { color:#d4e4f2; border:1px solid transparent; border-radius:10px; font-size:13px; font-weight:600; min-height:39px; padding:10px 12px; }
+.nav-main:hover, .sector-item:hover { background:rgba(255,255,255,.085); color:#fff; filter:none; }
+.nav-main.active, .sector-item.active { background:#1b598a; border-color:#3875a5; color:#fff; box-shadow:inset 3px 0 0 #f2c94c; }
+.module-menu-title, .nav-label { color:#9ab7d2; opacity:1; letter-spacing:.15em; }
+.new-sector { background:rgba(255,255,255,.08); color:#e5eff9; border:1px solid rgba(255,255,255,.2); }
+.new-sector:hover { background:rgba(255,255,255,.15); }
+.sidebar-footer { border-top-color:rgba(255,255,255,.16); }
+.sidebar-footer span { color:#e8f2fb; font-size:12px; }
+.sidebar-footer button { background:#16476f; color:#fff; border-color:#2e638c; }
+.sidebar-footer button:hover { background:#235d89; }
+/* Workspace */
+.main { background:linear-gradient(180deg,#f7fafe 0%,#f2f7fc 100%); }
+.topbar { background:rgba(255,255,255,.97); border-bottom-color:#dfe7f0; box-shadow:0 2px 13px rgba(16,54,91,.028); padding:19px 28px 17px; }
+.topbar h1 { color:#123c65; letter-spacing:-.025em; }
+.topbar p { color:#687c90; }
+.module-home { max-width:1300px; padding:32px; }
+.home-welcome { background:linear-gradient(110deg,#e7f3fc 0%,#f7fbff 82%); border:1px solid #d5e8f5; border-radius:19px; padding:24px 28px; margin-bottom:22px; position:relative; overflow:hidden; }
+.home-welcome::before { content:""; position:absolute; right:0; top:0; bottom:0; width:6px; background:#edc448; }
+.home-welcome .eyebrow { color:#2169a3; opacity:1; font-size:10px; letter-spacing:.15em; }
+.home-welcome h2 { color:#0c355d; margin:10px 0 7px; letter-spacing:-.035em; }
+.home-welcome p { color:#617c96; opacity:1; }
+.module-grid { gap:15px; }
+.module-card { border-color:#dae6f1; border-radius:16px; min-height:112px; padding:18px 20px; box-shadow:0 5px 18px rgba(26,60,94,.045); background:#fff; }
+.module-card:hover:not(.module-card-disabled) { border-color:#8dbadd; box-shadow:0 12px 28px rgba(25,75,115,.11); transform:translateY(-2px); }
+.module-icon { background:#e9f3fc; color:#176aa9; border-radius:13px; width:50px; height:50px; font-size:22px; }
+.module-card-copy strong { color:#183e63; font-size:16px; }
+.module-card-copy small { color:#718397; opacity:1; font-size:12px; }
+.module-arrow { color:#2b79b5; opacity:.8; }
+.module-card-disabled { background:#f8fafc; }
+/* Shared cards, data tables, forms: understated defaults */
+.group, .login-card { border:1px solid var(--line); box-shadow:var(--card-shadow); }
+.group-title { color:#123d64; }
+.login-screen { background:radial-gradient(circle at 75% 20%,#d7ebf9 0, transparent 36%),linear-gradient(135deg,#e9f3fb,#f7fafd); }
+.login-card { border-radius:22px; padding:34px; }
+.login-card .brand-mark { width:58px; height:58px; margin:auto; }
+.login-card h1 { color:#123d64; text-align:center; letter-spacing:-.035em; }
+.login-card p { text-align:center; }
+.login-card::before { content:""; display:block; height:4px; border-radius:12px; margin:-8px 0 24px; background:linear-gradient(90deg,#176aa9 0 79%,#efc54b 79% 92%,#dc5260 92% 100%); }
+.login-card button { font-weight:700; }
+/* Shared native table color, leaving module-specific geometry intact */
+:is(.dashboard,.os-panel,.board,.module-home,.galpao-panel,.almox-panel) table { border-color:#dce7f1; }
+:is(.dashboard,.os-panel,.board,.module-home,.galpao-panel,.almox-panel) th { color:#16456d; }
+/* Responsive: existing mobile layout remains in charge of structure */
+@media(max-width:820px) {
+  .app { display:block; }
+  .sidebar { border-right:0; border-bottom:1px solid #244e73; background:#0c3155; padding:12px 14px; }
+  .logo-row { padding-bottom:12px; }
+  .module-home { padding:16px; }
+  .home-welcome { padding:20px; margin-bottom:15px; }
+  .topbar { padding:17px 16px; }
+}
+@media(prefers-reduced-motion:reduce) { .module-card, button { transition:none!important; } }

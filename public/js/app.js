@@ -303,7 +303,7 @@ function setModule(module) {
   $('cartazesMenu')?.classList.toggle('hidden', module !== 'cartazes');
   $('btnHome')?.classList.toggle('active', module === 'home');
   const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', 'pedidos-galpao': 'Pedidos ao Galpão', rh: 'Módulo Recursos Humanos', recebimento: 'Recebimento e CPD', orcamentos: 'Orçamentos', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes' };
-  if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Plataforma Manaíra';
+  if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Manaíra Board';
 }
 
 function setView(view) {
