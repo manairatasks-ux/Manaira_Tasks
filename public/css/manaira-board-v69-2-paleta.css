@@ -1,0 +1,91 @@
+/* Manaíra Board V69.2 — padronização cromática.
+   Apenas apresentação: não altera cálculos, layouts, estado nem impressões.
+   Azul = interface; verde/amarelo/vermelho = semântica (sucesso/alerta/erro).
+ */
+:root {
+  --board-navy:#0b315d;
+  --board-blue:#176aa9;
+  --board-blue-hover:#0e578f;
+  --board-soft:#e9f3fc;
+  --board-paper:#ffffff;
+  --board-surface:#f4f7fb;
+  --board-line:#d5e2ee;
+  --board-ink:#172b43;
+  --board-muted:#465a70;
+  --board-gold:#efc54b;
+  --board-danger:#b73143;
+  --board-success:#167452;
+}
+/* Elementos compartilhados que herdavam azuis/verdões diferentes */
+.main :is(.group,.card,.panel,.modal-card) { border-color:var(--board-line); }
+.main :is(input,select,textarea):not([type="checkbox"]):not([type="radio"]):focus { border-color:var(--board-blue); box-shadow:0 0 0 3px rgba(23,106,169,.12); }
+.main :is(input[type="checkbox"],input[type="radio"],input[type="range"]) { accent-color:var(--board-blue); }
+/* Orçamentos: trocar verde estrutural pelo azul da marca */
+#orcamentosPanel { color:var(--board-ink); }
+#orcamentosPanel :is(.orc-head h2,.orc-card h3) { color:var(--board-navy); }
+#orcamentosPanel button:not(.orc-danger) { color:var(--board-navy); border-color:var(--board-line); }
+#orcamentosPanel :is(button.selected,.orc-primary,.orc-search button) { background:var(--board-blue); color:#fff; border-color:var(--board-blue); }
+#orcamentosPanel :is(button.selected,.orc-primary,.orc-search button):hover:not(:disabled) { background:var(--board-blue-hover); border-color:var(--board-blue-hover); }
+#orcamentosPanel :is(.orc-totais strong,.orc-item-final,#orcEditBadge) { color:var(--board-navy); }
+#orcamentosPanel :is(.orc-card,.orc-result-row,.orc-result,.orc-history,.orc-item) { border-color:var(--board-line); }
+#orcamentosPanel :is(input,select,textarea) { border-color:var(--board-line); }
+#orcamentosPanel .orc-tag { background:var(--board-soft); color:var(--board-navy); }
+#orcamentosPanel .orc-tag-danger { background:#fce8eb; color:var(--board-danger); }
+#orcamentosPanel :is(.orc-tag-active,.orc-tag-added) { background:#e5f5ed; color:var(--board-success); }
+#orcamentosPanel .orc-result-price .orc-offer { color:var(--board-success); }
+#orcamentosPanel .orc-history .orc-danger { color:var(--board-danger); border-color:#edbec5; background:#fff; }
+/* Recebimento: menus, títulos, modais e tabelas deixam de ser verdes */
+#recebimentoPanel .rec-btn:not(.danger), .rec-modal .rec-btn:not(.danger) { background:var(--board-blue); color:#fff; border-color:var(--board-blue); }
+#recebimentoPanel .rec-btn:not(.danger):hover:not(:disabled), .rec-modal .rec-btn:not(.danger):hover:not(:disabled) { background:var(--board-blue-hover); }
+#recebimentoPanel .rec-btn.secondary,.rec-modal .rec-btn.secondary { background:var(--board-soft); color:var(--board-navy); border:1px solid #bfd6e9; }
+#recebimentoPanel .rec-btn.danger,.rec-modal .rec-btn.danger { background:var(--board-danger); color:#fff; }
+#recebimentoPanel .rec-kpi { color:var(--board-navy); }
+#recebimentoPanel :is(.rec-card,.rec-board-note,.rec-board-col,.rec-upload,.rec-upload-preview) { border-color:var(--board-line); }
+#recebimentoPanel .rec-table th,.rec-modal .rec-table th { color:var(--board-navy); background:var(--board-soft); }
+#recebimentoPanel .rec-table td,.rec-modal .rec-table td { border-bottom-color:var(--board-line); }
+#recebimentoPanel :is(.rec-grid label,.rec-board-filter-line label) { color:#344a62; }
+#recebimentoPanel :is(.rec-grid input,.rec-grid select,.rec-grid textarea,.rec-filter) { border-color:var(--board-line); color:var(--board-ink); }
+#recebimentoPanel .rec-board-col { background:var(--board-surface); }
+#recebimentoPanel .rec-board-col-head { background:#f0f5fb; }
+#recebimentoPanel .rec-board-col-head h3 { color:var(--board-navy); }
+#recebimentoPanel .rec-board-count { background:#dceaf7; color:var(--board-navy); }
+#recebimentoPanel .rec-board-note-num { color:var(--board-muted); }
+#recebimentoPanel .rec-board-note-value { color:var(--board-navy); }
+#recebimentoPanel .rec-stage-recebidas .rec-board-col-head { border-bottom-color:#6188ad; }
+#recebimentoPanel .rec-stage-cpd .rec-board-col-head { border-bottom-color:var(--board-blue); }
+#recebimentoPanel .rec-stage-pendencias .rec-board-col-head { border-bottom-color:#c99623; }
+#recebimentoPanel .rec-stage-lancadas .rec-board-col-head { border-bottom-color:var(--board-success); }
+#recebimentoPanel .rec-status:not(.LANCADA):not(.PRODUTOS_CADASTRAR):not(.DIVERGENCIA) { background:#e9f1fa; color:#244d75; }
+#recebimentoPanel .rec-status.LANCADA { background:#e5f5ed; color:var(--board-success); }
+#recebimentoPanel :is(.rec-status.PRODUTOS_CADASTRAR,.rec-status.DIVERGENCIA) { background:#fff2d6; color:#855900; }
+#recebimentoPanel .rec-board-note { background:#fff; }
+.rec-modal-overlay { background:rgba(11,31,55,.66); }
+.rec-modal { color:var(--board-ink); }
+.rec-modal-head { background:var(--board-navy); }
+.rec-modal-content .rec-card { background:#fff; }
+.rec-upload { background:var(--board-surface); border-color:var(--board-line); }
+.rec-detail-panel:not(:empty) { outline-color:#a5c9e7; }
+/* Pedidos ao Galpão: verde deixa de ser cor primária dos elementos de interface */
+.pg-top h2 { color:var(--board-navy); }
+.pg-table-wrap,.pg-controls,.pg-footer { border-color:var(--board-line); }
+.pg-table th { background:var(--board-navy); color:#fff; }
+.pg-table td { border-bottom-color:var(--board-line); }
+.pg-percent { color:var(--board-blue); }
+.pg-controls input[type="range"] { accent-color:var(--board-blue); }
+.pg-footer button { background:var(--board-blue); color:#fff; border-color:var(--board-blue); }
+.pg-footer button:hover:not(:disabled) { background:var(--board-blue-hover); }
+.pg-actions #pgRepetir { background:var(--board-soft); color:var(--board-navy); border-color:#9ebed9; }
+.pg-progress { background:#eef5fc; color:var(--board-navy); border-color:#c3d9ed; }
+.pg-progress #pgDetalhes,.pg-progress #pgTempo { color:#405b75; }
+.pg-bar { background:#dce9f5; }
+.pg-bar>div { background:var(--board-blue); }
+.pg-sync-status { background:#eaf3ff; color:#23476e; border-color:#bfd7f2; }
+/* Informações e alertas mantêm cor semântica: sucessos, falhas e divergências */
+.pg-alert { background:#e9f6ef; color:#176344; border-color:#bfdecf; }
+.pg-table .pg-divergencia { background:#fff7ed; }
+/* Cartazes e outros módulos: apenas controles, nunca a arte impressa */
+#cartazesPanel :is(input,select,textarea),.cartazes-panel :is(input,select,textarea) { border-color:var(--board-line); }
+#cartazesPanel :is(input,select,textarea):focus,.cartazes-panel :is(input,select,textarea):focus { border-color:var(--board-blue); }
+#cartazesPanel :is(input[type="checkbox"],input[type="radio"]),.cartazes-panel :is(input[type="checkbox"],input[type="radio"]) { accent-color:var(--board-blue); }
+/* Limita a mudança à tela, preservando templates e impressão */
+@media print { .pg-progress,.pg-sync-status { color:inherit; } }

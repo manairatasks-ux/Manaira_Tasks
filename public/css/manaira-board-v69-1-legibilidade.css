@@ -1,0 +1,93 @@
+/* Manaíra Board V69.1 — camada de legibilidade.
+ * Aplicada DEPOIS dos estilos dos módulos. Somente apresentação;
+ * não modifica grids principais, regras de negócio, estados ou visibilidade.
+ * Cores de status (verde/amarelo/vermelho) e layouts especiais são preservados.
+ */
+:root {
+  --text: #172b43;
+  --gray: #465a70;
+  --line: #cbd8e6;
+  --border: #cbd8e6;
+  --board-text-muted: #465a70;
+  --board-text-soft: #52667a;
+}
+body { color:var(--text); line-height:1.48; }
+/* Componente comum: os valores não devem competir com o rótulo, nem sumir nele. */
+.topbar p, .home-welcome p, .module-card-copy small, .login-card p,
+.group p, .group small { color:var(--board-text-muted); }
+.module-card-copy small { font-size:13px; line-height:1.45; }
+.logo-row span { font-size:12px; color:#d4e4f2; }
+.module-menu-title, .nav-label { color:#c3d8ea; font-size:12px; letter-spacing:.09em; }
+.nav-main, .sector-item { font-size:13.5px; line-height:1.4; }
+.topbar p { font-size:13px; }
+.home-welcome .eyebrow { font-size:12px; }
+label { color:#3f5269; font-size:13px; line-height:1.45; }
+input,select,textarea { color:#182c43; border-color:#c9d6e4; font-size:14px; }
+input::placeholder, textarea::placeholder { color:#62758b; opacity:1; }
+button { font-size:13px; line-height:1.35; }
+/* Cabeçalhos e dados de tabelas compartilhadas. */
+.main table th, .main table td { line-height:1.45; }
+.main table th { font-size:12px; letter-spacing:.005em; }
+.main table td { font-size:13px; color:#253950; }
+.main table td small, .main table td .muted { color:#506278; font-size:12px; }
+/* Não substituir cor de badges ou números com semântica de status. */
+.main :is(.muted,.text-muted,.helper-text,.hint,.meta) { color:var(--board-text-muted); }
+/* Orçamentos — pesquisa horizontal e detalhamento compacto preservados. */
+#orcamentosPanel { color:#172b43; }
+#orcamentosPanel p, #orcamentosPanel small, #orcamentosPanel .orc-hint { color:#495e74; }
+#orcamentosPanel small, #orcamentosPanel .orc-hint { font-size:12.5px; line-height:1.45; }
+#orcamentosPanel label { font-size:13px; color:#344a62; }
+#orcamentosPanel .orc-result-name strong { font-size:14px; line-height:1.42; }
+#orcamentosPanel .orc-tag { font-size:11px; line-height:1.35; padding:4px 7px; }
+#orcamentosPanel .orc-result-price strong { font-size:15px; }
+#orcamentosPanel .orc-item-value { font-size:13px; line-height:1.45; }
+#orcamentosPanel .orc-item-final { font-size:15px; }
+#orcamentosPanel input,#orcamentosPanel select,#orcamentosPanel textarea { color:#172b43; border-color:#c6d5e2; }
+#orcamentosPanel .orc-result,#orcamentosPanel .orc-history { border-bottom-color:#dce5ee; }
+/* Recebimento / CPD — notas, duplicatas e quadro com 4 colunas. */
+#recebimentoPanel { color:#1b3047; }
+#recebimentoPanel .rec-grid label,#recebimentoPanel .rec-board-filter-line label { font-size:13px; color:#3b5369; }
+#recebimentoPanel .rec-muted { color:#4d6477; font-size:13px; }
+#recebimentoPanel .rec-status { font-size:12px; line-height:1.35; }
+#recebimentoPanel .rec-table th, #recebimentoPanel .rec-table td { font-size:13px; }
+#recebimentoPanel .rec-board-col-head h3 { font-size:15px; }
+#recebimentoPanel .rec-board-col-head p { font-size:12px; line-height:1.48; color:#476175; }
+#recebimentoPanel .rec-board-note-top { font-size:13px; line-height:1.45; }
+#recebimentoPanel .rec-board-note-num { font-size:12px; color:#475e73; }
+#recebimentoPanel .rec-board-note-value { font-size:16px; }
+#recebimentoPanel .rec-board-note-meta { font-size:12px; line-height:1.42; color:#415970; }
+#recebimentoPanel .rec-board-note-status .rec-status { font-size:11.5px; }
+#recebimentoPanel .rec-board-empty { font-size:13px; color:#4c6072; }
+#recebimentoPanel .rec-board-pager, #recebimentoPanel .rec-board-pager button { font-size:12px; }
+#recebimentoPanel .rec-board-count { color:#263c52; font-size:12px; }
+#recebimentoPanel .rec-grid input,#recebimentoPanel .rec-grid select,#recebimentoPanel .rec-grid textarea { border-color:#c5d4e1; color:#172b43; }
+/* Pedidos ao Galpão — valores legíveis mesmo em tabelas densas. */
+.pg-top p,.pg-info,.pg-table td small,.pg-empty { color:#465c72; font-size:13px; line-height:1.45; }
+.pg-controls label { color:#344a63; font-size:13px; }
+.pg-table th { font-size:12.5px; line-height:1.4; }
+.pg-table td { font-size:13.5px; line-height:1.45; }
+/* Cards genéricos do GZ, Galpão, RH e Almoxarifado. Evita textos quase invisíveis. */
+:is(.dashboard,.galpao-panel,.almox-panel,.os-panel,.board,.main) :is(.small,.subtext,.subtitle) { color:var(--board-text-muted); }
+/* Navegação por teclado com indicador de foco contrastante. */
+:where(.main,.sidebar) :is(a,button,input,select,textarea):focus-visible {
+  outline:2px solid #a66b00; outline-offset:2px;
+}
+/* Em celulares os campos ganham área de toque, sem reestruturar grids. */
+@media(max-width:650px) {
+  #recebimentoPanel .rec-board-note-meta { font-size:12px; }
+  #recebimentoPanel .rec-board-col-head { min-height:0; }
+  #orcamentosPanel .orc-item-value { text-align:left; }
+  .main input,.main select,.main textarea { font-size:16px; }
+}
+/* Não introduzir esses ajustes em PDFs / impressões HTML. */
+@media print {
+  body { line-height:normal; }
+}
+/* Galpão: metadados de lotes e validade não devem ter 9–10 px. */
+.galpao-stock-product small,.galpao-lote-continuacao { font-size:12px; color:#465d73; }
+.galpao-stock-validade small,.galpao-product-total .galpao-total-label { font-size:11px; line-height:1.4; }
+/* Cartazes: melhora a leitura dos controles sem atingir a arte/etiqueta impressa. */
+#cartazesPanel :is(label,small), .cartazes-panel :is(label,small) { font-size:12px; color:#41576f; }
+/* Fontes de componentes genéricos de consulta, preservando status semânticos. */
+.main :is(.group-title,.section-title) { color:#173e63; }
+.main :is(input,select,textarea):disabled { color:#465d72; opacity:.85; }
