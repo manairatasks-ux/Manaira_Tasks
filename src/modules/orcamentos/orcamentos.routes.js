@@ -156,8 +156,21 @@ router.get('/:id/pdf',...base,safe(async(req,res)=>{
   try{doc.image(logo,47,45,{fit:[60,56]})}catch(e){}
   doc.fillColor(navy).font('Helvetica-Bold').fontSize(10).text('SUPERMERCADOS MANAÍRA LTDA',115,48,{width:255});
   doc.font('Helvetica').fontSize(8).text('CNPJ: 09.143.892/0001-54',115,64).text('Av. João Câncio da Silva, 492',115,76).text('Manaíra - João Pessoa/PB',115,88);
-  doc.font('Helvetica-Bold').fontSize(15).text(empresa?'ORÇAMENTO EMPRESARIAL':'ORÇAMENTO',365,48,{width:185,align:'right'});
-  doc.fontSize(8).text(`EMISSÃO: ${dataBR(o.criado_em)}`,375,68,{width:175,align:'right'}).text(`VALIDADE: ${dataBR(o.validade_em)}`,375,80,{width:175,align:'right'});
+  // Cabeçalho direito: dimensionar o título para ficar em UMA linha.
+  // Evita sobreposição com emissão e validade quando o tipo é EMPRESA.
+  const titulo = empresa ? 'ORÇAMENTO EMPRESARIAL' : 'ORÇAMENTO';
+  const tituloX = 355, tituloLargura = 195;
+  doc.font('Helvetica-Bold');
+  let fonteTitulo = 13;
+  while (fonteTitulo > 9 && doc.fontSize(fonteTitulo).widthOfString(titulo) > tituloLargura) {
+    fonteTitulo -= 0.5;
+  }
+  doc.fontSize(fonteTitulo).fillColor(navy).text(titulo, tituloX, 47, {
+    width: tituloLargura, height: 19, align: 'right', lineBreak: false
+  });
+  doc.font('Helvetica-Bold').fontSize(8).fillColor(navy);
+  doc.text(`EMISSÃO: ${dataBR(o.criado_em)}`, tituloX, 72, {width: tituloLargura, align: 'right', lineBreak: false});
+  doc.text(`VALIDADE: ${dataBR(o.validade_em)}`, tituloX, 85, {width: tituloLargura, align: 'right', lineBreak: false});
   doc.rect(left,115,257,14).fill(navy);doc.rect(297,115,258,14).fill(gold);
   doc.fillColor('white').fontSize(8).text(empresa?'DADOS DA EMPRESA CLIENTE':'DADOS DO CLIENTE',44,119);
   doc.fillColor(navy).text('DADOS DO EMITENTE',301,119);
