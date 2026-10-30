@@ -2,7 +2,7 @@
 const router=require('express').Router();
 const multer=require('multer');
 const crypto=require('crypto');
-const PDFDocument=require('pdfkit');
+const {sessionReport,periodReport}=require('./pitstop.pdf');
 const https=require('https');
 const http=require('http');
 const cloudinary=require('cloudinary').v2;
@@ -55,16 +55,14 @@ router.get('/relatorio/pdf',wrap(async(req,res)=>{
  if(!isManager(req)){args.push(req.user.id);restricao=` AND e.usuario_id=$${args.length}`;}
  const r=await query(`${detailSql} WHERE e.cancelado_em IS NULL AND e.criado_em >= ($1::date::timestamp AT TIME ZONE 'America/Fortaleza') AND e.criado_em < (($2::date + 1)::timestamp AT TIME ZONE 'America/Fortaleza') ${restricao} ORDER BY e.criado_em,e.id LIMIT 300`,args);
  if(!r.rowCount)fail('Nenhum registro encontrado no período.',404);
- const doc=new PDFDocument({size:'A4',margin:40,bufferPages:true});
- res.set({'Content-Type':'application/pdf','Content-Disposition':`attachment; filename="PitStop_${ini}_a_${fim}.pdf"`,'Cache-Control':'private, no-store'});doc.pipe(res);
- const header=()=>{doc.font('Helvetica-Bold').fontSize(18).fillColor('#0B315D').text('MANAIRA BOARD | PIT STOP');doc.moveDown(.3);doc.font('Helvetica').fontSize(10).fillColor('#475569').text(`Relatorio consolidado de ${ini.split('-').reverse().join('/')} a ${fim.split('-').reverse().join('/')}`);doc.moveDown().strokeColor('#EFC54B').lineWidth(3).moveTo(40,doc.y).lineTo(555,doc.y).stroke();doc.moveDown();};
- header();let unidades=0;const porProduto=new Map();
- for(const it of r.rows){unidades+=Number(it.quantidade);const x=porProduto.get(it.ean)||{desc:it.descricao,q:0};x.q+=Number(it.quantidade);porProduto.set(it.ean,x);}
- doc.fontSize(11).font('Helvetica-Bold').fillColor('#0B315D').text(`Lancamentos: ${r.rowCount}  |  Unidades: ${unidades}  |  Produtos: ${porProduto.size}`);doc.moveDown();
- for(const [ean,x] of porProduto){if(doc.y>735){doc.addPage();header();}doc.font('Helvetica').fontSize(9).fillColor('#334155').text(`${x.desc}  |  EAN ${ean}  |  ${x.q} und.`,{width:500});}doc.moveDown(1.5);doc.font('Helvetica-Bold').fontSize(12).fillColor('#0B315D').text('COMPROVANTES FOTOGRAFICOS');doc.moveDown();
- for(const it of r.rows){if(doc.y>645){doc.addPage();header();}const top=doc.y;doc.font('Helvetica-Bold').fontSize(10).fillColor('#0B315D').text(it.descricao,{width:355});doc.font('Helvetica').fontSize(9).fillColor('#475569').text(`EAN ${it.ean} | ${it.quantidade} und. | ${it.usuario_nome}`,{width:355});doc.text(new Date(it.criado_em).toLocaleString('pt-BR',{timeZone:'America/Fortaleza'}),{width:355});try{const pic=await imageBuffer(fotoUrl(it));doc.image(pic,442,top,{fit:[105,95]});}catch(e){doc.fontSize(8).fillColor('#8B4B19').text('Foto indisponivel',442,top,{width:105});}doc.y=Math.max(doc.y,top+105);doc.strokeColor('#DEE7F1').lineWidth(.5).moveTo(40,doc.y).lineTo(555,doc.y).stroke();doc.moveDown();}
- const pages=doc.bufferedPageRange().count;for(let i=0;i<pages;i++){doc.switchToPage(i);doc.font('Helvetica').fontSize(8).fillColor('#64748B').text(`Pit Stop Manaira • Pagina ${i+1} de ${pages}`,40,798,{align:'center',width:515});}doc.end();
+ await periodReport(res,ini,fim,r.rows,it=>imageBuffer(fotoUrl(it)));
 }));
-router.get('/sessoes/:id/pdf',wrap(async(req,res)=>{const s=await owned(req.params.id,req);const r=await query(`${detailSql} WHERE e.sessao_id=$1 AND e.cancelado_em IS NULL ORDER BY e.id`,[s.id]);if(!r.rowCount)fail('Esta sessão não possui entradas ativas.',400);const u=await query('SELECT nome FROM usuarios WHERE id=$1',[s.usuario_id]);const doc=new PDFDocument({size:'A4',margin:42,bufferPages:true});res.set({'Content-Type':'application/pdf','Content-Disposition':`attachment; filename="pitstop-sessao-${s.id}.pdf"`,'Cache-Control':'private, no-store'});doc.pipe(res);function header(){doc.fillColor('#0B315D').font('Helvetica-Bold').fontSize(19).text('MANAIRA BOARD  |  PIT STOP');doc.moveDown(.25).fontSize(10).fillColor('#475569').text(`Relatorio de abastecimento #${s.id}  •  Responsavel: ${u.rows[0]?.nome||'-'}`);doc.text(`Abertura: ${new Date(s.criado_em).toLocaleString('pt-BR',{timeZone:'America/Fortaleza'})}   •   Gerado em: ${new Date().toLocaleString('pt-BR',{timeZone:'America/Fortaleza'})}`);doc.moveDown().strokeColor('#EFC54B').lineWidth(3).moveTo(42,doc.y).lineTo(553,doc.y).stroke();doc.moveDown();}header();let total=0;for(const it of r.rows){if(doc.y>640){doc.addPage();header();}const start=doc.y;doc.fillColor('#0B315D').font('Helvetica-Bold').fontSize(11).text(it.descricao,{width:355});doc.font('Helvetica').fontSize(9).fillColor('#475569').text(`EAN: ${it.ean}   •   Quantidade: ${it.quantidade}   •   ${new Date(it.criado_em).toLocaleString('pt-BR',{timeZone:'America/Fortaleza'})}`,{width:350});if(it.observacao)doc.text('Observacao: '+it.observacao,{width:350});total+=Number(it.quantidade);if(it.foto_public_id){try{const buf=await imageBuffer(fotoUrl(it));doc.image(buf,440,start,{fit:[105,100]});}catch(e){doc.fontSize(8).fillColor('#8B4B19').text('Foto indisponivel',440,start,{width:105});}}doc.y=Math.max(doc.y,start+115);doc.moveDown(.4);doc.strokeColor('#DEE7F1').lineWidth(.5).moveTo(42,doc.y).lineTo(553,doc.y).stroke();doc.moveDown(.6);}if(doc.y>710)doc.addPage();doc.fillColor('#0B315D').font('Helvetica-Bold').fontSize(12).text(`Total: ${r.rowCount} lancamento(s)  |  ${total} unidade(s)`);const paginas=doc.bufferedPageRange().count;for(let i=0;i<paginas;i++){doc.switchToPage(i);doc.font('Helvetica').fontSize(8).fillColor('#64748B').text(`Pit Stop Manaira • Pagina ${i+1} de ${paginas}`,42,800,{align:'center',width:510});}doc.end();}));
+router.get('/sessoes/:id/pdf',wrap(async(req,res)=>{
+ const s=await owned(req.params.id,req);
+ const r=await query(`${detailSql} WHERE e.sessao_id=$1 AND e.cancelado_em IS NULL ORDER BY e.id`,[s.id]);
+ if(!r.rowCount)fail('Esta sessão não possui entradas ativas.',400);
+ const u=await query('SELECT nome FROM usuarios WHERE id=$1',[s.usuario_id]);
+ await sessionReport(res,s,r.rows,u.rows[0]?.nome||'-',it=>imageBuffer(fotoUrl(it)));
+}));
 router.use((err,req,res,next)=>{if(res.headersSent)return next(err);console.error('Pit Stop:',err.message);res.status(err.status|| (err instanceof multer.MulterError?400:500)).json({error:err.status?err.message:err instanceof multer.MulterError?err.message:'Falha ao processar a operação do Pit Stop.'});});
 module.exports=router;
