@@ -6,3 +6,35 @@
 #pitstopPanel .ps-photo-buttons label{min-height:46px;display:inline-flex;align-items:center;justify-content:center}
 #pitstopPanel #psUploadAjuda{min-height:20px}
 @media(max-width:520px){#pitstopPanel #psQtd{font-size:20px;min-height:54px}#pitstopPanel #psEan{font-size:18px;min-height:54px}#pitstopPanel #psSalvar{min-height:52px;font-size:15px}}
+
+/* V70.3 — navegação simplificada e conferência mobile-first */
+#pitstopPanel .ps-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 18px;background:#EAF1F8;border:1px solid #D9E4EF;padding:6px;border-radius:13px}
+#pitstopPanel .ps-tab{display:flex;align-items:center;justify-content:center;text-align:center;padding:13px 8px;min-height:48px;border:0;border-radius:9px;background:transparent;color:#415770;font-weight:700;font-size:14px;cursor:pointer}
+#pitstopPanel .ps-tab.active{background:#fff;color:#0B315D;box-shadow:0 2px 8px rgba(11,49,93,.1)}
+#pitstopPanel .ps-entry{max-width:720px;margin:0 auto}
+#pitstopPanel .ps-entry .ps-title-line{margin-bottom:15px}
+#pitstopPanel .ps-entry .ps-title-line h3{font-size:20px}
+#pitstopPanel .ps-entry .ps-title-line .ps-help{margin:6px 0 0}
+#pitstopPanel .ps-shortcut{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid #E1E9F2;margin-top:23px;padding-top:16px;flex-wrap:wrap}
+#pitstopPanel .ps-shortcut>span{font-size:13px;color:#475569}
+#pitstopPanel .ps-item-card{display:flex;justify-content:space-between;align-items:center;gap:15px;width:100%;text-align:left;border:1px solid #DEE8F2;background:#fff;border-radius:12px;padding:15px;margin-bottom:10px;cursor:pointer}
+#pitstopPanel .ps-item-card:focus-visible{outline:3px solid #176AA9;outline-offset:2px}
+#pitstopPanel .ps-item-card:hover{background:#F4F8FD;border-color:#A9C5DD}
+#pitstopPanel .ps-item-main{display:flex;flex-direction:column;gap:5px;min-width:0}
+#pitstopPanel .ps-item-main strong{color:#0B315D;font-size:14px;overflow-wrap:anywhere}
+#pitstopPanel .ps-item-main small{font-size:13px;color:#475569}
+#pitstopPanel .ps-item-arrow{font-size:28px;color:#176AA9;line-height:1}
+#pitstopPanel .ps-bottom-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+#pitstopPanel .ps-bottom-actions>.ps-btn{flex:1 1 190px}
+#pitstopPanel .ps-overlay{position:fixed;inset:0;background:rgba(10,28,49,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px}
+#pitstopPanel .ps-modal{position:relative;width:min(100%,460px);max-height:calc(100dvh - 32px);overflow-y:auto;background:white;border-radius:18px;padding:25px;box-shadow:0 20px 70px rgba(0,0,0,.25)}
+#pitstopPanel .ps-modal h3{font-size:20px;color:#0B315D;margin:0 40px 12px 0}
+#pitstopPanel .ps-modal-product{font-weight:700;color:#172B43;overflow-wrap:anywhere}
+#pitstopPanel .ps-modal-close{position:absolute;top:10px;right:12px;background:#F1F5F9!important;color:#334155!important;border:0;border-radius:8px;width:38px;height:38px;font-size:24px;cursor:pointer}
+#pitstopPanel .ps-modal-actions{display:flex;flex-direction:column;gap:10px;margin-top:18px}
+#pitstopPanel .ps-danger-button{background:#A82942!important;border-color:#A82942!important;color:#fff!important}
+#pitstopPanel .ps-danger-button:hover{background:#8F1D32!important}
+@media(max-width:600px){#pitstopPanel .ps-header{margin-bottom:14px}#pitstopPanel .ps-tabs{gap:3px;padding:4px}#pitstopPanel .ps-tab{font-size:12px;padding:12px 2px;min-height:52px}#pitstopPanel .ps-entry{padding:17px 14px}#pitstopPanel .ps-bottom-actions{flex-direction:column}#pitstopPanel .ps-bottom-actions>.ps-btn{flex:unset;width:100%}#pitstopPanel .ps-shortcut{align-items:flex-start}#pitstopPanel .ps-modal{padding:20px 16px}}
+
+#pitstopPanel .ps-modal label{display:block;font-size:14px;font-weight:700;color:#334155;margin:14px 0 7px}
+#pitstopPanel .ps-modal input,#pitstopPanel .ps-modal textarea{width:100%;border:1px solid #CBD5E1;border-radius:10px;padding:12px;font-size:16px;background:white;color:#172B43}
