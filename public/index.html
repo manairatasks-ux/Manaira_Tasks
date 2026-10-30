@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="/css/manaira-board-v69-1-legibilidade.css" />
   <link rel="stylesheet" href="/css/manaira-board-v69-2-paleta.css" />
   <link rel="stylesheet" href="/css/pitstop.css" />
+  <link rel="stylesheet" href="/css/pontos-extras.css" />
 </head>
 
 <body>
@@ -89,6 +90,15 @@
       </div>
       <div id="orcamentosMenu" class="module-menu hidden"><div class="module-menu-title">ORÇAMENTOS</div><button class="nav-main" id="btnOrcamentos">▤ Novo orçamento e histórico</button></div>
       <div id="recebimentoMenu" class="module-menu hidden"><div class="module-menu-title">RECEBIMENTO E CPD</div><button class="nav-main" id="btnRecebimento">▤ Notas e caminhões</button></div>
+      <div id="pontosExtrasMenu" class="module-menu hidden">
+        <div class="module-menu-title">PONTOS EXTRAS</div>
+        <button class="nav-main" id="btnPontosExtrasMapa" data-pe-menu="mapa">⌖ Mapa da loja</button>
+        <button class="nav-main" id="btnPontosExtrasDashboard" data-pe-menu="dashboard">▦ Dashboard</button>
+        <button class="nav-main" id="btnPontosExtrasFornecedores" data-pe-menu="fornecedores">♧ Fornecedores</button>
+        <button class="nav-main" id="btnPontosExtrasPontos" data-pe-menu="pontos">⬡ Pontos</button>
+        <button class="nav-main" id="btnPontosExtrasContratos" data-pe-menu="contratos">▤ Contratos</button>
+        <button class="nav-main" id="btnPontosExtrasPagamentos" data-pe-menu="pagamentos">＄ Pagamentos</button>
+      </div>
       <div id="pitstopMenu" class="module-menu hidden"><div class="module-menu-title">PIT STOP</div><button class="nav-main" id="btnPitstop">▤ Abastecimentos e relatórios</button></div>
       <div id="rhMenu" class="module-menu hidden">
         <div class="module-menu-title">RECURSOS HUMANOS</div>
@@ -176,6 +186,7 @@
           </button>
 <button class="module-card" id="cardRecebimento" type="button"><span class="module-icon">📑</span><span class="module-card-copy"><strong>Recebimento e CPD</strong><small>Notas fiscais, entregas, pendências e controle de caminhões.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardOrcamentos" type="button"><span class="module-icon">🧾</span><span class="module-card-copy"><strong>Orçamentos</strong><small>Produtos GZ, propostas comerciais, descontos e PDF.</small></span><span class="module-arrow">→</span></button>
+<button class="module-card" id="cardPontosExtras" type="button"><span class="module-icon">📍</span><span class="module-card-copy"><strong>Pontos Extras</strong><small>Mapa comercial, fornecedores, contratos e pagamentos.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardPitstop" type="button"><span class="module-icon">🥤</span><span class="module-card-copy"><strong>Pit Stop</strong><small>Registro de produtos com fotos, histórico e relatórios PDF.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardAdmin" type="button">
             <span class="module-icon">⚙</span><span class="module-card-copy"><strong>Administração</strong><small>Usuários, hierarquia, setores, proprietários e permissões.</small></span><span class="module-arrow">→</span>
@@ -196,6 +207,7 @@
       <section id="pedidosGalpaoPanel" class="dashboard hidden"></section>
       <section id="rhPanel" class="dashboard hidden"></section>
       <section id="orcamentosPanel" class="dashboard hidden"></section>
+      <section id="pontosExtrasPanel" class="dashboard hidden"></section>
       <section id="pitstopPanel" class="dashboard hidden"></section>
       <section id="recebimentoPanel" class="dashboard hidden"></section>
       <section id="produtosGzPanel" class="dashboard hidden"></section>
@@ -220,6 +232,7 @@
   <script src="/js/recebimento.js"></script>
   <script src="/js/orcamentos.js"></script>
   <script src="/js/pitstop.js"></script>
+  <script src="/js/pontos-extras.js"></script>
 </body>
 
 </html>

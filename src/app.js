@@ -13,6 +13,7 @@ const pedidosGalpaoRoutes=require('./modules/pedidos-galpao/pedidos-galpao.route
 const recebimentoRoutes=require('./modules/recebimento/recebimento.routes');
 const orcamentosRoutes=require('./modules/orcamentos/orcamentos.routes');
 const pitstopRoutes=require('./modules/pitstop/pitstop.routes');
+const pontosExtrasRoutes=require('./modules/pontos-extras/pontos-extras.routes');
 const rhRoutes=require('./modules/rh/rh.routes');
 const produtosGzRoutes=require('./modules/produtos-gz/produtos-gz.routes');
 const cartazesRoutes=require('./modules/cartazes/cartazes.routes');
@@ -36,6 +37,7 @@ app.use('/api/pedidos-galpao',pedidosGalpaoRoutes);
 app.use('/api/recebimento',recebimentoRoutes);
 app.use('/api/orcamentos',orcamentosRoutes);
 app.use('/api/pitstop',pitstopRoutes);
+app.use('/api/pontos-extras',pontosExtrasRoutes);
 app.use('/api/rh',rhRoutes);
 app.use('/api/produtos-gz',produtosGzRoutes);
 app.use('/api/cartazes',cartazesRoutes);

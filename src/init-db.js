@@ -80,6 +80,9 @@ async function initDb() {
 
 
 
+  // V71: Pontos Extras (tabelas independentes).
+  await query(fs.readFileSync(path.join(__dirname, 'modules', 'pontos-extras', 'schema.sql'), 'utf8'));
+
   // V15: catálogo de módulos e migração segura dos acessos existentes.
   await query(`
     INSERT INTO modulos (codigo, nome, descricao, ordem, ativo) VALUES
@@ -94,7 +97,8 @@ async function initDb() {
       ('cartazes', 'Cartazes', 'Criação rápida e edição de cartazes integrada à API GZ.', 80, TRUE),
       ('recebimento_cpd', 'Recebimento e CPD', 'Notas fiscais, duplicatas, entrega ao CPD e caminhões.', 90, TRUE),
       ('orcamentos', 'Orçamentos', 'Cotações comerciais, descontos autorizados e documentos.', 100, TRUE),
-      ('pitstop', 'Pit Stop', 'Registro fotográfico dos abastecimentos, histórico e relatórios PDF.', 110, TRUE)
+      ('pitstop', 'Pit Stop', 'Registro fotográfico dos abastecimentos, histórico e relatórios PDF.', 110, TRUE),
+      ('pontos_extras', 'Pontos Extras', 'Mapa, fornecedores, contratos, pacotes e financeiro.', 120, TRUE)
     ON CONFLICT (codigo) DO UPDATE SET
       nome = EXCLUDED.nome,
       descricao = EXCLUDED.descricao,
