@@ -1,0 +1,11 @@
+Manaíra Board V71.9 — Auditoria em Pontos Extras
+
+Menu lateral: nova opção Auditoria.
+Histórico geral de atividades registradas após a implantação.
+Filtros por entidade, ação, período e busca.
+Detalhes com antes e depois, responsável e motivo.
+Integração do histórico financeiro existente.
+Migração aditiva: pe_auditoria_geral.
+
+Os registros anteriores não auditados são irrecuperáveis.
+As gravações de log geral são assíncronas após a resposta da API; erro de auditoria é registrado no servidor.

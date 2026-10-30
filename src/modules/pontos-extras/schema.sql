@@ -27,3 +27,19 @@ CREATE INDEX IF NOT EXISTS idx_pe_financeiro_auditoria_registro ON pe_financeiro
 ALTER TABLE pe_contratos ADD COLUMN IF NOT EXISTS modelo_valor TEXT NOT NULL DEFAULT 'legado_mensal';
 ALTER TABLE pe_pacotes ADD COLUMN IF NOT EXISTS modelo_valor TEXT NOT NULL DEFAULT 'legado_pacote';
 CREATE INDEX IF NOT EXISTS idx_pe_cobrancas_contrato ON pe_cobrancas(contrato_id,pacote_id);
+
+
+-- V71.9: histórico geral de atividades do módulo, sem exclusão em cascata.
+CREATE TABLE IF NOT EXISTS pe_auditoria_geral (
+ id BIGSERIAL PRIMARY KEY,
+ entidade VARCHAR(40) NOT NULL,
+ registro_id BIGINT,
+ acao VARCHAR(40) NOT NULL,
+ usuario_id BIGINT,
+ dados_anteriores JSONB,
+ dados_novos JSONB,
+ motivo TEXT,
+ criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS pe_auditoria_geral_data_idx ON pe_auditoria_geral(criado_em DESC,id DESC);
+CREATE INDEX IF NOT EXISTS pe_auditoria_geral_entidade_idx ON pe_auditoria_geral(entidade,acao,criado_em DESC);

@@ -7,7 +7,98 @@ const {query,pool}=require('../../db');
 const {auth}=require('../../middlewares/auth.middleware');
 const {requireModuleAccess}=require('../../middlewares/module-access.middleware');
 router.use(auth,requireModuleAccess('pontos_extras'));
+
+// V71.9 — Trilha de auditoria geral. Registros somente leitura pela interface.
+// O histórico financeiro anterior também permanece disponível na tabela legada.
+const ENTIDADES_AUDITADAS={fornecedores:'Fornecedor',pontos:'Ponto',contratos:'Contrato',pacotes:'Pacote',cobrancas:'Cobrança',recebimentos:'Recebimento'};
+const ROTAS_AUDITADAS=new Set(['POST','PUT','PATCH','DELETE']);
+const camposAuditados={
+ fornecedores:['nome','cnpj','contato','telefone','email'],
+ pontos:['codigo','tipo','localizacao','valor','observacao','x','y','foto_id','foto_formato'],
+ contratos:['fornecedor_id','ponto_id','pacote_id','inicio','fim','valor','modelo_valor','forma_pagamento','observacao','arquivo_id'],
+ pacotes:['fornecedor_id','nome','inicio','fim','valor','modelo_valor','forma_pagamento','observacao','arquivo_id'],
+ cobrancas:['contrato_id','pacote_id','competencia','vencimento','valor','pago'],
+ recebimentos:['cobranca_id','data','valor','modalidade','observacao','comprovante_id']
+};
+function auditCampos(entidade,row){
+ if(!row||typeof row!=='object')return null;
+ return Object.fromEntries(camposAuditados[entidade].filter(k=>Object.prototype.hasOwnProperty.call(row,k)).map(k=>[k,row[k]]));
+}
+// Captura o estado prévio antes de uma edição ou exclusão, mesmo se a linha desaparecer depois.
+router.use(async(req,res,next)=>{
+ if(!ROTAS_AUDITADAS.has(req.method))return next();
+ const partes=req.path.split('/').filter(Boolean);
+ const entidade=partes[0];if(!ENTIDADES_AUDITADAS[entidade])return next();
+ // Um upload simples em /anexo ainda não está vinculado a qualquer registro; o vínculo será auditado.
+ const id=/^\d+$/.test(partes[1]||'')?Number(partes[1]):null;
+ let anterior=null;
+ try{
+  if(id && req.method!=='POST'){
+   const row=await query(`SELECT * FROM pe_${entidade} WHERE id=$1`,[id]);
+   anterior=row.rows[0]||null;
+  }
+ }catch(err){return next(err)}
+ const send=res.json.bind(res);
+ res.json=function(payload){
+  if(res.statusCode>=200&&res.statusCode<300){
+   const acao=partes[1]==='programar'?'PROGRAMAR':req.method==='DELETE'?'EXCLUIR':req.method==='PUT'?'EDITAR':req.method==='PATCH'?'ALTERAR':partes[2]==='receber'?'RECEBER':partes[2]==='foto'?'FOTO':partes[2]==='anexo'?'ANEXO':partes[2]==='comprovante'?'COMPROVANTE':'CADASTRAR';
+   const alvo=partes[2]==='receber'?'recebimentos':entidade;
+   const codigo=payload&&typeof payload==='object'&&payload.id?Number(payload.id):id;
+   const depois=payload&&typeof payload==='object'?auditCampos(alvo,payload):null;
+   const before=auditCampos(entidade,anterior);
+   const extra=partes.length>2?{operacao:partes.slice(2).join('/'),registro_origem:id}:{};
+   const after=partes[1]==='programar'?{parcelas_criadas:payload.ids||[],origem:req.body?.origem,referencia_id:req.body?.referencia_id,parcelas:req.body?.parcelas}:depois?{...depois,...extra}:Object.keys(extra).length?extra:null;
+   // Exceções de falha são registradas no servidor, sem ocultar que a ação principal já foi concluída.
+   query(`INSERT INTO pe_auditoria_geral (entidade,registro_id,acao,usuario_id,dados_anteriores,dados_novos,motivo)
+     VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7)`,
+     [alvo,codigo,acao,req.user?.id||null,JSON.stringify(before),JSON.stringify(after),String(req.body?.motivo||'').slice(0,2000)]
+   ).catch(err=>console.error('[Pontos Extras] Falha ao gravar auditoria:',err.message));
+  }
+  return send(payload);
+ };
+ next();
+});
+
+// Histórico geral + alterações financeiras anteriores à V71.9.
 const wrap=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
+router.get('/auditoria',wrap(async(req,res)=>{
+ const entidade=String(req.query.entidade||'');
+ const acao=String(req.query.acao||'');
+ const inicio=req.query.inicio?date(req.query.inicio):null;
+ const fim=req.query.fim?date(req.query.fim):null;
+ const busca=String(req.query.busca||'').trim().slice(0,120);
+ const tamanho=Math.min(100,Math.max(10,Number(req.query.limite)||50));
+ const pagina=Math.min(10000,Math.max(1,Number(req.query.pagina)||1));
+ const registros=await query(`
+   WITH eventos AS (
+     SELECT g.id::text AS identificador, g.entidade, g.registro_id, g.acao,
+            g.usuario_id, u.nome AS usuario, g.dados_anteriores AS antes,
+            g.dados_novos AS depois, g.motivo, g.criado_em, 'geral'::text AS origem
+       FROM pe_auditoria_geral g LEFT JOIN usuarios u ON u.id=g.usuario_id
+     UNION ALL
+     SELECT ('f'||f.id::text), CASE WHEN f.tipo='cobranca' THEN 'cobrancas' ELSE 'recebimentos' END,
+            f.registro_id, f.acao, f.usuario_id, u.nome, f.antes, f.depois,
+            f.motivo,f.criado_em,'financeiro'::text
+       FROM pe_financeiro_auditoria f LEFT JOIN usuarios u ON u.id=f.usuario_id
+       WHERE NOT EXISTS (SELECT 1 FROM pe_auditoria_geral g
+         WHERE g.entidade=CASE WHEN f.tipo='cobranca' THEN 'cobrancas' ELSE 'recebimentos' END
+           AND g.registro_id=f.registro_id AND g.acao=f.acao
+           AND g.criado_em BETWEEN f.criado_em - INTERVAL '2 minutes' AND f.criado_em + INTERVAL '2 minutes')
+   )
+   SELECT * FROM eventos
+   WHERE ($1::text='' OR entidade=$1) AND ($2::text='' OR acao=$2)
+     AND ($3::date IS NULL OR criado_em>=($3::date)::timestamp AT TIME ZONE 'America/Fortaleza')
+     AND ($4::date IS NULL OR criado_em<(($4::date+1)::timestamp AT TIME ZONE 'America/Fortaleza'))
+     AND ($5::text='' OR COALESCE(usuario,'') ILIKE '%'||$5||'%'
+       OR COALESCE(registro_id::text,'') ILIKE '%'||$5||'%'
+       OR COALESCE(depois::text,'') ILIKE '%'||$5||'%'
+       OR COALESCE(antes::text,'') ILIKE '%'||$5||'%')
+   ORDER BY criado_em DESC,identificador DESC LIMIT $6 OFFSET $7`,
+   [entidade,acao,inicio,fim,busca,tamanho+1,(pagina-1)*tamanho]);
+ res.set('Cache-Control','no-store');
+ res.json({registros:registros.rows.slice(0,tamanho),pagina,mais:registros.rows.length>tamanho});
+}));
+
 const bad=(message,status=400)=>{const err=new Error(message);err.status=status;throw err};
 const str=(v,max=255)=>String(v??'').trim().slice(0,max);
 const money=v=>{const n=Number(v);if(!Number.isFinite(n)||n<0||n>999999999)bad('Valor financeiro inválido.');return n};

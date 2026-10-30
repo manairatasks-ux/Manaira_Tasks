@@ -91,3 +91,11 @@
   #pontosExtrasPanel .pe-point-tooltip{width:220px;max-width:calc(100% - 16px)}
   #pontosExtrasPanel .pe-tooltip-photo{height:125px;flex-basis:125px}
 }
+
+/* V71.9 — Auditoria */
+#pontosExtrasPanel .pe-audit-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+#pontosExtrasPanel .pe-audit-search{grid-column:span 2}
+.pe-dialog .pe-audit-json{max-height:250px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #dce5ef;background:#f4f7fb;padding:12px;border-radius:8px;font:12px/1.5 Consolas,monospace}
+#pontosExtrasPanel .pe-audit-pagination{justify-content:flex-end;gap:14px;margin-top:14px}
+@media(max-width:1050px){#pontosExtrasPanel .pe-audit-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){#pontosExtrasPanel .pe-audit-filters{grid-template-columns:1fr}#pontosExtrasPanel .pe-audit-search{grid-column:span 1}}
