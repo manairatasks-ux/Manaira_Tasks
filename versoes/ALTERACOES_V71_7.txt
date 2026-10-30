@@ -1,0 +1,7 @@
+Manaíra Board V71.7 — Correção da prévia fotográfica no mapa de Pontos Extras.
+
+- Fotos verticais e horizontais ficam contidas numa área proporcional, sem esticar ou transbordar.
+- Cartão de prévia reposicionado automaticamente para caber no mapa.
+- Mantidos mapa, pesquisa, financeiro e os demais módulos.
+
+Arquivos modificados: public/js/pontos-extras.js e public/css/pontos-extras.css

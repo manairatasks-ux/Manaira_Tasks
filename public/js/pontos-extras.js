@@ -44,10 +44,36 @@ $('peMapa').querySelectorAll('.pe-marker').forEach(b=>{b.onclick=e=>{e.stopPropa
  b.onmouseenter=async()=>{const p=pontos.find(x=>Number(x.id)===Number(b.dataset.point));if(!p)return;
  const ct=contratos.filter(c=>Number(c.ponto_id)===Number(p.id)&&String(c.inicio).slice(0,10)<=iso()&&String(c.fim).slice(0,10)>=iso());
  preview=document.createElement('div');preview.className='pe-point-tooltip';
- preview.style.left=Math.min(66,Number(p.x)*100)+'%';preview.style.top=Math.max(0,Number(p.y)*100-28)+'%';
  preview.innerHTML=`<strong>${esc(p.codigo)} · ${esc(p.tipo)}</strong><small>${esc(p.localizacao)}</small><small>${p.ocupado?'Ocupado':'Disponível'}${ct.length?' · '+esc(ct.map(c=>c.fornecedor_nome).join(', ')):''}</small><small>${esc(p.observacao||'')}</small><div class="pe-tooltip-photo">${p.foto_id?'Carregando foto...':'Sem foto cadastrada'}</div>`;
- $('peMapa')?.append(preview);
- if(p.foto_id){try{const f=await req('/pontos/'+p.id+'/foto');if(preview?.isConnected)preview.querySelector('.pe-tooltip-photo').innerHTML=`<img alt="Foto do ponto" src="${esc(f.url)}">`}catch(e){if(preview?.isConnected)preview.querySelector('.pe-tooltip-photo').textContent='Foto indisponível'}}
+ const mapaEl=$('peMapa');
+ mapaEl?.append(preview);
+ // Posicionamento inteligente: a prévia nunca ultrapassa as bordas da planta.
+ const posicionarPreview=()=>{
+   if(!preview?.isConnected||!mapaEl?.isConnected)return;
+   const area=mapaEl.getBoundingClientRect();
+   const ponto=b.getBoundingClientRect();
+   const largura=preview.offsetWidth,altura=preview.offsetHeight;
+   const px=ponto.left+ponto.width/2-area.left;
+   const py=ponto.top+ponto.height/2-area.top;
+   const margem=8;
+   let left=px+25;
+   if(left+largura+margem>area.width)left=px-largura-25;
+   left=Math.max(margem,Math.min(left,Math.max(margem,area.width-largura-margem)));
+   let top=py-altura/2;
+   top=Math.max(margem,Math.min(top,Math.max(margem,area.height-altura-margem)));
+   preview.style.left=left+'px';
+   preview.style.top=top+'px';
+ };
+ posicionarPreview();
+ if(p.foto_id){try{
+   const f=await req('/pontos/'+p.id+'/foto');
+   if(preview?.isConnected){
+     const holder=preview.querySelector('.pe-tooltip-photo');
+     holder.innerHTML=`<img alt="Foto do ponto" src="${esc(f.url)}">`;
+     holder.querySelector('img')?.addEventListener('load',posicionarPreview,{once:true});
+     posicionarPreview();
+   }
+ }catch(e){if(preview?.isConnected){preview.querySelector('.pe-tooltip-photo').textContent='Foto indisponível';posicionarPreview()}}}
  };
  b.onmouseleave=()=>{preview?.remove();preview=null}});
 $('peMapaImg').onclick=async e=>{const c=pointCoords(e);if(!c)return;if(reposicionar&&selected){try{await req('/pontos/'+selected+'/posicao',{method:'PATCH',body:JSON.stringify(c)});reposicionar=false;selected=null;await refresh();mapa();toast('Posição do ponto salva com sucesso.')}catch(err){toast(err.message,true)}return}if(placement){placement=false;pontoForm(null,c);return}if(confirm('Deseja cadastrar um ponto comercial nesta localização?'))pontoForm(null,c)};
