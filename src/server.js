@@ -10,7 +10,7 @@ const pedidosSync=require('./modules/pedidos-galpao/pedidos-galpao.service');
     await initDb();
     await pedidosSync.init();
     pedidosSync.startScheduler();
-    app.listen(port,()=>{ console.log(`Manaíra Board V71.6 rodando na porta ${port}`); });
+    app.listen(port,()=>{ console.log(`Manaíra Board V71.8 rodando na porta ${port}`); });
   }catch(err){
     console.error('Erro ao iniciar a aplicação:',err);
     process.exit(1);

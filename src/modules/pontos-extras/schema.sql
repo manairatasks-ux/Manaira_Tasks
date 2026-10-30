@@ -22,3 +22,8 @@ CREATE TABLE IF NOT EXISTS pe_financeiro_auditoria (
  criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_pe_financeiro_auditoria_registro ON pe_financeiro_auditoria(tipo,registro_id,criado_em DESC);
+
+-- V71.8: contratos antigos permanecem como legado, sem recalcular o valor original.
+ALTER TABLE pe_contratos ADD COLUMN IF NOT EXISTS modelo_valor TEXT NOT NULL DEFAULT 'legado_mensal';
+ALTER TABLE pe_pacotes ADD COLUMN IF NOT EXISTS modelo_valor TEXT NOT NULL DEFAULT 'legado_pacote';
+CREATE INDEX IF NOT EXISTS idx_pe_cobrancas_contrato ON pe_cobrancas(contrato_id,pacote_id);

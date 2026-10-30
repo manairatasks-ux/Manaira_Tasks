@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "71.4.0",
-  "description": "Manaíra Board V71.4 — Pontos Extras: melhorias de mapa, anexos, contratos e financeiro",
+  "version": "71.8.0",
+  "description": "Manaíra Board V71.8 — gestão financeira de contratos e relatórios",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",

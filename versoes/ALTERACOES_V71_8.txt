@@ -1,0 +1,27 @@
+MANAÍRA BOARD V71.8 — GESTÃO FINANCEIRA DE PONTOS EXTRAS
+
+Novas funcionalidades
+- Contratos novos (individuais e pacotes) são cadastrados como VALOR TOTAL.
+- Contratos antigos preservados com modelo legado, sem conversão automática e sem alterar os registros anteriores.
+- Programação de até 60 parcelas na interface, com distribuição de centavos e gravação transacional.
+- Não permite exceder o valor total contratado na criação ou edição das parcelas dos novos contratos.
+- Modalidade de quitação definida em cada recebimento: Boleto, Bonificação ou Desconto em boleto.
+- Anexos de comprovantes permanecem vinculados aos recebimentos via Cloudinary.
+- Relatórios Financeiros no menu de Pontos Extras: em aberto, quitados, extrato por fornecedor, consolidado, modalidade.
+- Filtros de fornecedor e período, consultas, PDF e Excel (.xlsx).
+- O relatório na tela destaca saldo ainda não programado em novos contratos.
+- Permanece ativo o histórico de auditoria de edição/exclusão criado na V71.6.
+
+ATENÇÃO
+- Contratos anteriores à V71.8 não são convertidos automaticamente em valor total.
+- No relatório, valores de cobranças e saldos de contratos ainda não parcelados são mostrados separadamente.
+- Não executar init-db separadamente: a aplicação executa migrações aditivas ao iniciar.
+- Validar conexão PostgreSQL, Cloudinary e geração real de PDFs antes de publicar em produção.
+
+Arquivos modificados:
+- src/modules/pontos-extras/pontos-extras.routes.js
+- src/modules/pontos-extras/schema.sql
+- public/js/pontos-extras.js
+- public/index.html
+- src/server.js
+- package.json
