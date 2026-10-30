@@ -1,0 +1,9 @@
+Manaíra Board V71.5 - Pontos Extras
+
+Ajuste aplicado:
+- Ao pesquisar um fornecedor no mapa de Pontos Extras, os pontos encontrados agora ficam destacados em VERDE.
+- A lista lateral de resultados também recebeu destaque visual em verde para acompanhar o marcador do mapa.
+
+Arquivos alterados:
+- public/css/pontos-extras.css
+- public/js/pontos-extras.js

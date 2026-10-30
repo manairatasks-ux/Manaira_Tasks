@@ -63,3 +63,7 @@
 
 #pontosExtrasPanel .pe-listitem.found-result{border-color:#1f9d55;background:#f1fbf5}
 #pontosExtrasPanel .pe-listitem.found-result strong{color:#13683a}
+
+/* V71.6 — ponto encontrado em pesquisa maior e verde */
+#pontosExtrasPanel .pe-marker.found{width:37px;height:37px;font-size:14px;background:#159447;border:3px solid #fff;box-shadow:0 0 0 8px rgba(21,148,71,.27),0 3px 12px rgba(2,55,24,.4);z-index:5}
+@media(max-width:570px){#pontosExtrasPanel .pe-marker.found{width:31px;height:31px;font-size:12px}}

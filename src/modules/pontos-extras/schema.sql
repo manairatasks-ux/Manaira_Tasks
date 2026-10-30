@@ -9,3 +9,16 @@ CREATE TABLE IF NOT EXISTS pe_cobrancas (id BIGSERIAL PRIMARY KEY,contrato_id BI
 CREATE TABLE IF NOT EXISTS pe_recebimentos (id BIGSERIAL PRIMARY KEY,cobranca_id BIGINT NOT NULL REFERENCES pe_cobrancas(id),data DATE NOT NULL,valor NUMERIC(13,2) NOT NULL CHECK(valor>0),modalidade TEXT NOT NULL,comprovante_id TEXT,observacao TEXT,usuario_id BIGINT REFERENCES usuarios(id),criado_em TIMESTAMPTZ DEFAULT NOW());
 
 ALTER TABLE pe_pontos ADD COLUMN IF NOT EXISTS foto_formato TEXT;
+
+-- V71.6: histórico imutável de alterações financeiras
+CREATE TABLE IF NOT EXISTS pe_financeiro_auditoria (
+ id BIGSERIAL PRIMARY KEY,
+ tipo VARCHAR(30) NOT NULL,
+ registro_id BIGINT NOT NULL,
+ acao VARCHAR(20) NOT NULL,
+ antes JSONB, depois JSONB,
+ motivo TEXT,
+ usuario_id BIGINT REFERENCES usuarios(id),
+ criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_pe_financeiro_auditoria_registro ON pe_financeiro_auditoria(tipo,registro_id,criado_em DESC);

@@ -41,6 +41,58 @@ router.put('/pacotes/:id',wrap(async(req,res)=>{const b=req.body;reqFields(b,['f
 router.delete('/pacotes/:id',wrap(async(req,res)=>{const client=await pool.connect();try{await client.query('BEGIN');if((await client.query('SELECT id FROM pe_cobrancas WHERE pacote_id=$1 LIMIT 1',[req.params.id])).rowCount)bad('Pacote possui cobranças vinculadas.',409);await client.query('DELETE FROM pe_contratos WHERE pacote_id=$1',[req.params.id]);const r=await client.query('DELETE FROM pe_pacotes WHERE id=$1 RETURNING id',[req.params.id]);if(!r.rowCount)bad('Pacote não encontrado.',404);await client.query('COMMIT');res.json({ok:true});}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}}));
 router.get('/cobrancas',wrap(async(req,res)=>{res.json((await query(`SELECT c.*,COALESCE(f.nome,fp.nome) AS fornecedor_nome,CASE WHEN c.pacote_id IS NULL THEN 'individual' ELSE 'pacote' END AS origem,COALESCE(pt.codigo,pc.nome) AS referencia FROM pe_cobrancas c LEFT JOIN pe_contratos ct ON ct.id=c.contrato_id LEFT JOIN pe_fornecedores f ON f.id=ct.fornecedor_id LEFT JOIN pe_pontos pt ON pt.id=ct.ponto_id LEFT JOIN pe_pacotes pc ON pc.id=c.pacote_id LEFT JOIN pe_fornecedores fp ON fp.id=pc.fornecedor_id ORDER BY c.vencimento DESC,c.id DESC`)).rows)}));
 router.post('/cobrancas',wrap(async(req,res)=>{const b=req.body;if(!['individual','pacote'].includes(b.origem))bad('Origem inválida.');if(!/^\d{4}-\d{2}$/.test(b.competencia||''))bad('Competência inválida (AAAA-MM).');const r=await query('INSERT INTO pe_cobrancas(contrato_id,pacote_id,competencia,vencimento,valor) VALUES($1,$2,$3,$4,$5) RETURNING *',[b.origem==='individual'?b.referencia_id:null,b.origem==='pacote'?b.referencia_id:null,b.competencia,date(b.vencimento),money(b.valor)]);res.status(201).json(r.rows[0]);}));
+// V71.6 — auditoria de edição e exclusão financeira (migração aditiva)
+async function gravarAuditoria(client,req,tipo,id,acao,antes,depois,motivo){
+ await client.query(`INSERT INTO pe_financeiro_auditoria(tipo,registro_id,acao,antes,depois,motivo,usuario_id)
+ VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7)`,[tipo,id,acao,JSON.stringify(antes||null),JSON.stringify(depois||null),str(motivo,2000),req.user.id]);
+}
+async function transacao(fn){const client=await pool.connect();try{await client.query('BEGIN');const result=await fn(client);await client.query('COMMIT');return result}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}}
+router.put('/cobrancas/:id',wrap(async(req,res)=>{
+ const b=req.body; if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(b.competencia||'')))bad('Competência inválida.');
+ const venc=date(b.vencimento),valor=money(b.valor);if(valor<=0)bad('O valor deve ser positivo.');
+ const result=await transacao(async client=>{
+  const found=await client.query('SELECT * FROM pe_cobrancas WHERE id=$1 FOR UPDATE',[req.params.id]);if(!found.rowCount)bad('Mensalidade não encontrada.',404);
+  const old=found.rows[0];if(valor+0.00001<Number(old.pago))bad('Novo valor não pode ser menor que o total recebido.',409);
+  const r=await client.query('UPDATE pe_cobrancas SET competencia=$1,vencimento=$2,valor=$3 WHERE id=$4 RETURNING *',[b.competencia,venc,valor,req.params.id]);
+  await gravarAuditoria(client,req,'cobranca',old.id,'EDITAR',old,r.rows[0],b.motivo);return r.rows[0];
+ });res.json(result);
+}));
+router.delete('/cobrancas/:id',wrap(async(req,res)=>{
+ const result=await transacao(async client=>{
+  const found=await client.query('SELECT * FROM pe_cobrancas WHERE id=$1 FOR UPDATE',[req.params.id]);if(!found.rowCount)bad('Mensalidade não encontrada.',404);
+  const old=found.rows[0];const pagamentos=await client.query('SELECT 1 FROM pe_recebimentos WHERE cobranca_id=$1 LIMIT 1',[req.params.id]);
+  if(pagamentos.rowCount||Number(old.pago)>0)bad('Esta mensalidade já possui recebimentos. Exclua ou corrija as baixas primeiro.',409);
+  await gravarAuditoria(client,req,'cobranca',old.id,'EXCLUIR',old,null,req.body?.motivo);
+  await client.query('DELETE FROM pe_cobrancas WHERE id=$1',[old.id]);return {ok:true};
+ });res.json(result);
+}));
+router.put('/recebimentos/:id',wrap(async(req,res)=>{
+ const b=req.body;reqFields(b,['data','modalidade']);const valor=money(b.valor);if(valor<=0)bad('O valor recebido deve ser positivo.');
+ const result=await transacao(async client=>{
+  const reference=await client.query('SELECT cobranca_id FROM pe_recebimentos WHERE id=$1',[req.params.id]);if(!reference.rowCount)bad('Recebimento não encontrado.',404);
+  const cob=await client.query('SELECT * FROM pe_cobrancas WHERE id=$1 FOR UPDATE',[reference.rows[0].cobranca_id]);if(!cob.rowCount)bad('Mensalidade não encontrada.',404);
+  const found=await client.query('SELECT * FROM pe_recebimentos WHERE id=$1 FOR UPDATE',[req.params.id]);if(!found.rowCount)bad('Recebimento não encontrado.',404);
+  const old=found.rows[0];const novoPago=Number(cob.rows[0].pago)-Number(old.valor)+valor;
+  if(novoPago>Number(cob.rows[0].valor)+0.00001)bad('Valor excede o total da mensalidade.',409);
+  if(novoPago<0)bad('Saldo financeiro inconsistente.',409);
+  const r=await client.query('UPDATE pe_recebimentos SET data=$1,valor=$2,modalidade=$3,observacao=$4 WHERE id=$5 RETURNING *',[date(b.data),valor,str(b.modalidade,80),str(b.observacao,2000),old.id]);
+  await client.query('UPDATE pe_cobrancas SET pago=$1 WHERE id=$2',[Number(novoPago.toFixed(2)),old.cobranca_id]);
+  await gravarAuditoria(client,req,'recebimento',old.id,'EDITAR',old,r.rows[0],b.motivo);return r.rows[0];
+ });res.json(result);
+}));
+router.delete('/recebimentos/:id',wrap(async(req,res)=>{
+ const motivo=str(req.body?.motivo,2000);if(!motivo)bad('Informe o motivo da exclusão.');
+ const result=await transacao(async client=>{
+  const reference=await client.query('SELECT cobranca_id FROM pe_recebimentos WHERE id=$1',[req.params.id]);if(!reference.rowCount)bad('Recebimento não encontrado.',404);
+  const cob=await client.query('SELECT * FROM pe_cobrancas WHERE id=$1 FOR UPDATE',[reference.rows[0].cobranca_id]);if(!cob.rowCount)bad('Mensalidade não encontrada.',404);
+  const found=await client.query('SELECT * FROM pe_recebimentos WHERE id=$1 FOR UPDATE',[req.params.id]);if(!found.rowCount)bad('Recebimento não encontrado.',404);
+  const old=found.rows[0];const novoPago=Number(cob.rows[0].pago)-Number(old.valor);
+  if(novoPago<0)bad('Saldo financeiro inconsistente.',409);
+  await gravarAuditoria(client,req,'recebimento',old.id,'EXCLUIR',old,null,motivo);
+  await client.query('DELETE FROM pe_recebimentos WHERE id=$1',[old.id]);
+  await client.query('UPDATE pe_cobrancas SET pago=$1 WHERE id=$2',[Number(novoPago.toFixed(2)),old.cobranca_id]);return {ok:true};
+ });res.json(result);
+}));
 router.get('/recebimentos',wrap(async(req,res)=>{res.json((await query('SELECT r.*,c.competencia,c.vencimento FROM pe_recebimentos r JOIN pe_cobrancas c ON c.id=r.cobranca_id ORDER BY r.data DESC,r.id DESC')).rows)}));
 router.post('/cobrancas/:id/receber',wrap(async(req,res)=>{const b=req.body;reqFields(b,['data','modalidade']);const valor=money(b.valor);if(valor<=0)bad('Informe valor positivo.');const client=await pool.connect();try{await client.query('BEGIN');const c=await client.query('SELECT * FROM pe_cobrancas WHERE id=$1 FOR UPDATE',[req.params.id]);if(!c.rowCount)bad('Cobrança não encontrada.',404);if(Number(c.rows[0].pago)+valor>Number(c.rows[0].valor)+0.00001)bad('Recebimento supera saldo da cobrança.',409);const r=await client.query('INSERT INTO pe_recebimentos(cobranca_id,data,valor,modalidade,observacao,usuario_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[req.params.id,date(b.data),valor,str(b.modalidade,80),str(b.observacao,2000),req.user.id]);await client.query('UPDATE pe_cobrancas SET pago=pago+$1 WHERE id=$2',[valor,req.params.id]);await client.query('COMMIT');res.status(201).json(r.rows[0]);}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}}));
 router.post('/anexo',upload.single('arquivo'),wrap(async(req,res)=>{if(!req.file)bad('Arquivo obrigatório.');const f=await uploadCloud(req.file);res.json(f)}));
