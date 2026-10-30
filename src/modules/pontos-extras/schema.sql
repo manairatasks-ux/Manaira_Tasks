@@ -43,3 +43,9 @@ CREATE TABLE IF NOT EXISTS pe_auditoria_geral (
 );
 CREATE INDEX IF NOT EXISTS pe_auditoria_geral_data_idx ON pe_auditoria_geral(criado_em DESC,id DESC);
 CREATE INDEX IF NOT EXISTS pe_auditoria_geral_entidade_idx ON pe_auditoria_geral(entidade,acao,criado_em DESC);
+
+-- V71.10 — Identificadores dos documentos de recebimento, sem alterar registros anteriores.
+ALTER TABLE pe_recebimentos ADD COLUMN IF NOT EXISTS numero_nota TEXT;
+ALTER TABLE pe_recebimentos ADD COLUMN IF NOT EXISTS duplicata TEXT;
+ALTER TABLE pe_recebimentos ADD COLUMN IF NOT EXISTS parcela TEXT;
+ALTER TABLE pe_recebimentos ADD COLUMN IF NOT EXISTS numero_boleto TEXT;

@@ -1,0 +1,10 @@
+Manaíra Board V71.10 — Referências de recebimentos e conflito de contratos
+
+- Bonificação: número da nota e anexo de comprovante opcional.
+- Desconto em boleto: duplicata e parcela.
+- Boleto: número do boleto.
+- Editar recebimento: mesmos campos documentais, gravados no PostgreSQL e registrados na auditoria.
+- Histórico financeiro: exibe identificação documental disponível.
+- Conflito de vigência: informa código comercial do ponto, fornecedor, datas e contrato ou pacote conflitante.
+- Migração aditiva: 4 novas colunas em pe_recebimentos.
+- Não altera os outros módulos nem dados financeiros existentes.

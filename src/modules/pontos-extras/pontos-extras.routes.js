@@ -18,7 +18,7 @@ const camposAuditados={
  contratos:['fornecedor_id','ponto_id','pacote_id','inicio','fim','valor','modelo_valor','forma_pagamento','observacao','arquivo_id'],
  pacotes:['fornecedor_id','nome','inicio','fim','valor','modelo_valor','forma_pagamento','observacao','arquivo_id'],
  cobrancas:['contrato_id','pacote_id','competencia','vencimento','valor','pago'],
- recebimentos:['cobranca_id','data','valor','modalidade','observacao','comprovante_id']
+ recebimentos:['cobranca_id','data','valor','modalidade','numero_nota','duplicata','parcela','numero_boleto','observacao','comprovante_id']
 };
 function auditCampos(entidade,row){
  if(!row||typeof row!=='object')return null;
@@ -123,7 +123,15 @@ router.post('/pontos/:id/foto',upload.single('foto'),wrap(async(req,res)=>{if(!r
 router.get('/pontos/:id/foto',wrap(async(req,res)=>{const r=await query('SELECT foto_id,foto_formato FROM pe_pontos WHERE id=$1',[req.params.id]);if(!r.rowCount||!r.rows[0].foto_id)bad('Foto não encontrada.',404);res.set('Cache-Control','private,no-store');res.json({url:fileUrl(r.rows[0].foto_id,r.rows[0].foto_formato||'jpg')})}));
 router.get('/contratos',wrap(async(req,res)=>{const r=await query(`SELECT c.*,p.codigo AS ponto_codigo,p.localizacao,f.nome AS fornecedor_nome FROM pe_contratos c JOIN pe_pontos p ON p.id=c.ponto_id JOIN pe_fornecedores f ON f.id=c.fornecedor_id ORDER BY c.inicio DESC,c.id DESC`);res.json(r.rows)}));
 router.get('/pacotes',wrap(async(req,res)=>{res.json((await query(`SELECT p.*,f.nome AS fornecedor_nome,COALESCE(json_agg(json_build_object('id',c.ponto_id,'codigo',pt.codigo)) FILTER(WHERE c.id IS NOT NULL),'[]'::json) AS pontos FROM pe_pacotes p JOIN pe_fornecedores f ON f.id=p.fornecedor_id LEFT JOIN pe_contratos c ON c.pacote_id=p.id LEFT JOIN pe_pontos pt ON pt.id=c.ponto_id GROUP BY p.id,f.nome ORDER BY p.id DESC`)).rows)}));
-async function lockAndCheck(client,pontoIds,inicio,fim,excludeId){for(const id of [...new Set(pontoIds)].sort((a,b)=>a-b)){const lock=await client.query('SELECT id FROM pe_pontos WHERE id=$1 FOR UPDATE',[id]);if(!lock.rowCount)bad('Ponto não encontrado.');const c=await client.query('SELECT id FROM pe_contratos WHERE ponto_id=$1 AND inicio<=$3::date AND fim>=$2::date AND ($4::bigint IS NULL OR id<>$4) LIMIT 1',[id,inicio,fim,excludeId||null]);if(c.rowCount)bad(`O ponto ${id} já está contratado durante o período.`,409);}}
+async function lockAndCheck(client,pontoIds,inicio,fim,excludeId){for(const id of [...new Set(pontoIds)].sort((a,b)=>a-b)){const lock=await client.query('SELECT id FROM pe_pontos WHERE id=$1 FOR UPDATE',[id]);if(!lock.rowCount)bad('Ponto não encontrado.');const c=await client.query(`SELECT c.id,c.inicio,c.fim,c.pacote_id,f.nome AS fornecedor,p.codigo AS ponto_codigo,
+       pk.nome AS nome_pacote FROM pe_contratos c
+       JOIN pe_fornecedores f ON f.id=c.fornecedor_id
+       JOIN pe_pontos p ON p.id=c.ponto_id
+       LEFT JOIN pe_pacotes pk ON pk.id=c.pacote_id
+       WHERE c.ponto_id=$1 AND c.inicio<=$3::date AND c.fim>=$2::date
+       AND ($4::bigint IS NULL OR c.id<>$4) ORDER BY c.inicio LIMIT 1`,[id,inicio,fim,excludeId||null]);
+ if(c.rowCount){const x=c.rows[0],fmt=v=>String(v instanceof Date?v.toISOString().slice(0,10):v).slice(0,10).split('-').reverse().join('/');
+ bad(`O ponto ${x.ponto_codigo} já está contratado para ${x.fornecedor} no período de ${fmt(x.inicio)} até ${fmt(x.fim)} (${x.pacote_id?'Pacote '+x.nome_pacote+' #'+x.pacote_id:'Contrato #'+x.id}). Remova esse ponto da seleção ou altere a vigência.`,409);}}}
 router.post('/contratos',wrap(async(req,res)=>{const b=req.body;reqFields(b,['fornecedor_id','ponto_id','inicio','fim']);const inicio=date(b.inicio),fim=date(b.fim);if(fim<inicio)bad('Fim anterior ao início.');const client=await pool.connect();try{await client.query('BEGIN');await lockAndCheck(client,[Number(b.ponto_id)],inicio,fim);const r=await client.query('INSERT INTO pe_contratos(fornecedor_id,ponto_id,inicio,fim,valor,forma_pagamento,observacao) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',[b.fornecedor_id,b.ponto_id,inicio,fim,money(b.valor),str(b.forma_pagamento,80),str(b.observacao,3000)]);await client.query("UPDATE pe_contratos SET modelo_valor='total' WHERE id=$1",[r.rows[0].id]);await client.query('COMMIT');res.status(201).json(r.rows[0]);}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}}));
 router.put('/contratos/:id',wrap(async(req,res)=>{const b=req.body;reqFields(b,['fornecedor_id','ponto_id','inicio','fim']);const inicio=date(b.inicio),fim=date(b.fim);if(fim<inicio)bad('Fim anterior ao início.');const client=await pool.connect();try{await client.query('BEGIN');const atual=await client.query('SELECT * FROM pe_contratos WHERE id=$1 FOR UPDATE',[req.params.id]);if(!atual.rowCount)bad('Contrato não encontrado.',404);if(atual.rows[0].pacote_id)bad('Edite o pacote correspondente.');await lockAndCheck(client,[Number(b.ponto_id)],inicio,fim,req.params.id);if(atual.rows[0].modelo_valor==='total'){const financeiro=await client.query('SELECT COALESCE(SUM(valor),0) AS programado FROM pe_cobrancas WHERE contrato_id=$1',[req.params.id]);if(money(b.valor)+.001<Number(financeiro.rows[0].programado))bad('Valor contratado não pode ficar abaixo das parcelas programadas.',409);}const r=await client.query('UPDATE pe_contratos SET fornecedor_id=$1,ponto_id=$2,inicio=$3,fim=$4,valor=$5,forma_pagamento=$6,observacao=$7 WHERE id=$8 RETURNING *',[b.fornecedor_id,b.ponto_id,inicio,fim,money(b.valor),str(b.forma_pagamento,80),str(b.observacao,3000),req.params.id]);await client.query('COMMIT');res.json(r.rows[0]);}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}}));
 router.delete('/contratos/:id',wrap(async(req,res)=>{const r=await query('DELETE FROM pe_contratos WHERE id=$1 AND pacote_id IS NULL RETURNING id',[req.params.id]);if(!r.rowCount)bad('Contrato não encontrado ou vinculado a pacote.',404);res.json({ok:true})}));
@@ -157,6 +165,17 @@ router.delete('/cobrancas/:id',wrap(async(req,res)=>{
   await client.query('DELETE FROM pe_cobrancas WHERE id=$1',[old.id]);return {ok:true};
  });res.json(result);
 }));
+
+// V71.10 — Referências financeiras por modalidade (identificadores, nunca números monetários).
+function referenciasPagamento(b){
+ const modalidade=str(b.modalidade,80);
+ const nota=str(b.numero_nota,120),dup=str(b.duplicata,120),parcela=str(b.parcela,50),boleto=str(b.numero_boleto,120);
+ if(!['Boleto','Bonificação','Desconto em boleto'].includes(modalidade))bad('Modalidade inválida.');
+ if(modalidade==='Bonificação')return {nota,dup:'',parcela:'',boleto:''};
+ if(modalidade==='Desconto em boleto')return {nota:'',dup,parcela,boleto:''};
+ return {nota:'',dup:'',parcela:'',boleto};
+}
+
 router.put('/recebimentos/:id',wrap(async(req,res)=>{
  const b=req.body;reqFields(b,['data','modalidade']);const valor=money(b.valor);if(valor<=0)bad('O valor recebido deve ser positivo.');
  const result=await transacao(async client=>{
@@ -166,7 +185,7 @@ router.put('/recebimentos/:id',wrap(async(req,res)=>{
   const old=found.rows[0];const novoPago=Number(cob.rows[0].pago)-Number(old.valor)+valor;
   if(novoPago>Number(cob.rows[0].valor)+0.00001)bad('Valor excede o total da mensalidade.',409);
   if(novoPago<0)bad('Saldo financeiro inconsistente.',409);
-  const r=await client.query('UPDATE pe_recebimentos SET data=$1,valor=$2,modalidade=$3,observacao=$4 WHERE id=$5 RETURNING *',[date(b.data),valor,str(b.modalidade,80),str(b.observacao,2000),old.id]);
+  const refs=referenciasPagamento(b);const r=await client.query('UPDATE pe_recebimentos SET data=$1,valor=$2,modalidade=$3,observacao=$4,numero_nota=$6,duplicata=$7,parcela=$8,numero_boleto=$9 WHERE id=$5 RETURNING *',[date(b.data),valor,str(b.modalidade,80),str(b.observacao,2000),old.id,refs.nota,refs.dup,refs.parcela,refs.boleto]);
   await client.query('UPDATE pe_cobrancas SET pago=$1 WHERE id=$2',[Number(novoPago.toFixed(2)),old.cobranca_id]);
   await gravarAuditoria(client,req,'recebimento',old.id,'EDITAR',old,r.rows[0],b.motivo);return r.rows[0];
  });res.json(result);
@@ -185,7 +204,7 @@ router.delete('/recebimentos/:id',wrap(async(req,res)=>{
  });res.json(result);
 }));
 router.get('/recebimentos',wrap(async(req,res)=>{res.json((await query('SELECT r.*,c.competencia,c.vencimento FROM pe_recebimentos r JOIN pe_cobrancas c ON c.id=r.cobranca_id ORDER BY r.data DESC,r.id DESC')).rows)}));
-router.post('/cobrancas/:id/receber',wrap(async(req,res)=>{const b=req.body;reqFields(b,['data','modalidade']);const valor=money(b.valor);if(valor<=0)bad('Informe valor positivo.');const client=await pool.connect();try{await client.query('BEGIN');const c=await client.query('SELECT * FROM pe_cobrancas WHERE id=$1 FOR UPDATE',[req.params.id]);if(!c.rowCount)bad('Cobrança não encontrada.',404);if(Number(c.rows[0].pago)+valor>Number(c.rows[0].valor)+0.00001)bad('Recebimento supera saldo da cobrança.',409);const r=await client.query('INSERT INTO pe_recebimentos(cobranca_id,data,valor,modalidade,observacao,usuario_id) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',[req.params.id,date(b.data),valor,str(b.modalidade,80),str(b.observacao,2000),req.user.id]);await client.query('UPDATE pe_cobrancas SET pago=pago+$1 WHERE id=$2',[valor,req.params.id]);await client.query('COMMIT');res.status(201).json(r.rows[0]);}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}}));
+router.post('/cobrancas/:id/receber',wrap(async(req,res)=>{const b=req.body;reqFields(b,['data','modalidade']);const valor=money(b.valor);if(valor<=0)bad('Informe valor positivo.');const client=await pool.connect();try{await client.query('BEGIN');const c=await client.query('SELECT * FROM pe_cobrancas WHERE id=$1 FOR UPDATE',[req.params.id]);if(!c.rowCount)bad('Cobrança não encontrada.',404);if(Number(c.rows[0].pago)+valor>Number(c.rows[0].valor)+0.00001)bad('Recebimento supera saldo da cobrança.',409);const refs=referenciasPagamento(b);const r=await client.query('INSERT INTO pe_recebimentos(cobranca_id,data,valor,modalidade,observacao,usuario_id,numero_nota,duplicata,parcela,numero_boleto) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',[req.params.id,date(b.data),valor,str(b.modalidade,80),str(b.observacao,2000),req.user.id,refs.nota,refs.dup,refs.parcela,refs.boleto]);await client.query('UPDATE pe_cobrancas SET pago=pago+$1 WHERE id=$2',[valor,req.params.id]);await client.query('COMMIT');res.status(201).json(r.rows[0]);}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}}));
 router.post('/anexo',upload.single('arquivo'),wrap(async(req,res)=>{if(!req.file)bad('Arquivo obrigatório.');const f=await uploadCloud(req.file);res.json(f)}));
 
 // Armazena referências de anexos em registros existentes; não expõe identificadores arbitrários.
@@ -242,7 +261,7 @@ async function dadosRelatorio(q){
  AND ($2::date IS NULL OR c.vencimento>=$2) AND ($3::date IS NULL OR c.vencimento<=$3)
  ORDER BY fornecedor,c.vencimento,c.id`,[fornecedorId,inicio,fim])).rows;
  const hoje=new Date().toLocaleDateString('en-CA',{timeZone:'America/Fortaleza'});
- const itens=rows.map(x=>{const saldo=Math.max(0,Number(x.valor)-Number(x.pago));return {...x,saldo,status:saldo<=.001?'Quitado':x.vencimento.toISOString().slice(0,10)<hoje?'Atrasado':Number(x.pago)>0?'Parcial':'Em aberto'}});
+ const itens=rows.map(x=>{const saldo=Math.max(0,Number(x.valor)-Number(x.pago));return {...x,saldo,status:saldo<=.001?'Quitado':String(x.vencimento).slice(0,10)<hoje?'Atrasado':Number(x.pago)>0?'Parcial':'Em aberto'}});
  const filtered=itens.filter(x=>tipo==='abertos'?x.saldo>.001:tipo==='quitados'?x.saldo<=.001:true);
  const recs=(await query(`SELECT r.id,r.cobranca_id,r.data,r.valor,r.modalidade,r.observacao,r.comprovante_id,
  COALESCE(fc.id,fp.id) AS fornecedor_id,COALESCE(fc.nome,fp.nome) AS fornecedor
