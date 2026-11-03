@@ -45,3 +45,8 @@
 /* V72.3 — ação de exclusão identificável sem destaque excessivo */
 .mr-btn.mr-btn-delete{color:#a52728;border-color:#e8b4b4;background:#fff5f5}
 .mr-btn.mr-btn-delete:hover{background:#fbe3e3}
+
+/* V72.4 - Aguardando cliente */
+#manairaRotasPanel .mr-status-aguardando_cliente{background:#fff0cb;color:#8e5c0b;font-weight:700}
+#manairaRotasPanel .mr-next .mr-field{max-width:350px;margin:12px 0}
+#manairaRotasPanel .mr-next .mr-actions{margin:12px 0}

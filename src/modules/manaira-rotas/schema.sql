@@ -63,8 +63,13 @@ CREATE TABLE IF NOT EXISTS mr_paradas (
  observacao text NOT NULL DEFAULT '',
  concluida_por integer REFERENCES usuarios(id) ON DELETE SET NULL,
  UNIQUE(viagem_id,ordem),
- CHECK(status IN ('pendente','entregue','nao_entregue'))
+ CHECK(status IN ('pendente','aguardando_cliente','entregue','nao_entregue'))
 );
+-- Migração idempotente V72.4: etapas e tempos por entrega, preservando dados existentes.
+ALTER TABLE mr_paradas ADD COLUMN IF NOT EXISTS deslocamento_iniciado_em timestamptz;
+ALTER TABLE mr_paradas ADD COLUMN IF NOT EXISTS chegada_em timestamptz;
+ALTER TABLE mr_paradas DROP CONSTRAINT IF EXISTS mr_paradas_status_check;
+ALTER TABLE mr_paradas ADD CONSTRAINT mr_paradas_status_check CHECK(status IN ('pendente','aguardando_cliente','entregue','nao_entregue'));
 CREATE INDEX IF NOT EXISTS mr_paradas_viagem_idx ON mr_paradas(viagem_id,ordem);
 CREATE INDEX IF NOT EXISTS mr_paradas_pedido_idx ON mr_paradas(pedido_id);
 CREATE TABLE IF NOT EXISTS mr_localizacoes (

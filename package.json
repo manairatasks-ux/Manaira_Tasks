@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "72.1.0",
-  "description": "Manaíra Board V72.1 — Mapa Inteligente",
+  "version": "72.4.0",
+  "description": "Manaíra Board V72.4 — Etapas e tempos de entrega",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
