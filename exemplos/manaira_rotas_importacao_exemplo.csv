@@ -1,0 +1,2 @@
+numero;cliente;cep;rua;numero_endereco;bairro;complemento;cidade;uf;lat;lon
+PEDIDO-EXEMPLO-001;Cliente de teste;58000000;Rua Exemplo;100;Centro;;João Pessoa;PB;;

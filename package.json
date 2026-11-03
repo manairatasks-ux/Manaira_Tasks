@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "71.9.0",
-  "description": "Manaíra Board V71.9 — Auditoria de Pontos Extras",
+  "version": "72.1.0",
+  "description": "Manaíra Board V72.1 — Mapa Inteligente",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
