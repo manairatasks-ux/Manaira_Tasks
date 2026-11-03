@@ -5564,6 +5564,12 @@ function cartazDescricao(p) {
   return String(p?.descricao || p?.descpdv || 'PRODUTO').trim().replace(/\s+/g, ' ');
 }
 
+// Código interno GZ para identificação discreta na placa; EAN como alternativa.
+// Nunca converter para Number, para preservar eventuais zeros à esquerda.
+function cartazCodigo(p) {
+  return String(p?.codigo ?? p?.codigoInterno ?? p?.ean ?? p?.codigoEan ?? '').trim();
+}
+
 function cartazPrecoOferta(p) {
   // Mantém a regra validada do módulo: preço especial primeiro e promoção como fallback.
   const especial = cartazValor(p?.precoEspecial);
@@ -5669,6 +5675,7 @@ function cartazNormalizarItemFila(c) {
     modelo,
     descricao: String(c.descricao || c?.fields?.desc?.text || 'PRODUTO').trim(),
     ean: String(c.ean || ''),
+    codigo: String(c.codigo ?? c.ean ?? ''),
     preco: cartazValor(c.preco),
     precoDe: cartazValor(c.precoDe),
     validade: modelo === 'oferta' ? String(c.validade || c?.fields?.validade?.text || '') : '',
@@ -5687,6 +5694,7 @@ function cartazCriarDraft(p) {
   return {
     modelo,
     descricao: cartazDescricao(p),
+    codigo: cartazCodigo(p),
     precoNormal: cartazValor(p?.precoVenda),
     precoOferta: cartazPrecoOferta(p) || cartazValor(p?.precoVenda),
     validade: cartazValidade(p),
@@ -5757,6 +5765,7 @@ function cartazArteHtml(dados, { preview = false, id = '' } = {}) {
   const preferFit = !preview;
   return `<div class="cartaz-art ${modelo}${preview ? ' cartaz-canvas' : ''}"${idAttr} style="background-image:url('/img/cartazes/${modelo}.jpeg')">
     <div class="cartaz-field cartaz-desc${editClass}" data-field="desc"${tab} style="${cartazCampoStyle(layout.desc, cartazDescricaoFontCqw(dados, { preferFit }))}">${escapeHtml(dados.descricao || 'PRODUTO')}</div>
+    ${dados.codigo ? `<div class="cartaz-codigo" aria-label="Código do produto">COD: ${escapeHtml(String(dados.codigo))}</div>` : ''}
     ${modelo === 'oferta' ? `
       <div class="cartaz-field cartaz-validade${editClass}" data-field="validade"${tab} style="${cartazCampoStyle(layout.validade, cartazValidadeFontCqw(dados, { preferFit }))}">${dados.validade ? `Validade: ${escapeHtml(dados.validade)}` : ''}</div>
       <div class="cartaz-field cartaz-de${editClass}" data-field="de"${tab} style="${cartazCampoStyle(layout.de, cartazPrecoFontCqw(dados, 'de', { preferFit }))}">${cartazPrecoHtml(dados.precoDe)}</div>` : ''}
@@ -5770,6 +5779,7 @@ function cartazDadosDoDraft() {
   return {
     modelo: d.modelo,
     descricao: d.descricao,
+    codigo: String(d.codigo || ''),
     preco: d.modelo === 'oferta' ? d.precoOferta : d.precoNormal,
     precoDe: d.precoNormal,
     validade: d.modelo === 'oferta' ? d.validade : '',
@@ -6107,6 +6117,7 @@ function adicionarCartazFila() {
     modelo: d.modelo,
     descricao: String(d.descricao || 'PRODUTO').trim(),
     ean: String(p.codigoEan || p.codigo || ''),
+    codigo: String(d.codigo || cartazCodigo(p)),
     preco: d.modelo === 'oferta' ? cartazValor(d.precoOferta) : cartazValor(d.precoNormal),
     precoDe: cartazValor(d.precoNormal),
     validade: d.modelo === 'oferta' ? String(d.validade || '') : '',
