@@ -1,0 +1,7 @@
+Manaíra Board V71.11 — Correção de Relatórios Financeiros
+
+Correção da conversão de vencimento no relatório financeiro: o PostgreSQL já retorna os campos DATE como texto YYYY-MM-DD. O código anterior tentava executar .toISOString() sobre esse texto, provocando erro 500 quando havia cobranças. Agora usa a data textual diretamente.
+
+Sem alterações de banco ou de outros módulos.
+
+Arquivo alterado: src/modules/pontos-extras/pontos-extras.routes.js
