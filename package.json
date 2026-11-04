@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "72.5.0",
-  "description": "Manaíra Board V72.5 — Rotas por período, cancelamento e mapa limpo",
+  "version": "73.0.0",
+  "description": "Manaíra Board V73 — Produtividade E-commerce VIP",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",

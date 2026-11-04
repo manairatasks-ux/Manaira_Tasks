@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="/css/pitstop.css" />
   <link rel="stylesheet" href="/css/pontos-extras.css" />
   <link rel="stylesheet" href="/css/manaira-rotas.css" />
+  <link rel="stylesheet" href="/css/ecommerce-produtividade.css" />
 </head>
 
 <body>
@@ -110,6 +111,13 @@
         <button class="nav-main" id="btnRotas_historico" data-rotas-tab="historico">◷ Histórico</button>
         <button class="nav-main" id="btnRotas_config" data-rotas-tab="config">⚙ Configurar base</button>
       </div>
+      <div id="ecommerceProdMenu" class="module-menu hidden">
+        <div class="module-menu-title">PRODUTIVIDADE E-COMMERCE</div>
+        <button class="nav-main" data-ep-tab="dashboard">▦ Dashboard</button>
+        <button class="nav-main" data-ep-tab="funcionarios">♙ Funcionários</button>
+        <button class="nav-main" data-ep-tab="importacoes">⇧ Importações VIP</button>
+        <button class="nav-main" data-ep-tab="comparativos">▤ Comparativos</button>
+      </div>
       <div id="pitstopMenu" class="module-menu hidden"><div class="module-menu-title">PIT STOP</div><button class="nav-main" id="btnPitstop">▤ Abastecimentos e relatórios</button></div>
       <div id="rhMenu" class="module-menu hidden">
         <div class="module-menu-title">RECURSOS HUMANOS</div>
@@ -199,6 +207,7 @@
 <button class="module-card" id="cardOrcamentos" type="button"><span class="module-icon">🧾</span><span class="module-card-copy"><strong>Orçamentos</strong><small>Produtos GZ, propostas comerciais, descontos e PDF.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardPontosExtras" type="button"><span class="module-icon">📍</span><span class="module-card-copy"><strong>Pontos Extras</strong><small>Mapa comercial, fornecedores, contratos e pagamentos.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardManairaRotas" type="button"><span class="module-icon">🛵</span><span class="module-card-copy"><strong>Manaíra Rotas</strong><small>Mapa de entregas, CEPs em lote, rotas e GPS.</small></span><span class="module-arrow">→</span></button>
+<button class="module-card" id="cardEcommerceProd" type="button"><span class="module-icon">📊</span><span class="module-card-copy"><strong>Produtividade E-commerce</strong><small>Indicadores VIP, equipe, comparativos e importações.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardPitstop" type="button"><span class="module-icon">🥤</span><span class="module-card-copy"><strong>Pit Stop</strong><small>Registro de produtos com fotos, histórico e relatórios PDF.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardAdmin" type="button">
             <span class="module-icon">⚙</span><span class="module-card-copy"><strong>Administração</strong><small>Usuários, hierarquia, setores, proprietários e permissões.</small></span><span class="module-arrow">→</span>
@@ -221,6 +230,7 @@
       <section id="orcamentosPanel" class="dashboard hidden"></section>
       <section id="pontosExtrasPanel" class="dashboard hidden"></section>
       <section id="manairaRotasPanel" class="dashboard hidden"></section>
+      <section id="ecommerceProdPanel" class="dashboard hidden"></section>
       <section id="pitstopPanel" class="dashboard hidden"></section>
       <section id="recebimentoPanel" class="dashboard hidden"></section>
       <section id="produtosGzPanel" class="dashboard hidden"></section>
@@ -249,6 +259,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="/js/manaira-rotas.js"></script>
+  <script src="/js/ecommerce-produtividade.js"></script>
 </body>
 
 </html>

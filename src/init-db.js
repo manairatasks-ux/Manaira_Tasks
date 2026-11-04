@@ -86,6 +86,9 @@ async function initDb() {
   // V72: tabelas de roteirização do e-commerce.
   await query(fs.readFileSync(path.join(__dirname, 'modules', 'manaira-rotas', 'schema.sql'), 'utf8'));
 
+  // V73: Produtividade do E-commerce (relatórios VIP).
+  await query(fs.readFileSync(path.join(__dirname, 'modules', 'ecommerce-produtividade', 'schema.sql'), 'utf8'));
+
   // V15: catálogo de módulos e migração segura dos acessos existentes.
   await query(`
     INSERT INTO modulos (codigo, nome, descricao, ordem, ativo) VALUES
@@ -102,7 +105,8 @@ async function initDb() {
       ('orcamentos', 'Orçamentos', 'Cotações comerciais, descontos autorizados e documentos.', 100, TRUE),
       ('pitstop', 'Pit Stop', 'Registro fotográfico dos abastecimentos, histórico e relatórios PDF.', 110, TRUE),
       ('pontos_extras', 'Pontos Extras', 'Mapa, fornecedores, contratos, pacotes e financeiro.', 120, TRUE),
-      ('manaira_rotas', 'Manaíra Rotas', 'Roteirização do e-commerce, GPS e entregas.', 130, TRUE)
+      ('manaira_rotas', 'Manaíra Rotas', 'Roteirização do e-commerce, GPS e entregas.', 130, TRUE),
+      ('ecommerce_produtividade', 'Produtividade E-commerce', 'Indicadores dos separadores por relatórios VIP.', 140, TRUE)
     ON CONFLICT (codigo) DO UPDATE SET
       nome = EXCLUDED.nome,
       descricao = EXCLUDED.descricao,
