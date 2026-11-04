@@ -1,0 +1,13 @@
+Manaíra Board V72.6.1 — correção da inicialização (PostgreSQL)
+
+Causa: o script schema.sql da V72.6 tentava recriar uma restrição antiga
+mr_paradas_status_check sem aceitar o status cancelada, mesmo antes de
+chegar à migração V72.5 que passou a aceitar esse status.
+
+Correção: removida a recriação intermediária da restrição antiga;
+a restrição atualizada da V72.5 continua sendo aplicada normalmente.
+
+Os dados de pedidos, viagens e paradas não são apagados.
+A correção não altera telas, rotas HTTP nem os demais módulos.
+
+Uso: copie seu .env para a raiz e execute npm install e node .

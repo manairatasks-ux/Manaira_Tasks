@@ -12,10 +12,11 @@ function s(v,max=300){return String(v??'').trim().slice(0,max)}
 function num(v,min,max){const n=Number(v);if(!Number.isFinite(n)||n<min||n>max)bad('Número fora do limite permitido.');return n}
 function origin(row){return {lat:Number(row.lat),lon:Number(row.lon)}}
 function log(client,entity,id,action,uid,details={}){return client.query('INSERT INTO mr_eventos(entidade,registro_id,evento,usuario_id,detalhes) VALUES($1,$2,$3,$4,$5::jsonb)',[entity,id,action,uid,JSON.stringify(details)])}
+function canManage(req){return ['administrador_principal','administrador','gerente','encarregado'].includes(String(req.user.perfil).toLowerCase())}
 function canControl(req,trip){return Number(trip.entregador_id)===Number(req.user.id)||['administrador_principal','administrador','gerente','encarregado'].includes(String(req.user.perfil).toLowerCase())}
-async function allTrips(){return (await query(`SELECT v.*,u.nome AS entregador_nome,COALESCE((SELECT COUNT(*) FROM mr_paradas p WHERE p.viagem_id=v.id),0)::int AS total,COALESCE((SELECT COUNT(*) FROM mr_paradas p WHERE p.viagem_id=v.id AND p.status='entregue'),0)::int AS entregues,l.lat AS atual_lat,l.lon AS atual_lon,l.atualizado_em AS gps_atualizado_em FROM mr_viagens v LEFT JOIN usuarios u ON u.id=v.entregador_id LEFT JOIN mr_localizacoes l ON l.viagem_id=v.id ORDER BY v.id DESC LIMIT 250`)).rows}
+async function allTrips(){return (await query(`SELECT v.*,u.nome AS entregador_nome,COALESCE((SELECT COUNT(*) FROM mr_paradas p WHERE p.viagem_id=v.id),0)::int AS total,COALESCE((SELECT COUNT(*) FROM mr_paradas p WHERE p.viagem_id=v.id AND p.status='entregue'),0)::int AS entregues,l.lat AS atual_lat,l.lon AS atual_lon,l.atualizado_em AS gps_atualizado_em FROM mr_viagens v LEFT JOIN usuarios u ON u.id=v.entregador_id LEFT JOIN mr_localizacoes l ON l.viagem_id=v.id ORDER BY v.id DESC LIMIT 1000`)).rows}
 async function stops(id){return (await query(`SELECT p.*,o.numero,o.cliente,o.cep,o.rua,o.numero_endereco,o.bairro,o.complemento,o.cidade,o.uf,o.lat,o.lon,o.prazo FROM mr_paradas p JOIN mr_pedidos o ON o.id=p.pedido_id WHERE p.viagem_id=$1 ORDER BY p.ordem`,[id])).rows}
-router.get('/bootstrap',safe(async(req,res)=>{const [config,pedidos,viagens,usuarios]=await Promise.all([query('SELECT * FROM mr_config WHERE id=1'),query('SELECT * FROM mr_pedidos ORDER BY id DESC LIMIT 1000'),allTrips(),query("SELECT u.id,u.nome FROM usuarios u WHERE u.perfil='administrador_principal' OR EXISTS(SELECT 1 FROM usuario_modulos um JOIN modulos m ON m.id=um.modulo_id WHERE um.usuario_id=u.id AND m.codigo='manaira_rotas') ORDER BY u.nome LIMIT 800")]);res.set('Cache-Control','no-store');res.json({config:config.rows[0],pedidos:pedidos.rows,viagens,usuarios:usuarios.rows,usuario_id:req.user.id,mapas_configurados:maps.hasKey(),provedor_mapa:maps.provider()})}));
+router.get('/bootstrap',safe(async(req,res)=>{const [config,pedidos,viagens,usuarios]=await Promise.all([query('SELECT * FROM mr_config WHERE id=1'),query('SELECT * FROM mr_pedidos ORDER BY id DESC LIMIT 1000'),allTrips(),query("SELECT u.id,u.nome FROM usuarios u WHERE u.perfil='administrador_principal' OR EXISTS(SELECT 1 FROM usuario_modulos um JOIN modulos m ON m.id=um.modulo_id WHERE um.usuario_id=u.id AND m.codigo='manaira_rotas') ORDER BY u.nome LIMIT 800")]);res.set('Cache-Control','no-store');res.json({config:config.rows[0],pedidos:pedidos.rows,viagens,usuarios:usuarios.rows,usuario_id:req.user.id,pode_gerenciar:canManage(req),mapas_configurados:maps.hasKey(),provedor_mapa:maps.provider()})}));
 router.put('/config',safe(async(req,res)=>{const b=req.body;const address=s(b.endereco_origem,500);if(!address)bad('Informe o endereço completo do supermercado.');let lat=b.lat,lon=b.lon;if(lat===''||lon===''||lat==null||lon==null){if(!maps.hasKey())bad('Configure a chave gratuita GEOAPIFY_API_KEY ou escolha a base pelo mapa.');const g=await maps.geocode({rua:address,numero_endereco:'',cidade:'João Pessoa',uf:'PB'});if(!g.ok)bad(g.reason);lat=g.lat;lon=g.lon}const r=await query('UPDATE mr_config SET nome_origem=$1,endereco_origem=$2,lat=$3,lon=$4,updated_at=NOW() WHERE id=1 RETURNING *',[s(b.nome_origem,120)||'Supermercado Manaíra',address,num(lat,-90,90),num(lon,-180,180)]);await log({query:query},'config',1,'ATUALIZAR',req.user.id);res.json(r.rows[0])}));
 router.get('/cep/:cep',safe(async(req,res)=>{const cep=s(req.params.cep).replace(/\D/g,'');if(cep.length!==8)bad('CEP deve ter 8 dígitos.');const r=await fetch(`https://viacep.com.br/ws/${cep}/json/`,{signal:AbortSignal.timeout(9000)});if(!r.ok)bad('Consulta CEP indisponível.',502);const d=await r.json();if(d.erro)bad('CEP não encontrado.');res.json({rua:d.logradouro,bairro:d.bairro,cidade:d.localidade,uf:d.uf,cep})}));
 async function findCoords(o){if(o.lat!==''&&o.lat!=null&&o.lon!==''&&o.lon!=null){return {lat:num(o.lat,-90,90),lon:num(o.lon,-180,180),status:'confirmado'}}if(!maps.hasKey())return {lat:null,lon:null,status:'pendente'};try{const g=await maps.geocode(o);return g.ok?{lat:g.lat,lon:g.lon,status:g.preciso?'automatico':'revisar'}:{lat:null,lon:null,status:'pendente'}}catch(e){console.warn('Geo:',e.message);return {lat:null,lon:null,status:'pendente'}}}
@@ -98,11 +99,58 @@ router.delete('/pedidos/:id',safe(async(req,res)=>{
   res.json({ok:true,id});
  }catch(err){await client.query('ROLLBACK');throw err}finally{client.release()}
 }));
+// V72.5: Arquivamento de pedidos concluídos (sem excluir provas ou vínculos de viagens).
+router.patch('/pedidos/:id/arquivar',safe(async(req,res)=>{
+ if(!canManage(req))bad('Somente responsáveis podem arquivar pedidos.',403);
+ const id=num(req.params.id,1,Number.MAX_SAFE_INTEGER),archived=req.body?.arquivado===true;
+ const client=await pool.connect();try{await client.query('BEGIN');
+ const row=(await client.query('SELECT * FROM mr_pedidos WHERE id=$1 FOR UPDATE',[id])).rows[0];
+ if(!row)bad('Pedido não encontrado.',404);
+ if(!['entregue','nao_entregue','cancelado'].includes(row.status))bad('Só é possível arquivar pedidos finalizados ou cancelados.');
+ const updated=(await client.query('UPDATE mr_pedidos SET arquivado=$1,atualizado_em=NOW() WHERE id=$2 RETURNING *',[archived,id])).rows[0];
+ await log(client,'pedido',id,archived?'ARQUIVAR':'DESARQUIVAR',req.user.id,{numero:row.numero});
+ await client.query('COMMIT');res.json(updated);
+ }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+}));
 router.post('/pedidos/:id/reagendar',safe(async(req,res)=>{const p=(await query('SELECT * FROM mr_pedidos WHERE id=$1',[req.params.id])).rows[0];if(!p)bad('Pedido não encontrado.',404);if(p.status!=='nao_entregue')bad('Somente pedidos não entregues podem ser liberados para nova tentativa.');const updated=await query("UPDATE mr_pedidos SET status='pronto',atualizado_em=NOW() WHERE id=$1 RETURNING *",[p.id]);await log({query},'pedido',p.id,'REAGENDAR',req.user.id);res.json(updated.rows[0])}));
 router.post('/pedidos/:id/geocodificar',safe(async(req,res)=>{const r=await query('SELECT * FROM mr_pedidos WHERE id=$1',[req.params.id]);if(!r.rowCount)bad('Pedido não encontrado.',404);if(r.rows[0].status==='em_rota')bad('Pedido em rota.');if(!maps.hasKey())bad('Configure GEOAPIFY_API_KEY no Render para localizar automaticamente.');const g=await maps.geocode(r.rows[0]);if(!g.ok)bad(g.reason);const updated=await query('UPDATE mr_pedidos SET lat=$1,lon=$2,geo_status=$3,atualizado_em=NOW() WHERE id=$4 RETURNING *',[g.lat,g.lon,g.preciso?'automatico':'revisar',r.rows[0].id]);res.json(updated.rows[0])}));
 async function buildPlan(b){const cfg=(await query('SELECT * FROM mr_config WHERE id=1')).rows[0];if(!cfg||cfg.lat==null||cfg.lon==null)bad('Configure a localização exata do supermercado primeiro.');const ids=Array.isArray(b.ids)?b.ids.map(Number).filter(Number.isInteger):[];if(!ids.length||ids.length>120)bad('Selecione entre 1 e 120 pedidos prontos.');if(new Set(ids).size!==ids.length)bad('Há pedidos repetidos.');const count=num(b.veiculos,1,10),max=num(b.max_paradas||15,1,24);if(ids.length>count*max)bad('Quantidade de pedidos excede a capacidade das viagens. Aumente veículos ou limite por veículo.');const r=await query('SELECT * FROM mr_pedidos WHERE id=ANY($1::bigint[]) AND status=$2',[ids,'pronto']);if(r.rowCount!==ids.length)bad('Algum pedido não está mais pronto. Recarregue o painel.');const missing=r.rows.filter(x=>x.lat==null||x.lon==null||!['automatico','confirmado'].includes(x.geo_status));if(missing.length)bad('Confirme no mapa a localização de: '+missing.map(x=>'#'+x.numero).join(', '));const base=origin(cfg);const assigned=opt.distribute(base,r.rows.map(x=>({...x,lat:Number(x.lat),lon:Number(x.lon)})),count,max);const routes=[];for(const group of assigned){routes.push(await maps.route(base,group))}return {origem:cfg,rotas:routes,total:ids.length}}
 router.post('/planejar',safe(async(req,res)=>{const data=await buildPlan(req.body);res.json(data)}));
 router.post('/viagens/criar',safe(async(req,res)=>{const b=req.body;const data=await buildPlan(b);const drivers=Array.isArray(b.entregadores)?b.entregadores.map(Number):[];if(drivers.length!==data.rotas.length||drivers.some(x=>!Number.isInteger(x)||x<1)||new Set(drivers).size!==drivers.length)bad('Escolha um entregador diferente para cada viagem.');const users=await query('SELECT id FROM usuarios WHERE id=ANY($1::bigint[])',[drivers]);if(users.rowCount!==drivers.length)bad('Entregador não encontrado.');const client=await pool.connect();try{await client.query('BEGIN');const trips=[];for(let i=0;i<data.rotas.length;i++){const group=data.rotas[i],driver=drivers[i];const t=(await client.query('INSERT INTO mr_viagens(entregador_id,veiculo,origem_nome,origem_endereco,origem_lat,origem_lon,distancia_metros,duracao_segundos,calculo,criado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',[driver,b.veiculo==='carro'?'carro':'moto',data.origem.nome_origem,data.origem.endereco_origem,data.origem.lat,data.origem.lon,group.distancia_metros,group.duracao_segundos,group.calculo,req.user.id])).rows[0];for(let j=0;j<group.items.length;j++){const p=group.items[j];const upd=await client.query("UPDATE mr_pedidos SET status='em_rota',atualizado_em=NOW() WHERE id=$1 AND status='pronto' RETURNING id",[p.id]);if(!upd.rowCount)bad('Outro usuário já atribuiu um dos pedidos a uma rota.');await client.query('INSERT INTO mr_paradas(viagem_id,pedido_id,ordem) VALUES($1,$2,$3)',[t.id,p.id,j+1])}await log(client,'viagem',t.id,'CRIAR',req.user.id,{quantidade:group.items.length,driver});trips.push(t)}await client.query('COMMIT');res.status(201).json({viagens:trips})}catch(err){await client.query('ROLLBACK');throw err}finally{client.release()}}));
+// Cancelar uma viagem confirmada libera APENAS pedidos ainda pendentes; preserva entregas e auditoria.
+router.post('/viagens/:id/cancelar',safe(async(req,res)=>{
+ if(!canManage(req))bad('Somente responsáveis podem cancelar viagens.',403);
+ const id=num(req.params.id,1,Number.MAX_SAFE_INTEGER);
+ const client=await pool.connect();try{await client.query('BEGIN');
+ const trip=(await client.query('SELECT * FROM mr_viagens WHERE id=$1 FOR UPDATE',[id])).rows[0];
+ if(!trip)bad('Viagem não encontrada.',404);
+ if(!['planejada','em_rota'].includes(trip.status))bad('Somente viagens planejadas ou em andamento podem ser canceladas.');
+ const linked=(await client.query('SELECT * FROM mr_paradas WHERE viagem_id=$1 ORDER BY ordem FOR UPDATE',[id])).rows;
+ let returned=0,kept=0;
+ for(const stop of linked){
+  if(['pendente','aguardando_cliente'].includes(stop.status)){
+   await client.query("UPDATE mr_paradas SET status='cancelada',observacao=CASE WHEN observacao='' THEN 'Viagem cancelada pela central' ELSE observacao END,concluida_em=NOW(),concluida_por=$2 WHERE id=$1",[stop.id,req.user.id]);
+   const update=await client.query("UPDATE mr_pedidos SET status='pronto',atualizado_em=NOW() WHERE id=$1 AND status='em_rota' RETURNING id",[stop.pedido_id]);returned+=update.rowCount;
+  }else kept++;
+ }
+ const updated=(await client.query("UPDATE mr_viagens SET status='cancelada',encerrado_em=NOW(),arquivada=TRUE WHERE id=$1 RETURNING *",[id])).rows[0];
+ await client.query('DELETE FROM mr_localizacoes WHERE viagem_id=$1',[id]);
+ await log(client,'viagem',id,'CANCELAR',req.user.id,{pedidos_reliberados:returned,paradas_preservadas:kept});
+ await client.query('COMMIT');res.json({viagem:updated,pedidos_reliberados:returned,paradas_preservadas:kept});
+ }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+}));
+router.patch('/viagens/:id/arquivar',safe(async(req,res)=>{
+ if(!canManage(req))bad('Somente responsáveis podem arquivar viagens.',403);
+ const id=num(req.params.id,1,Number.MAX_SAFE_INTEGER),archived=req.body?.arquivada===true;
+ const client=await pool.connect();try{await client.query('BEGIN');
+ const trip=(await client.query('SELECT * FROM mr_viagens WHERE id=$1 FOR UPDATE',[id])).rows[0];
+ if(!trip)bad('Viagem não encontrada.',404);
+ if(!['cancelada','concluida'].includes(trip.status))bad('Cancele a viagem ativa antes de arquivá-la.');
+ const updated=(await client.query('UPDATE mr_viagens SET arquivada=$1 WHERE id=$2 RETURNING *',[archived,id])).rows[0];
+ await log(client,'viagem',id,archived?'ARQUIVAR':'DESARQUIVAR',req.user.id);
+ await client.query('COMMIT');res.json(updated);
+ }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+}));
 router.get('/viagens/:id',safe(async(req,res)=>{const r=await query(`SELECT v.*,u.nome AS entregador_nome FROM mr_viagens v LEFT JOIN usuarios u ON u.id=v.entregador_id WHERE v.id=$1`,[req.params.id]);if(!r.rowCount)bad('Viagem não encontrada.',404);res.json({viagem:r.rows[0],paradas:await stops(req.params.id)})}));
 router.post('/viagens/:id/iniciar',safe(async(req,res)=>{const client=await pool.connect();try{await client.query('BEGIN');const t=(await client.query('SELECT * FROM mr_viagens WHERE id=$1 FOR UPDATE',[req.params.id])).rows[0];if(!t)bad('Viagem não encontrada.',404);if(!canControl(req,t))bad('Esta viagem está atribuída a outro entregador.',403);if(t.status!=='planejada')bad('Viagem não está planejada.');const updated=(await client.query("UPDATE mr_viagens SET status='em_rota',iniciado_em=NOW() WHERE id=$1 RETURNING *",[t.id])).rows[0];await log(client,'viagem',t.id,'INICIAR',req.user.id);await client.query('COMMIT');res.json(updated)}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}}));
 // Etapas individuais por parada: iniciar deslocamento -> aguardar cliente -> concluir.

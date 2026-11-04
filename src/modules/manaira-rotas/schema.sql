@@ -68,8 +68,9 @@ CREATE TABLE IF NOT EXISTS mr_paradas (
 -- Migração idempotente V72.4: etapas e tempos por entrega, preservando dados existentes.
 ALTER TABLE mr_paradas ADD COLUMN IF NOT EXISTS deslocamento_iniciado_em timestamptz;
 ALTER TABLE mr_paradas ADD COLUMN IF NOT EXISTS chegada_em timestamptz;
-ALTER TABLE mr_paradas DROP CONSTRAINT IF EXISTS mr_paradas_status_check;
-ALTER TABLE mr_paradas ADD CONSTRAINT mr_paradas_status_check CHECK(status IN ('pendente','aguardando_cliente','entregue','nao_entregue'));
+-- A restrição de status é atualizada uma única vez ao final deste script,
+-- já incluindo 'cancelada' (introduzida na V72.5). Evita falha 23514 ao
+-- reiniciar com paradas canceladas armazenadas no PostgreSQL.
 CREATE INDEX IF NOT EXISTS mr_paradas_viagem_idx ON mr_paradas(viagem_id,ordem);
 CREATE INDEX IF NOT EXISTS mr_paradas_pedido_idx ON mr_paradas(pedido_id);
 CREATE TABLE IF NOT EXISTS mr_localizacoes (
@@ -90,3 +91,12 @@ CREATE TABLE IF NOT EXISTS mr_eventos (
  criado_em timestamptz NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS mr_eventos_criado_idx ON mr_eventos(criado_em DESC);
+
+-- V72.5: cancelamento reversível operacional, filtros e arquivamento sem perda de histórico.
+ALTER TABLE mr_viagens ADD COLUMN IF NOT EXISTS arquivada boolean NOT NULL DEFAULT FALSE;
+ALTER TABLE mr_pedidos ADD COLUMN IF NOT EXISTS arquivado boolean NOT NULL DEFAULT FALSE;
+ALTER TABLE mr_viagens DROP CONSTRAINT IF EXISTS mr_viagens_status_check;
+ALTER TABLE mr_viagens ADD CONSTRAINT mr_viagens_status_check CHECK(status IN ('planejada','em_rota','concluida','cancelada'));
+ALTER TABLE mr_paradas DROP CONSTRAINT IF EXISTS mr_paradas_status_check;
+ALTER TABLE mr_paradas ADD CONSTRAINT mr_paradas_status_check CHECK(status IN ('pendente','aguardando_cliente','entregue','nao_entregue','cancelada'));
+CREATE INDEX IF NOT EXISTS mr_viagens_criado_em_idx ON mr_viagens(criado_em DESC);
