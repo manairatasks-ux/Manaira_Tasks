@@ -27,6 +27,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 app.use(express.static(path.join(__dirname,'..','public')));
+// URL curta e permanente para a televisão do e-commerce (somente leitura).
+app.get('/tv',(req,res)=>res.sendFile(path.join(__dirname,'..','public','produtividade-tv.html')));
 app.use('/uploads',express.static(path.join(__dirname,'..','uploads')));
 
 app.get('/api/health',async(req,res)=>{try{await query('SELECT 1');res.json({ok:true,database:'connected'});}catch(err){res.status(500).json({ok:false,error:err.message});}});

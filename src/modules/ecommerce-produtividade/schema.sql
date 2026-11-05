@@ -27,3 +27,17 @@ INSERT INTO ep_usuarios(vip_id,nome,categoria,observacao) VALUES
  (9,'Mateus Reis','desconsiderado','Exclusão fixa de produtividade'),
  (52,'Imprimir Selo','desconsiderado','Exclusão fixa de produtividade')
 ON CONFLICT (vip_id) DO UPDATE SET categoria='desconsiderado';
+
+-- V73.2: arquivamento sem perda dos registros e publicação estática na TV.
+ALTER TABLE ep_usuarios ADD COLUMN IF NOT EXISTS arquivado BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE TABLE IF NOT EXISTS ep_tv_config (
+ id INTEGER PRIMARY KEY DEFAULT 1 CHECK(id=1),
+ token_hash CHAR(64),
+ token_criado_em TIMESTAMPTZ,
+ inicio DATE,
+ fim DATE,
+ publicado_em TIMESTAMPTZ,
+ publicado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+ snapshot JSONB
+);
+INSERT INTO ep_tv_config(id) VALUES (1) ON CONFLICT (id) DO NOTHING;

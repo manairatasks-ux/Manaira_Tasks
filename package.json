@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "73.0.0",
-  "description": "Manaíra Board V73 — Produtividade E-commerce VIP",
+  "version": "73.2.0",
+  "description": "Manaíra Board V73.2 — Produtividade E-commerce VIP",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
