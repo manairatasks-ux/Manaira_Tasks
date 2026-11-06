@@ -51,10 +51,32 @@
   };
   async function render(){
     if(!el())return;
-    el().innerHTML=`<div class="rec-top"><div><h2>Recebimento e CPD</h2><p class="rec-muted">Controle de notas físicas e recebidas por mensagem · V67.6</p></div><button class="rec-btn secondary" id="recRefresh">↻ Atualizar</button></div><nav class="rec-tabs"><button class="rec-btn ${tab==='notas'?'':'secondary'}" data-rec-tab="notas">Notas fiscais</button><button class="rec-btn ${tab==='nova'?'':'secondary'}" data-rec-tab="nova">+ Nova nota</button><button class="rec-btn ${tab==='caminhoes'?'':'secondary'}" data-rec-tab="caminhoes">Caminhões</button><button class="rec-btn ${tab==='cpd'?'':'secondary'}" data-rec-tab="cpd">CPD / PIN</button></nav><div id="recAviso" aria-live="polite"></div><div id="recBody"></div>`;
+    el().innerHTML=`<div class="rec-top"><div><h2>Recebimento e CPD</h2><p class="rec-muted">Controle de notas físicas e recebidas por mensagem · V67.6</p></div><button class="rec-btn secondary" id="recRefresh">↻ Atualizar</button></div><nav class="rec-tabs"><button class="rec-btn ${tab==='notas'?'':'secondary'}" data-rec-tab="notas">Notas fiscais</button><button class="rec-btn ${tab==='nova'?'':'secondary'}" data-rec-tab="nova">+ Nova nota</button><button class="rec-btn ${tab==='xml'?'':'secondary'}" data-rec-tab="xml">📥 Notas disponíveis (XML)</button><button class="rec-btn ${tab==='caminhoes'?'':'secondary'}" data-rec-tab="caminhoes">Caminhões</button><button class="rec-btn ${tab==='cpd'?'':'secondary'}" data-rec-tab="cpd">CPD / PIN</button></nav><div id="recAviso" aria-live="polite"></div><div id="recBody"></div>`;
     document.querySelectorAll('[data-rec-tab]').forEach(b=>b.onclick=()=>{fecharDetalhe();tab=b.dataset.recTab;render()});
     document.getElementById('recRefresh').onclick=render;
-    try{if(tab==='notas')await notas();if(tab==='nova')nova();if(tab==='caminhoes')await caminhoes();if(tab==='cpd')await cpd()}catch(err){aviso(err.message,true)}
+    try{if(tab==='notas')await notas();if(tab==='nova')nova();if(tab==='xml')await xmlDisponiveis();if(tab==='caminhoes')await caminhoes();if(tab==='cpd')await cpd()}catch(err){aviso(err.message,true)}
+  }
+  async function xmlDisponiveis(){
+    const area=document.getElementById('recBody');
+    area.innerHTML=`<section class="rec-card"><div class="rec-top"><div><h3>Notas disponíveis na rede</h3><p class="rec-muted">São notas encontradas nos XMLs. Elas só entram no Recebimento após confirmação física. Nenhuma foto obrigatória nesta etapa.</p></div><button class="rec-btn secondary" id="xmlAtualizar">Atualizar lista</button></div><div class="rec-grid"><div><label>Buscar fornecedor, nota ou chave</label><input class="rec-filter" id="xmlBusca" placeholder="Ex.: Coca-Cola"></div><div><label>Origem dos documentos recebidos</label><select class="rec-filter" id="xmlOrigem"><option value="PAPEL">Papel</option><option value="MENSAGEM">Mensagem</option></select></div></div><p><button class="rec-btn secondary" id="xmlTodos">Selecionar disponíveis</button> <button class="rec-btn" id="xmlConfirmar">Confirmar recebimento físico das selecionadas</button></p><p class="rec-muted" id="xmlInfo">Carregando...</p><div class="rec-table-wrap"><table class="rec-table"><thead><tr><th></th><th>Fornecedor</th><th>NF / Série</th><th>Valor</th><th>Disponibilidade</th></tr></thead><tbody id="xmlLinhas"></tbody></table></div></section>`;
+    const carregar=async()=>{
+      const dados=await api('/api/recebimento/xml-pendentes?busca='+encodeURIComponent(document.getElementById('xmlBusca').value.trim()));
+      const tr=document.getElementById('xmlLinhas');
+      tr.innerHTML=dados.map(n=>`<tr><td><input type="checkbox" class="xmlEscolha" value="${e(n.chave)}" ${n.recebido_nota_id||!n.autorizada?'disabled':''} aria-label="Selecionar nota ${e(n.numero)}"></td><td>${e(n.fornecedor)}<small class="rec-muted" style="display:block">${e(n.cnpj_fornecedor)}</small></td><td>${e(n.numero)} / ${e(n.serie)}<small class="rec-muted" style="display:block">${e(n.chave)}</small></td><td>${moeda(n.valor)}</td><td>${n.recebido_nota_id?'Já recebida':!n.autorizada?'Verificar autorização':'Disponível'}</td></tr>`).join('')||'<tr><td colspan="5">Nenhuma NF-e sincronizada encontrada. Confira a Ponte GZ, o caminho da rede e a data da última sincronização.</td></tr>';
+      document.getElementById('xmlInfo').textContent=`${dados.length} nota(s) encontradas. XMLs não confirmam chegada física nem lançamento no GZ.`;
+    };
+    document.getElementById('xmlAtualizar').onclick=()=>carregar().catch(err=>aviso(err.message,true));
+    document.getElementById('xmlBusca').onchange=()=>carregar().catch(err=>aviso(err.message,true));
+    document.getElementById('xmlTodos').onclick=()=>document.querySelectorAll('.xmlEscolha:not(:disabled)').forEach(x=>x.checked=true);
+    document.getElementById('xmlConfirmar').onclick=async()=>{
+      const chaves=[...document.querySelectorAll('.xmlEscolha:checked')].map(x=>x.value);
+      if(!chaves.length)return aviso('Selecione ao menos uma nota.',true);
+      if(!confirm(`Você CONFERIU a chegada física destas ${chaves.length} notas fiscais? Este registro será associado ao seu usuário.`))return;
+      try{const r=await api('/api/recebimento/xml-pendentes/receber',{method:'POST',body:JSON.stringify({chaves,origem:document.getElementById('xmlOrigem').value})});
+        await carregar();aviso(`${r.registradas} nota(s) registradas. ${r.resultados.filter(x=>x.status!=='recebida').length} exigem conferência.`);
+      }catch(err){aviso(err.message,true)}
+    };
+    await carregar();
   }
   async function notas(){
     const hojeLocal=hoje();

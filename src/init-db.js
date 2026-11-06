@@ -80,6 +80,9 @@ async function initDb() {
 
 
 
+  // V73.4: fila XML integrada ao Recebimento (sem apagar tabelas atuais).
+  await query(fs.readFileSync(path.join(__dirname, 'modules', 'recebimento', 'xml-sync.schema.sql'), 'utf8'));
+
   // V71: Pontos Extras (tabelas independentes).
   await query(fs.readFileSync(path.join(__dirname, 'modules', 'pontos-extras', 'schema.sql'), 'utf8'));
 
