@@ -20,3 +20,6 @@ CREATE INDEX IF NOT EXISTS receb_xml_pendentes_ultimo_idx ON receb_xml_pendentes
 
 -- V73.5: detalhes opcionais para PDF de conferência de NF-e.
 ALTER TABLE receb_xml_pendentes ADD COLUMN IF NOT EXISTS resumo_pdf JSONB;
+
+-- V73.6: retenção do XML original completo da NF-e para DANFE e auditoria.
+ALTER TABLE receb_xml_pendentes ADD COLUMN IF NOT EXISTS xml_original TEXT;

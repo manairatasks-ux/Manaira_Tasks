@@ -1,7 +1,7 @@
 {
   "name": "manaira-board-render",
-  "version": "73.2.0",
-  "description": "Manaíra Board V73.2 — Produtividade E-commerce VIP",
+  "version": "73.6.0",
+  "description": "Manaíra Board V73.6 — XML integral e DANFE",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
@@ -21,7 +21,8 @@
     "pg": "^8.11.5",
     "pdfkit": "^0.15.0",
     "sql.js": "^1.13.0",
-    "cloudinary": "^2.5.1"
+    "cloudinary": "^2.5.1",
+    "fast-xml-parser": "^4.5.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

@@ -1,7 +1,7 @@
 'use strict';
 const router=require('express').Router();
 const crypto=require('crypto');
-const PDFDocument=require('pdfkit');
+const {render:renderDanfe,parse:parseNfe}=require('./danfe.service');
 const {pool,query}=require('../../db');
 const {auth}=require('../../middlewares/auth.middleware');
 const {requireModuleAccess}=require('../../middlewares/module-access.middleware');
@@ -30,15 +30,26 @@ const receberSync=run(async(req,res)=>{
   const resumo=n.resumo_pdf&&typeof n.resumo_pdf==='object'&&!Array.isArray(n.resumo_pdf)?n.resumo_pdf:null;
   // Limita o payload detalhado para impedir que documentos anormais sobrecarreguem o banco.
   const detalhes=resumo&&JSON.stringify(resumo).length<180000?JSON.stringify(resumo):null;
-  results.push([chave,text(n.numero,40),text(n.serie,15),text(n.fornecedor,160),cnpjEmit,cnpj,Number(n.valor),text(n.emissao,40),text(n.protocolo,50),Boolean(n.autorizada),detalhes]);
+  let xmlOriginal=null;
+  if(typeof n.xml_original==='string'){
+   if(Buffer.byteLength(n.xml_original,'utf8')>3*1024*1024)return fail(res,'XML completo excede 3 MB.',413);
+   try{
+    const parsed=parseNfe(n.xml_original), inf=parsed.inf;
+    if(parsed.chave!==chave||String(inf.ide.nNF)!==String(n.numero)||String(inf.ide.serie)!==String(n.serie)||
+      String(inf.emit.CNPJ)!==cnpjEmit||String(inf.dest.CNPJ)!==cnpj||
+      Math.abs(Number(inf.total.ICMSTot.vNF)-Number(n.valor))>.011) return fail(res,'XML integral não corresponde ao resumo da nota '+chave+'.');
+    xmlOriginal=n.xml_original;
+   }catch(err){return fail(res,'XML integral inválido: '+err.message)}
+  }
+  results.push([chave,text(n.numero,40),text(n.serie,15),text(n.fornecedor,160),cnpjEmit,cnpj,Number(n.valor),text(n.emissao,40),text(n.protocolo,50),Boolean(n.autorizada),detalhes,xmlOriginal]);
  }
  const client=await pool.connect();
  try{
   await client.query('BEGIN');
   for(const d of results){
-   await client.query(`INSERT INTO receb_xml_pendentes(chave,numero,serie,fornecedor,cnpj_fornecedor,cnpj_destinatario,valor,emissao_texto,protocolo,autorizada,resumo_pdf,ultimo_sync)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,now())
-    ON CONFLICT (chave) DO UPDATE SET numero=EXCLUDED.numero,serie=EXCLUDED.serie,fornecedor=EXCLUDED.fornecedor,valor=EXCLUDED.valor,protocolo=EXCLUDED.protocolo,autorizada=EXCLUDED.autorizada,resumo_pdf=COALESCE(EXCLUDED.resumo_pdf,receb_xml_pendentes.resumo_pdf),ultimo_sync=now()`,d);
+   await client.query(`INSERT INTO receb_xml_pendentes(chave,numero,serie,fornecedor,cnpj_fornecedor,cnpj_destinatario,valor,emissao_texto,protocolo,autorizada,resumo_pdf,xml_original,ultimo_sync)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,now())
+    ON CONFLICT (chave) DO UPDATE SET numero=EXCLUDED.numero,serie=EXCLUDED.serie,fornecedor=EXCLUDED.fornecedor,valor=EXCLUDED.valor,protocolo=EXCLUDED.protocolo,autorizada=EXCLUDED.autorizada,resumo_pdf=COALESCE(EXCLUDED.resumo_pdf,receb_xml_pendentes.resumo_pdf),xml_original=COALESCE(EXCLUDED.xml_original,receb_xml_pendentes.xml_original),ultimo_sync=now()`,d);
   }
   await client.query('COMMIT');res.json({ok:true,recebidas:results.length});
  }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
@@ -46,63 +57,30 @@ const receberSync=run(async(req,res)=>{
 router.use(auth,requireModuleAccess('recebimento_cpd'));
 router.get('/xml-pendentes',run(async(req,res)=>{
  const busca=text(req.query.busca,80);
- const r=await query(`SELECT chave,numero,serie,fornecedor,cnpj_fornecedor,valor,emissao_texto,autorizada,(resumo_pdf IS NOT NULL) AS tem_pdf,primeiro_sync,ultimo_sync,recebido_nota_id
+ const r=await query(`SELECT chave,numero,serie,fornecedor,cnpj_fornecedor,valor,emissao_texto,autorizada,(xml_original IS NOT NULL) AS tem_danfe,(resumo_pdf IS NOT NULL) AS tem_pdf,primeiro_sync,ultimo_sync,recebido_nota_id
  FROM receb_xml_pendentes WHERE ($1='' OR fornecedor ILIKE '%'||$1||'%' OR numero ILIKE '%'||$1||'%' OR chave ILIKE '%'||$1||'%')
  ORDER BY ultimo_sync DESC,chave DESC LIMIT 400`,[busca]);res.json(r.rows);
 }));
 
-// Prévia documental para uso operacional: não substitui DANFE fiscal ou XML autorizado.
+// O XML integral preservado é a fonte oficial dos dados fiscais desta visualização.
 router.get('/xml-pendentes/:chave/pdf',run(async(req,res)=>{
  const chave=String(req.params.chave||'');
- if(!/^\d{44}$/.test(chave))return fail(res,'Chave inválida.',400);
- const r=await query('SELECT * FROM receb_xml_pendentes WHERE chave=$1',[chave]);
+ if(!/^\d{44}$/.test(chave))return fail(res,'Chave inválida.');
+ const r=await query('SELECT xml_original FROM receb_xml_pendentes WHERE chave=$1',[chave]);
  if(!r.rowCount)return fail(res,'NF-e não encontrada.',404);
- const n=r.rows[0],d=n.resumo_pdf;
- if(!d||!Array.isArray(d.produtos))return fail(res,'Detalhes do PDF ainda não sincronizados. Execute uma nova leitura pela Ponte GZ V4.1.',409);
- const pdf=new PDFDocument({size:'A4',margin:34,bufferPages:true});
- res.setHeader('Content-Type','application/pdf');
- res.setHeader('Content-Disposition',`inline; filename="NFe-${n.numero}-${n.serie}-conferencia.pdf"`);
+ if(!r.rows[0].xml_original)return fail(res,'XML completo ainda não sincronizado. A DANFE só pode ser gerada após o envio do XML integral pela Ponte GZ V4.2.',409);
+ try{renderDanfe(r.rows[0].xml_original,res)}catch(err){console.error('DANFE:',err.message);return fail(res,'Não foi possível gerar a DANFE: '+err.message,422)}
+}));
+router.get('/xml-pendentes/:chave/xml',run(async(req,res)=>{
+ const chave=String(req.params.chave||'');
+ if(!/^\d{44}$/.test(chave))return fail(res,'Chave inválida.');
+ const r=await query('SELECT xml_original FROM receb_xml_pendentes WHERE chave=$1',[chave]);
+ if(!r.rowCount)return fail(res,'NF-e não encontrada.',404);
+ if(!r.rows[0].xml_original)return fail(res,'XML original indisponível para esta NF-e.',409);
+ res.setHeader('Content-Type','application/xml; charset=utf-8');
+ res.setHeader('Content-Disposition',`attachment; filename="NFe-${chave}.xml"`);
  res.setHeader('Cache-Control','private, no-store');
- pdf.on('error',err=>{console.error('PDF NF-e:',err.message);if(!res.headersSent)res.status(500).end();else res.destroy(err)});
- pdf.pipe(res);
- const money=v=>Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
- const linha=(k,v)=>{pdf.font('Helvetica-Bold').text(k+': ',{continued:true}).font('Helvetica').text(String(v||'—'))};
- const header=()=>{pdf.fillColor('#173B5E').fontSize(15).font('Helvetica-Bold').text('NF-e · Espelho para conferência');pdf.fillColor('#9B3737').fontSize(9).text('Documento interno gerado a partir dos dados do XML. NÃO substitui o DANFE oficial.');pdf.moveDown(.7);pdf.strokeColor('#BFC9D2').moveTo(34,pdf.y).lineTo(561,pdf.y).stroke();pdf.moveDown(.5)};
- header();
- pdf.fillColor('#1C2933').fontSize(10);
- linha('NF / Série',`${n.numero} / ${n.serie}`);linha('Chave de acesso',n.chave);linha('Protocolo',n.protocolo);linha('Emissão',d.emissao||n.emissao_texto);linha('Natureza da operação',d.natureza);
- pdf.moveDown(.6);
- pdf.font('Helvetica-Bold').fontSize(11).text('Emitente');pdf.fontSize(9).font('Helvetica');
- linha('Razão social',d.emitente?.nome||n.fornecedor);linha('CNPJ',d.emitente?.cnpj||n.cnpj_fornecedor);linha('IE',d.emitente?.ie);
- pdf.moveDown(.5);pdf.font('Helvetica-Bold').fontSize(11).text('Destinatário');pdf.fontSize(9).font('Helvetica');
- linha('Razão social',d.destinatario?.nome);linha('CNPJ',d.destinatario?.cnpj||n.cnpj_destinatario);
- pdf.moveDown(.7);
- pdf.font('Helvetica-Bold').fontSize(11).text('Produtos / serviços');pdf.moveDown(.3);
- const columns=[34,82,321,353,397,447,507];
- const title=()=>{pdf.fillColor('#173B5E').font('Helvetica-Bold').fontSize(8).text('Código',columns[0],pdf.y,{width:46,continued:false});const y=pdf.y-9;pdf.text('Descrição',columns[1],y,{width:235});pdf.text('UN',columns[2],y,{width:28});pdf.text('Qtd.',columns[3],y,{width:40,align:'right'});pdf.text('V. unit.',columns[4],y,{width:48,align:'right'});pdf.text('V. total',columns[5],y,{width:80,align:'right'});pdf.moveDown(.6);pdf.strokeColor('#CBD6DF').moveTo(34,pdf.y).lineTo(561,pdf.y).stroke();pdf.moveDown(.3)};
- title();
- for(const prod of d.produtos){
-  if(pdf.y>745){pdf.addPage();title()}
-  const y=pdf.y;
-  pdf.font('Helvetica').fontSize(7.5).fillColor('#1C2933');
-  const descr=String(prod.descricao||'').slice(0,180);
-  const height=Math.max(16,pdf.heightOfString(descr,{width:232})+4);
-  pdf.text(String(prod.codigo||''),columns[0],y,{width:46,height});
-  pdf.text(descr,columns[1],y,{width:232,height});
-  pdf.text(String(prod.unidade||''),columns[2],y,{width:28,height});
-  pdf.text(String(prod.quantidade||''),columns[3],y,{width:40,align:'right',height});
-  pdf.text(money(prod.valor_unitario),columns[4],y,{width:48,align:'right',height});
-  pdf.text(money(prod.valor_total),columns[5],y,{width:80,align:'right',height});
-  pdf.y=y+height+4;
-  pdf.strokeColor('#E5EAF0').moveTo(34,pdf.y).lineTo(561,pdf.y).stroke();pdf.moveDown(.2);
- }
- if(pdf.y>685)pdf.addPage();
- pdf.moveDown(.7).fillColor('#173B5E').font('Helvetica-Bold').fontSize(11).text('Totais');
- pdf.fillColor('#1C2933').fontSize(9);linha('Produtos','R$ '+money(d.totais?.produtos));linha('Frete','R$ '+money(d.totais?.frete));linha('Desconto','R$ '+money(d.totais?.desconto));
- pdf.moveDown(.4).fontSize(13).font('Helvetica-Bold').text('VALOR TOTAL: R$ '+money(n.valor));
- if(d.informacoes){pdf.moveDown(.8).fontSize(9).text('Informações complementares').fontSize(8).font('Helvetica').text(d.informacoes,{width:520})}
- const pages=pdf.bufferedPageRange();for(let i=pages.start;i<pages.start+pages.count;i++){pdf.switchToPage(i);pdf.fontSize(7).fillColor('#697783').text(`Manaíra Board · Conferência interna · Página ${i+1}/${pages.count}`,34,806,{width:527,align:'right',lineBreak:false})}
- pdf.end();
+ res.send(r.rows[0].xml_original);
 }));
 
 router.post('/xml-pendentes/receber',run(async(req,res)=>{
