@@ -3,15 +3,20 @@
  const clean=s=>String(s||'').replace(/\r/g,'').replace(/\*\*/g,'').replace(/&nbsp;|&#160;/gi,' ').replace(/[\u00a0\u202f]/g,' ').replace(/[ \t]+/g,' ').trim();
  function price(s){if(!s)return null;let v=String(s).replace(/\s/g,'');if(v.includes(','))v=v.replace(/\./g,'').replace(',','.');const n=Number(v);return Number.isFinite(n)&&n>=0?n:null}
  const amount=n=>n==null?'':n.toFixed(2).replace('.',',');
+ function findAmounts(src,labels){for(const label of labels){const re=new RegExp('(?:^|\\n)\\s*'+label+'\\s*:?\\s*(\\[[^\\]\\n]+\\]|(?:R\\$\\s*)?[0-9][0-9.,]*)','im');const m=src.match(re);if(!m)continue;const vals=[...m[1].matchAll(/(?:R\\$\\s*)?([0-9][0-9.,]*)/g)].map(x=>price(x[1])).filter(v=>v!=null);if(vals.length)return [...new Set(vals)];}return []}
  function findAmount(src,labels){for(const label of labels){const re=new RegExp('(?:^|\\n)\\s*'+label+'\\s*:?\\s*(?:R\\$\\s*)?([0-9][0-9.,]*)','im');const m=src.match(re);if(m){const n=price(m[1]);if(n!=null)return n}}return null}
  function isoDate(raw){const m=String(raw||'').match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);if(!m)return '';const s=`${m[3]}-${m[2]}-${m[1]}`;const d=new Date(s+'T12:00:00Z');return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===s?s:''}
- function parse(raw){const src=clean(raw);const normalized=src.replace(/\s*\n\s*/g,'\n');const result={titulo:'',codigo:'',marca:'',antigo:null,novo:null,desconto:null,reembolso:null,limite:null,inicio:'',fim:'',produtos:[],avisos:[],conditions:''};
+ function parse(raw){const src=clean(raw);const normalized=src.replace(/\s*\n\s*/g,'\n');const result={titulo:'',codigo:'',marca:'',antigo:null,novo:null,desconto:null,precosAntigos:[],descontos:[],multiplosPrecos:false,reembolso:null,limite:null,inicio:'',fim:'',produtos:[],avisos:[],conditions:''};
   const heading=normalized.match(/(?:^|\n)\s*#*\s*R\$\s*\d[\d.,]*\s+([^\n]+)/i);if(heading)result.titulo=heading[1].trim().replace(/^#+\s*/,'');
   const code=normalized.match(/C[oó]digo\s*:\s*#?\s*(\d{4,12})/i);if(code)result.codigo=code[1];
   const author=normalized.match(/Autor\s*:\s*([^\n]+)/i);if(author)result.marca=author[1].split(/\b(?:Pre[çc]o|Reembolso|Desconto|Limite|Aceitar|Rejeitar)\b/i)[0].trim().replace(/\*+/g,'');
-  result.antigo=findAmount(normalized,['Pre[çc]o\\s+antigo','Pre[çc]o\\s+de']);
+  result.precosAntigos=findAmounts(normalized,['Pre[çc]o\\s+antigo','Pre[çc]o\\s+de']);
+  result.antigo=result.precosAntigos[0]??findAmount(normalized,['Pre[çc]o\\s+antigo','Pre[çc]o\\s+de']);
   result.novo=findAmount(normalized,['Pre[çc]o\\s+novo','Pre[çc]o\\s+por']);
-  result.desconto=findAmount(normalized,['Desconto']);
+  result.descontos=findAmounts(normalized,['Desconto']);
+  result.desconto=result.descontos[0]??findAmount(normalized,['Desconto']);
+  result.multiplosPrecos=result.precosAntigos.length>1;
+  if(result.multiplosPrecos)result.avisos.push('Campanha com mais de um preço antigo. Confira os preços individuais no GZ. Ativação requer autorização expressa do responsável.');
   result.reembolso=findAmount(normalized,['Reembolso(?:\\s+fixo)?(?:\\s+de)?']);
   result.limite=findAmount(normalized,['Limite\\s+da\\s+promo[çc][aã]o\\s+por\\s+rede']);
   const validity=normalized.match(/Validade\s*(?:de)?\s*:?\s*(\d{2}[\/-]\d{2}[\/-]\d{4})\s*(?:at[eé]|a)\s*(\d{2}[\/-]\d{2}[\/-]\d{4})/i);
@@ -22,7 +27,7 @@
   if(result.novo==null)result.avisos.push('Preço novo não identificado.');
   if(result.reembolso==null)result.avisos.push('Reembolso não identificado.');
   if(!result.inicio||!result.fim)result.avisos.push('Datas da promoção não identificadas.');
-  if(result.antigo!=null&&result.novo!=null){const expected=Math.max(0,result.antigo-result.novo);if(result.desconto!=null&&Math.abs(result.desconto-expected)>0.011)result.avisos.push('O desconto informado no portal não corresponde à diferença dos preços. Confira.');}
+  if(!result.multiplosPrecos&&result.antigo!=null&&result.novo!=null){const expected=Math.max(0,result.antigo-result.novo);if(result.desconto!=null&&Math.abs(result.desconto-expected)>0.011)result.avisos.push('O desconto informado no portal não corresponde à diferença dos preços. Confira.');}
   return result;
  }
  return {parse,price,amount,isoDate};

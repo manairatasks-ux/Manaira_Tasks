@@ -34,3 +34,9 @@ ALTER TABLE st_itens ADD COLUMN IF NOT EXISTS incluido BOOLEAN NOT NULL DEFAULT 
 
 -- V74.4: limite financeiro informado pelo portal, preservando registros existentes.
 ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS limite_rede NUMERIC(14,2);
+
+-- V74.5: campanhas com diferentes preços de origem exigem decisão explícita.
+ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS precos_antigos JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS descontos_scanntech JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS multiplos_precos_autorizados BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE st_itens ADD COLUMN IF NOT EXISTS preco_antigo_item NUMERIC(14,2);
