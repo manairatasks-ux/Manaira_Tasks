@@ -35,69 +35,89 @@ function barcode(doc,code,x,y,width,height){
 function render(xml,res){
  const {inf,prot,chave}=parse(xml);
  const ide=inf.ide,emit=inf.emit,dest=inf.dest,t=inf.total.ICMSTot;
- const w=595.28,h=841.89,L=25,R=570.28,W=R-L;
- const pdf=new PDFDocument({size:'A4',margin:25,bufferPages:true,autoFirstPage:false,info:{Title:`DANFE NF-e ${V(ide,'nNF')} série ${V(ide,'serie')}`,Author:'Supermercado Manaíra — geração a partir do XML NF-e'}});
- res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition',`inline; filename="DANFE-${V(ide,'nNF')}-${V(ide,'serie')}.pdf"`);res.setHeader('Cache-Control','private, no-store');
+ const L=25,W=545.28,BOTTOM=776,FOOTER_Y=796;
+ const pdf=new PDFDocument({size:'A4',margins:{top:25,bottom:25,left:25,right:25},bufferPages:true,autoFirstPage:false,
+  info:{Title:`DANFE NF-e ${V(ide,'nNF')} série ${V(ide,'serie')}`,Author:'Supermercado Manaíra — geração a partir do XML NF-e'}});
+ res.setHeader('Content-Type','application/pdf');
+ res.setHeader('Content-Disposition',`inline; filename="DANFE-${V(ide,'nNF')}-${V(ide,'serie')}.pdf"`);
+ res.setHeader('Cache-Control','private, no-store');
  pdf.on('error',e=>{console.error('Erro DANFE:',e.message);res.destroy(e)});pdf.pipe(res);
- const border=(x,y,wid,hei)=>pdf.lineWidth(.6).strokeColor('#454545').rect(x,y,wid,hei).stroke();
- function cell(x,y,wid,hei,label,value,opts={}){
-  border(x,y,wid,hei);
-  pdf.font('Helvetica').fillColor('#333').fontSize(5.5).text(S(label).toUpperCase(),x+3,y+2,{width:wid-6,height:9,ellipsis:true});
-  pdf.font(opts.bold?'Helvetica-Bold':'Helvetica').fillColor('#111').fontSize(opts.size||8).text(S(value)||' ',x+3,y+12,{width:wid-6,height:Math.max(1,hei-13),ellipsis:true,align:opts.align||'left',lineGap:0});
+ const border=(x,y,w,h)=>pdf.save().lineWidth(.5).strokeColor('#555').rect(x,y,w,h).stroke().restore();
+ function text(v,x,y,w,h,size=7,bold=false,align='left'){
+  pdf.font(bold?'Helvetica-Bold':'Helvetica').fontSize(size).fillColor('#111').text(S(v)||' ',x,y,{width:w,height:h,ellipsis:true,lineGap:0,align});
  }
- const bar=(title,y)=>{pdf.fillColor('#111').font('Helvetica-Bold').fontSize(8).text(title,L,y,{width:W,height:11});return y+12};
- function head(continuation=false){
-  pdf.addPage();let y=25;
-  cell(L,y,275,72,'Identificação do emitente',[V(emit,'xNome'),addr(emit.enderEmit),`CNPJ: ${cnpj(V(emit,'CNPJ'))}`].join('\n'),{bold:true,size:8});
-  cell(L+275,y,90,72,'DANFE',`Documento Auxiliar\nda Nota Fiscal Eletrônica\n${V(ide,'tpNF')==='0'?'0 - ENTRADA':'1 - SAÍDA'}`,{bold:true,size:8});
-  cell(L+365,y,W-365,72,'Nº / Série',`${V(ide,'nNF')}  /  ${V(ide,'serie')}\nFolha: a calcular`,{size:9,bold:true});y+=72;
-  cell(L,y,W,65,'Chave de acesso',chave,{size:9,bold:true});barcode(pdf,chave,L+20,y+25,W-40,27);y+=65;
-  cell(L,y,365,34,'Natureza da operação',V(ide,'natOp'));
-  cell(L+365,y,W-365,34,'Protocolo de autorização de uso',[V(prot,'nProt'),date(V(prot,'dhRecbto'))].filter(Boolean).join(' - '));y+=34;
-  cell(L,y,180,32,'Inscrição estadual',V(emit,'IE'));cell(L+180,y,180,32,'Inscrição estadual do subst. trib.',V(emit,'IEST'));cell(L+360,y,W-360,32,'CNPJ / CPF',cnpj(V(emit,'CNPJ'))||V(emit,'CPF'));y+=37;
-  y=bar('DESTINATÁRIO / REMETENTE',y);
-  cell(L,y,315,36,'Nome / razão social',V(dest,'xNome'));cell(L+315,y,130,36,'CNPJ / CPF',cnpj(V(dest,'CNPJ'))||V(dest,'CPF'));cell(L+445,y,W-445,36,'Data emissão',date(V(ide,'dhEmi')||V(ide,'dEmi')));y+=36;
-  cell(L,y,350,36,'Endereço / bairro',addr(dest.enderDest));cell(L+350,y,100,36,'CEP',cep(V(dest.enderDest,'CEP')));cell(L+450,y,W-450,36,'Data saída/entrada',date(V(ide,'dhSaiEnt')||V(ide,'dSaiEnt')));y+=36;
-  cell(L,y,260,34,'Município',V(dest.enderDest,'xMun'));cell(L+260,y,70,34,'UF',V(dest.enderDest,'UF'));cell(L+330,y,115,34,'Telefone',V(dest.enderDest,'fone'));cell(L+445,y,W-445,34,'Inscrição estadual',V(dest,'IE'));y+=39;
-  y=bar('FATURA / PAGAMENTO',y);
-  const cobr=inf.cobr||{};const dup=arr(cobr.dup).map(d=>`${V(d,'nDup')}  ${date(V(d,'dVenc'))}  R$ ${money(V(d,'vDup'))}`).join('    |    ');
-  cell(L,y,W,37,'Fatura / duplicatas',[V(cobr.fat,'nFat'),dup||arr(inf.pag?.detPag).map(p=>`Tipo: ${V(p,'tPag')} / Valor: R$ ${money(V(p,'vPag'))}`).join('   ')].filter(Boolean).join(' — '),{size:7});y+=42;
-  y=bar('CÁLCULO DO IMPOSTO',y);
+ function cell(x,y,w,h,label,value,opts={}){
+  border(x,y,w,h);
+  text(String(label).toUpperCase(),x+3,y+2,w-6,9,5.3,false);
+  text(value,x+3,y+11,w-6,h-13,opts.size||7.5,!!opts.bold,opts.align||'left');
+ }
+ function section(title,y){text(title,L,y,W,12,8,true);return y+13}
+ function page(){pdf.addPage();return 23}
+ function firstHeader(){
+  let y=page();
+  cell(L,y,275,60,'Identificação do emitente',[V(emit,'xNome'),addr(emit.enderEmit),`CNPJ: ${cnpj(V(emit,'CNPJ'))}`].join('\n'),{bold:true,size:7.2});
+  cell(L+275,y,90,60,'DANFE',`Documento Auxiliar\nda Nota Fiscal\nEletrônica\n${V(ide,'tpNF')==='0'?'0 - ENTRADA':'1 - SAÍDA'}`,{bold:true,size:7});
+  cell(L+365,y,W-365,60,'Nº / Série',`${V(ide,'nNF')} / ${V(ide,'serie')}`,{size:10,bold:true});y+=60;
+  cell(L,y,W,58,'Chave de acesso',chave,{size:8.2,bold:true});barcode(pdf,chave,L+18,y+24,W-36,25);y+=58;
+  cell(L,y,365,30,'Natureza da operação',V(ide,'natOp'));
+  cell(L+365,y,W-365,30,'Protocolo de autorização de uso',[V(prot,'nProt'),date(V(prot,'dhRecbto'))].filter(Boolean).join(' - '),{size:6.7});y+=30;
+  cell(L,y,180,27,'Inscrição estadual',V(emit,'IE'));cell(L+180,y,180,27,'Inscrição estadual do subst. trib.',V(emit,'IEST'));cell(L+360,y,W-360,27,'CNPJ / CPF',cnpj(V(emit,'CNPJ'))||V(emit,'CPF'));y+=31;
+  y=section('DESTINATÁRIO / REMETENTE',y);
+  cell(L,y,315,30,'Nome / razão social',V(dest,'xNome'));cell(L+315,y,130,30,'CNPJ / CPF',cnpj(V(dest,'CNPJ'))||V(dest,'CPF'));cell(L+445,y,W-445,30,'Data emissão',date(V(ide,'dhEmi')||V(ide,'dEmi')),{size:6.5});y+=30;
+  cell(L,y,350,30,'Endereço / bairro',addr(dest.enderDest),{size:6.8});cell(L+350,y,100,30,'CEP',cep(V(dest.enderDest,'CEP')));cell(L+450,y,W-450,30,'Data saída/entrada',date(V(ide,'dhSaiEnt')||V(ide,'dSaiEnt')),{size:6.5});y+=30;
+  cell(L,y,260,27,'Município',V(dest.enderDest,'xMun'));cell(L+260,y,65,27,'UF',V(dest.enderDest,'UF'));cell(L+325,y,120,27,'Telefone',V(dest.enderDest,'fone'));cell(L+445,y,W-445,27,'Inscrição estadual',V(dest,'IE'));y+=31;
+  y=section('FATURA / PAGAMENTO',y);
+  const cobr=inf.cobr||{};const dup=arr(cobr.dup).map(d=>`${V(d,'nDup')} ${date(V(d,'dVenc'))} R$ ${money(V(d,'vDup'))}`).join('  |  ');
+  cell(L,y,W,29,'Fatura / duplicatas',[V(cobr.fat,'nFat'),dup||arr(inf.pag?.detPag).map(p=>`Tipo: ${V(p,'tPag')} / R$ ${money(V(p,'vPag'))}`).join('  ')].filter(Boolean).join(' — '),{size:6.6});y+=32;
+  y=section('CÁLCULO DO IMPOSTO',y);
   const taxes=[['Base cálculo ICMS',V(t,'vBC')],['Valor ICMS',V(t,'vICMS')],['Base ICMS ST',V(t,'vBCST')],['Valor ICMS ST',V(t,'vST')],['Valor produtos',V(t,'vProd')],['Frete',V(t,'vFrete')],['Seguro',V(t,'vSeg')],['Desconto',V(t,'vDesc')],['Outras despesas',V(t,'vOutro')],['Valor IPI',V(t,'vIPI')]];
-  taxes.forEach((a,i)=>cell(L+(i%5)*W/5,y+Math.floor(i/5)*31,W/5,31,a[0],money(a[1]),{size:7}));y+=62;
-  cell(L,y,W/2,33,'Valor total da NF-e','R$ '+money(V(t,'vNF')),{bold:true,size:12});cell(L+W/2,y,W/2,33,'PIS / COFINS / tributos',`PIS ${money(V(t,'vPIS'))}  COFINS ${money(V(t,'vCOFINS'))}  Trib. aprox. ${money(V(t,'vTotTrib'))}`,{size:7});y+=38;
-  y=bar('TRANSPORTADOR / VOLUMES TRANSPORTADOS',y);const tr=inf.transp||{},trans=tr.transporta||{},vol=arr(tr.vol)[0]||{};
-  cell(L,y,252,34,'Razão social',V(trans,'xNome'));cell(L+252,y,72,34,'Frete por conta',V(tr,'modFrete'));cell(L+324,y,106,34,'Código ANTT / placa',V(tr.veicTransp,'placa')||V(trans,'placa'));cell(L+430,y,W-430,34,'CNPJ / CPF',cnpj(V(trans,'CNPJ'))||V(trans,'CPF'));y+=34;
-  cell(L,y,185,32,'Endereço',V(trans,'xEnder'));cell(L+185,y,113,32,'Município',V(trans,'xMun'));cell(L+298,y,45,32,'UF',V(trans,'UF'));cell(L+343,y,90,32,'Quantidade',V(vol,'qVol'));cell(L+433,y,W-433,32,'Peso bruto / líquido',`${V(vol,'pesoB')} / ${V(vol,'pesoL')}`);y+=37;
-  return {y,continuation};
+  taxes.forEach((a,i)=>cell(L+(i%5)*W/5,y+Math.floor(i/5)*25,W/5,25,a[0],money(a[1]),{size:7}));y+=50;
+  cell(L,y,W/2,29,'Valor total da NF-e','R$ '+money(V(t,'vNF')),{bold:true,size:10});cell(L+W/2,y,W/2,29,'PIS / COFINS / tributos',`PIS ${money(V(t,'vPIS'))}  COFINS ${money(V(t,'vCOFINS'))}  Trib. aprox. ${money(V(t,'vTotTrib'))}`,{size:6.6});y+=32;
+  y=section('TRANSPORTADOR / VOLUMES TRANSPORTADOS',y);const tr=inf.transp||{},trans=tr.transporta||{},vol=arr(tr.vol)[0]||{};
+  cell(L,y,252,28,'Razão social',V(trans,'xNome'));cell(L+252,y,72,28,'Frete por conta',V(tr,'modFrete'));cell(L+324,y,106,28,'Código ANTT / placa',V(tr.veicTransp,'placa')||V(trans,'placa'));cell(L+430,y,W-430,28,'CNPJ / CPF',cnpj(V(trans,'CNPJ'))||V(trans,'CPF'));y+=28;
+  cell(L,y,185,27,'Endereço',V(trans,'xEnder'));cell(L+185,y,113,27,'Município',V(trans,'xMun'));cell(L+298,y,45,27,'UF',V(trans,'UF'));cell(L+343,y,90,27,'Quantidade',V(vol,'qVol'));cell(L+433,y,W-433,27,'Peso bruto / líquido',`${V(vol,'pesoB')} / ${V(vol,'pesoL')}`);y+=31;
+  return y;
  }
+ function continuation(){let y=page();cell(L,y,225,35,'Emitente',V(emit,'xNome'),{bold:true,size:8});cell(L+225,y,180,35,'NF-e / Série',`${V(ide,'nNF')} / ${V(ide,'serie')}`,{bold:true,size:8});cell(L+405,y,W-405,35,'CNPJ',cnpj(V(emit,'CNPJ')),{size:7});y+=39;return y}
  const widths=[38,175,40,25,34,31,41,42,46,46,27];
  const cols=['CÓD.','DESCRIÇÃO DOS PRODUTOS / SERVIÇOS','NCM','CST','CFOP','UN','QUANT.','V. UNIT.','V. TOTAL','B. ICMS','ICMS %'];
- function tableHeader(y){pdf.font('Helvetica-Bold').fontSize(6);let x=L;cols.forEach((n,i)=>{border(x,y,widths[i],25);pdf.text(n,x+2,y+4,{width:widths[i]-4,height:19,align:i===1?'left':'center'});x+=widths[i]});return y+25}
- const det=arr(inf.det);
- let {y}=head();y=bar('DADOS DOS PRODUTOS / SERVIÇOS',y);y=tableHeader(y);
- for(const d of det){
+ function tableHeader(y){let x=L;cols.forEach((n,i)=>{border(x,y,widths[i],21);text(n,x+2,y+4,widths[i]-4,16,5.7,true,i===1?'left':'center');x+=widths[i]});return y+21}
+ let y=firstHeader();y=section('DADOS DOS PRODUTOS / SERVIÇOS',y);y=tableHeader(y);
+ for(const d of arr(inf.det)){
   const p=d.prod||{},im=d.imposto||{},icms=(im.ICMS&&Object.values(im.ICMS)[0])||{};
   const cest=V(p,'CEST'),desc=[V(p,'xProd'),cest?`CEST ${cest}`:''].filter(Boolean).join(' | ');
   const rows=[V(p,'cProd'),desc,V(p,'NCM'),V(icms,'CST')||V(icms,'CSOSN'),V(p,'CFOP'),V(p,'uCom'),V(p,'qCom'),money(V(p,'vUnCom')),money(V(p,'vProd')),money(V(icms,'vBC')),V(icms,'pICMS')];
-  const hh=Math.max(24,Math.min(75,pdf.heightOfString(desc,{width:widths[1]-5,font:'Helvetica',fontSize:6.5})+7));
-  if(y+hh>771){({y}=head(true));y=bar('CONTINUAÇÃO — PRODUTOS / SERVIÇOS',y);y=tableHeader(y)}
-  let x=L;rows.forEach((v,i)=>{border(x,y,widths[i],hh);pdf.font('Helvetica').fontSize(i===1?6.5:6).fillColor('#111').text(S(v),x+2,y+3,{width:widths[i]-4,height:hh-5,ellipsis:true,align:i<2?'left':'right'});x+=widths[i]});y+=hh;
-  if(y+28<765){const extra=`EAN: ${V(p,'cEAN')} | UN trib.: ${V(p,'uTrib')} ${V(p,'qTrib')} x ${V(p,'vUnTrib')} | ICMS R$ ${money(V(icms,'vICMS'))} | IPI R$ ${money(V((im.IPI||{}).IPITrib,'vIPI'))} | PIS R$ ${money(V(Object.values(im.PIS||{})[0],'vPIS'))} | COFINS R$ ${money(V(Object.values(im.COFINS||{})[0],'vCOFINS'))}`;pdf.font('Helvetica').fontSize(5.7).fillColor('#444').text(extra,L+3,y+2,{width:W-6,height:13,ellipsis:true});y+=17}
+  pdf.font('Helvetica').fontSize(6.1);
+  const rh=Math.max(20,Math.min(59,Math.ceil(pdf.heightOfString(desc,{width:widths[1]-6,lineGap:0})+7)));
+  const extra=`EAN: ${V(p,'cEAN')} | UN trib.: ${V(p,'uTrib')} ${V(p,'qTrib')} x ${V(p,'vUnTrib')} | ICMS R$ ${money(V(icms,'vICMS'))} | IPI R$ ${money(V((im.IPI||{}).IPITrib,'vIPI'))} | PIS R$ ${money(V(Object.values(im.PIS||{})[0],'vPIS'))} | COFINS R$ ${money(V(Object.values(im.COFINS||{})[0],'vCOFINS'))}`;
+  const extraH=12;
+  if(y+rh+extraH>BOTTOM){y=continuation();y=section('CONTINUAÇÃO — PRODUTOS / SERVIÇOS',y);y=tableHeader(y)}
+  let x=L;rows.forEach((v,i)=>{border(x,y,widths[i],rh);text(v,x+2,y+3,widths[i]-4,rh-5,i===1?6.1:6,false,i<2?'left':'right');x+=widths[i]});y+=rh;
+  text(extra,L+3,y+2,W-6,10,5.5);y+=extraH;
  }
- if(y>650){({y}=head(true));y=bar('DADOS ADICIONAIS',y)}else y+=8;
- y=bar('DADOS ADICIONAIS',y);
- const extra=inf.infAdic||{};const obs=[V(extra,'infCpl'),V(extra,'infAdFisco'),...arr(extra.obsCont).map(x=>`${V(x,'@_xCampo')}: ${V(x,'xTexto')}`)].filter(Boolean).join('\n');
- if(!obs){cell(L,y,W,55,'Informações complementares','—')}else{
-  const lines=obs.match(/.{1,700}/gs)||[];
-  for(const segment of lines){if(y>735){({y}=head(true));y=bar('DADOS ADICIONAIS — CONTINUAÇÃO',y)}const height=Math.min(125,Math.max(40,pdf.heightOfString(segment,{width:W-10,fontSize:7})+15));cell(L,y,W,height,'Informações complementares',segment,{size:7});y+=height}
+ const infExtra=inf.infAdic||{};
+ const obs=[V(infExtra,'infCpl'),V(infExtra,'infAdFisco'),...arr(infExtra.obsCont).map(x=>`${V(x,'@_xCampo')}: ${V(x,'xTexto')}`)].filter(Boolean).join('\n')||'—';
+ // Segmentos baseados em linhas reais de PDFKit, sem cortar o texto em posições arbitrárias.
+ pdf.font('Helvetica').fontSize(6.6);
+ const words=obs.split(/\s+/);let part='';const parts=[];const maxTextHeight=110;
+ for(const word of words){const test=part?part+' '+word:word;
+  if(part&&pdf.heightOfString(test,{width:W-10,lineGap:0})>maxTextHeight){parts.push(part);part=word}else part=test}
+ if(part)parts.push(part);
+ for(let i=0;i<parts.length;i++){
+  pdf.font('Helvetica').fontSize(6.6);
+  const chunkH=Math.max(26,Math.ceil(pdf.heightOfString(parts[i],{width:W-10,lineGap:0}))+15);
+  if(y+16+chunkH>BOTTOM)y=continuation();
+  y=section(i?'DADOS ADICIONAIS — CONTINUAÇÃO':'DADOS ADICIONAIS',y);
+  cell(L,y,W,chunkH,'Informações complementares',parts[i],{size:6.6});y+=chunkH;
  }
- const pages=pdf.bufferedPageRange();for(let i=pages.start;i<pages.start+pages.count;i++){
+ // Insere folhas APENAS nas páginas existentes. Sempre abaixo da área de conteúdo
+ // e acima da margem inferior para não provocar novas páginas no PDFKit.
+ const range=pdf.bufferedPageRange(),total=range.count;
+ for(let i=range.start;i<range.start+total;i++){
   pdf.switchToPage(i);
-  pdf.font('Helvetica').fillColor('#222').fontSize(7).text(`DANFE gerada a partir do XML NF-e  |  Página ${i+1} de ${pages.count}`,L,809,{width:W,align:'right',lineBreak:false});
-  // Substituição visual do campo folha dentro do quadro de identificação.
-  pdf.save().fillColor('#fff').rect(L+368,72,W-373,12).fill();pdf.restore();
-  pdf.fillColor('#111').font('Helvetica-Bold').fontSize(8).text(`FOLHA ${i+1}/${pages.count}`,L+368,73,{width:W-373});
+  pdf.font('Helvetica').fontSize(7).fillColor('#333').text(`NF-e ${V(ide,'nNF')} / ${V(ide,'serie')}  |  Folha ${i-range.start+1}/${total}`,L,FOOTER_Y,{width:W,height:10,align:'right',lineBreak:false});
+  // O campo de identificação na folha inicial informa a numeração sem pós-processamento.
+  if(i===range.start){pdf.save().fillColor('#fff').rect(L+368,63,W-376,11).fill().restore();text(`Folha 1/${total}`,L+370,64,W-383,10,7.5,true)}
  }
  pdf.end();
 }
