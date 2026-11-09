@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS st_campanhas (
  desconto NUMERIC(14,2) NOT NULL CHECK(desconto>=0),
  reembolso NUMERIC(14,2) NOT NULL CHECK(reembolso>=0),
  inicio DATE NOT NULL, fim DATE NOT NULL CHECK(fim>=inicio),
- margem_minima NUMERIC(6,2) NOT NULL DEFAULT 30,
+ margem_minima NUMERIC(6,2) NOT NULL DEFAULT 20,
  status VARCHAR(20) NOT NULL DEFAULT 'rascunho' CHECK(status IN ('rascunho','ativada','cancelada')),
  placas_colocadas_em TIMESTAMPTZ, placas_retiradas_em TIMESTAMPTZ,
  observacao TEXT NOT NULL DEFAULT '',
@@ -31,3 +31,6 @@ CREATE INDEX IF NOT EXISTS idx_st_itens_codigo ON st_itens(codigo);
 
 -- V74.2: preserva itens rejeitados para conferência, sem incluí-los em campanhas ativadas.
 ALTER TABLE st_itens ADD COLUMN IF NOT EXISTS incluido BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- V74.4: limite financeiro informado pelo portal, preservando registros existentes.
+ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS limite_rede NUMERIC(14,2);

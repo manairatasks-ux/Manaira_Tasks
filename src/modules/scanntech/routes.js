@@ -49,7 +49,7 @@ router.post('/campanhas',safe(async(req,res)=>{
  if(!d(b.inicio)||!d(b.fim)||b.inicio>b.fim)fail('Confira as datas da promoção.');
  const items=b.itens;if(!Array.isArray(items)||items.length<1||items.length>100)fail('Consulte de 1 a 100 produtos antes de salvar.');
  const pOld=num(b.preco_antigo,'Preço antigo'),pNew=num(b.preco_novo,'Preço novo'),discount=num(b.desconto,'Desconto'),refund=num(b.reembolso,'Reembolso');
- const minimum=num(b.margem_minima??30,'Ganho mínimo');if(minimum>100)fail('Ganho mínimo acima de 100%.');
+ const minimum=num(b.margem_minima??20,'Ganho mínimo'),limiteRede=b.limite_rede==null||b.limite_rede===''?null:num(b.limite_rede,'Limite por rede');if(minimum>100)fail('Ganho mínimo acima de 100%.');
  const status=String(b.status||'rascunho');if(!['rascunho','ativada'].includes(status))fail('Status inválido.');
  const codes=new Set();let aprovados=0;
  for(const i of items){const code=String(i.codigo||'');if(!/^\d{8,14}$/.test(code)||codes.has(code))fail('Códigos inválidos ou repetidos.');codes.add(code);if(elegivel(i,pNew,refund,minimum))aprovados++}
@@ -60,7 +60,7 @@ router.post('/campanhas',safe(async(req,res)=>{
    const overlap=await client.query(`SELECT c.id,i.codigo FROM st_campanhas c JOIN st_itens i ON i.campanha_id=c.id WHERE c.status='ativada' AND c.inicio<=$2::date AND c.fim>=$1::date AND i.incluido=TRUE AND i.codigo=ANY($3::text[]) LIMIT 5`,[b.inicio,b.fim,items.filter(i=>elegivel(i,pNew,refund,minimum)).map(i=>String(i.codigo))]);
    if(overlap.rowCount)fail('Produtos já constam em outra campanha ativa com datas sobrepostas. Revise antes de ativar.',409);
  }
- const c=await client.query(`INSERT INTO st_campanhas(codigo_scanntech,marca,titulo,preco_antigo,preco_novo,desconto,reembolso,inicio,fim,margem_minima,status,observacao,criado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,[String(b.codigo_scanntech||'').slice(0,90),marca,String(b.titulo||'').slice(0,240),pOld,pNew,discount,refund,b.inicio,b.fim,minimum,status,String(b.observacao||'').slice(0,3000),req.user.id]);
+ const c=await client.query(`INSERT INTO st_campanhas(codigo_scanntech,marca,titulo,preco_antigo,preco_novo,desconto,reembolso,inicio,fim,margem_minima,status,observacao,criado_por,limite_rede) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,[String(b.codigo_scanntech||'').slice(0,90),marca,String(b.titulo||'').slice(0,240),pOld,pNew,discount,refund,b.inicio,b.fim,minimum,status,String(b.observacao||'').slice(0,3000),req.user.id,limiteRede]);
  for(const i of items){await client.query(`INSERT INTO st_itens(campanha_id,codigo,descricao_origem,descricao_gz,situacao_gz,preco_gz,custo_gz,estoque_gz,encontrado,incluido) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[c.rows[0].id,String(i.codigo),String(i.descricaoOrigem||'').slice(0,500),i.descricaoGz?String(i.descricaoGz).slice(0,1000):null,i.situacaoGz?String(i.situacaoGz).slice(0,100):null,i.precoGz==null?null:num(i.precoGz,'Preço GZ'),i.custoGz==null?null:num(i.custoGz,'Custo GZ'),i.estoqueGz==null?null:Number(i.estoqueGz),!!i.encontrado,status==='ativada'?elegivel(i,pNew,refund,minimum):false]);}
  await client.query('COMMIT');res.status(201).json({ok:true,id:c.rows[0].id,status,incluidos:status==='ativada'?aprovados:0,nao_incluidos:status==='ativada'?items.length-aprovados:items.length});}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
 }));
