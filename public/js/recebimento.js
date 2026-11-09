@@ -56,6 +56,67 @@
     document.getElementById('recRefresh').onclick=render;
     try{if(tab==='notas')await notas();if(tab==='nova')nova();if(tab==='xml')await xmlDisponiveis();if(tab==='caminhoes')await caminhoes();if(tab==='cpd')await cpd()}catch(err){aviso(err.message,true)}
   }
+  // Arquivos fiscais exigem o mesmo Bearer token utilizado nas outras APIs.
+  // Abrir a URL diretamente em outra aba perderia o header de autenticação.
+  async function abrirDocumentoFiscal(chave,tipo,botao){
+    if(!/^\d{44}$/.test(String(chave||''))||!['pdf','xml'].includes(tipo))return aviso('Chave da nota fiscal inválida.',true);
+    if(botao.disabled)return;
+    const pdf=tipo==='pdf';
+    // Abre a aba durante o clique (antes do await) para evitar bloqueio de pop-ups.
+    // Nunca inclui o token na URL do documento nem usa links públicos.
+    let aba=null;
+    if(pdf){
+      aba=window.open('','_blank');
+      if(aba){
+        aba.opener=null;
+        aba.document.title='Carregando DANFE...';
+        aba.document.body.textContent='Preparando DANFE. Aguarde...';
+      }
+    }
+    const rotulo=botao.textContent;
+    botao.disabled=true;
+    botao.textContent=pdf?'Abrindo DANFE...':'Baixando XML...';
+    try{
+      if(!state.token)throw new Error('Sua sessão expirou. Entre novamente na Manaíra Board.');
+      const resposta=await fetch('/api/recebimento/xml-pendentes/'+chave+'/'+tipo,{
+        headers:{Authorization:'Bearer '+state.token},
+        cache:'no-store'
+      });
+      if(!resposta.ok){
+        let erro='Não foi possível '+(pdf?'abrir a DANFE.':'baixar o XML.');
+        try{const json=await resposta.json();erro=json.error||erro}catch(_){/* mantém mensagem padrão */}
+        if(resposta.status===401)erro+=' Verifique sua sessão e entre novamente.';
+        throw new Error(erro);
+      }
+      const arquivo=await resposta.blob();
+      const url=URL.createObjectURL(arquivo);
+      if(pdf){
+        if(aba&&!aba.closed){
+          aba.location.replace(url);
+        }else{
+          // Caso o navegador bloqueie a nova aba, baixa o PDF autenticado.
+          const link=document.createElement('a');
+          link.href=url;link.download='DANFE-'+chave+'.pdf';
+          document.body.appendChild(link);link.click();link.remove();
+          aviso('O navegador bloqueou a aba. A DANFE foi baixada como PDF.');
+        }
+        // O visualizador do navegador pode precisar do URL durante a impressão.
+        // Mantém o objeto até fechar/recarregar a página principal.
+        window.addEventListener('pagehide',()=>URL.revokeObjectURL(url),{once:true});
+      }else{
+        const link=document.createElement('a');
+        link.href=url;link.download='NFe-'+chave+'.xml';
+        document.body.appendChild(link);link.click();link.remove();
+        window.setTimeout(()=>URL.revokeObjectURL(url),60000);
+      }
+    }catch(err){
+      if(aba&&!aba.closed)aba.close();
+      aviso(err.message||'Não foi possível obter o documento fiscal.',true);
+    }finally{
+      botao.disabled=false;
+      botao.textContent=rotulo;
+    }
+  }
   async function xmlDisponiveis(){
     const area=document.getElementById('recBody');
     area.innerHTML=`<section class="rec-card"><div class="rec-top"><div><h3>Notas disponíveis na rede</h3><p class="rec-muted">São notas encontradas nos XMLs. Elas só entram no Recebimento após confirmação física. Nenhuma foto obrigatória nesta etapa.</p></div><button class="rec-btn secondary" id="xmlAtualizar">Atualizar lista</button></div><div class="rec-grid"><div><label>Buscar fornecedor, nota ou chave</label><input class="rec-filter" id="xmlBusca" placeholder="Ex.: Coca-Cola"></div><div><label>Origem dos documentos recebidos</label><select class="rec-filter" id="xmlOrigem"><option value="PAPEL">Papel</option><option value="MENSAGEM">Mensagem</option></select></div></div><p><button class="rec-btn secondary" id="xmlTodos">Selecionar disponíveis</button> <button class="rec-btn" id="xmlConfirmar">Confirmar recebimento físico das selecionadas</button></p><p class="rec-muted" id="xmlInfo">Carregando...</p><div class="rec-table-wrap"><table class="rec-table"><thead><tr><th></th><th>Fornecedor</th><th>NF / Série</th><th>Emissão</th><th>Valor</th><th>DANFE / XML</th><th>Disponibilidade</th></tr></thead><tbody id="xmlLinhas"></tbody></table></div></section>`;
@@ -63,8 +124,8 @@
       const dados=await api('/api/recebimento/xml-pendentes?busca='+encodeURIComponent(document.getElementById('xmlBusca').value.trim()));
       const tr=document.getElementById('xmlLinhas');
       tr.innerHTML=dados.map(n=>`<tr><td><input type="checkbox" class="xmlEscolha" value="${e(n.chave)}" ${n.recebido_nota_id||!n.autorizada?'disabled':''} aria-label="Selecionar nota ${e(n.numero)}"></td><td>${e(n.fornecedor)}<small class="rec-muted" style="display:block">${e(n.cnpj_fornecedor)}</small></td><td>${e(n.numero)} / ${e(n.serie)}<small class="rec-muted" style="display:block">${e(n.chave)}</small></td><td>${e(n.emissao_texto?String(n.emissao_texto).slice(0,10).split('-').reverse().join('/'):'—')}</td><td>${moeda(n.valor)}</td><td>${n.tem_danfe?`<button type="button" class="rec-btn secondary xmlAbrirPdf" data-chave="${e(n.chave)}">Visualizar DANFE</button> <button type="button" class="rec-btn secondary xmlBaixarXml" data-chave="${e(n.chave)}">Baixar XML</button>`:'<span class="rec-muted" title="O XML integral ainda não está armazenado. A Ponte GZ V4.2 precisa reenviar este arquivo.">XML integral indisponível</span>'}</td><td>${n.recebido_nota_id?'Já recebida':!n.autorizada?'Verificar autorização':'Disponível'}</td></tr>`).join('')||'<tr><td colspan="7">Nenhuma NF-e sincronizada encontrada. Confira a Ponte GZ, o caminho da rede e a data da última sincronização.</td></tr>';
-      tr.querySelectorAll('.xmlAbrirPdf').forEach(btn=>btn.onclick=()=>{const chave=btn.dataset.chave;if(/^\d{44}$/.test(chave))window.open('/api/recebimento/xml-pendentes/'+chave+'/pdf','_blank','noopener')});
-      tr.querySelectorAll('.xmlBaixarXml').forEach(btn=>btn.onclick=()=>{const chave=btn.dataset.chave;if(/^\d{44}$/.test(chave))window.open('/api/recebimento/xml-pendentes/'+chave+'/xml','_blank','noopener')});
+      tr.querySelectorAll('.xmlAbrirPdf').forEach(btn=>btn.onclick=()=>abrirDocumentoFiscal(btn.dataset.chave,'pdf',btn));
+      tr.querySelectorAll('.xmlBaixarXml').forEach(btn=>btn.onclick=()=>abrirDocumentoFiscal(btn.dataset.chave,'xml',btn));
       document.getElementById('xmlInfo').textContent=`${dados.length} nota(s) encontradas. XMLs não confirmam chegada física nem lançamento no GZ.`;
     };
     document.getElementById('xmlAtualizar').onclick=()=>carregar().catch(err=>aviso(err.message,true));
