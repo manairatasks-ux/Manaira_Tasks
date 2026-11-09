@@ -17,3 +17,6 @@ CREATE TABLE IF NOT EXISTS receb_xml_pendentes (
 );
 CREATE INDEX IF NOT EXISTS receb_xml_pendentes_fornecedor_idx ON receb_xml_pendentes(fornecedor);
 CREATE INDEX IF NOT EXISTS receb_xml_pendentes_ultimo_idx ON receb_xml_pendentes(ultimo_sync DESC);
+
+-- V73.5: detalhes opcionais para PDF de conferência de NF-e.
+ALTER TABLE receb_xml_pendentes ADD COLUMN IF NOT EXISTS resumo_pdf JSONB;
