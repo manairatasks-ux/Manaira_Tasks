@@ -19,6 +19,7 @@ const ecommerceProdRoutes=require('./modules/ecommerce-produtividade/routes');
 const rhRoutes=require('./modules/rh/rh.routes');
 const produtosGzRoutes=require('./modules/produtos-gz/produtos-gz.routes');
 const cartazesRoutes=require('./modules/cartazes/cartazes.routes');
+const scanntechRoutes = require('./modules/scanntech/routes');
 const mobileRoutes =
   require('./modules/mobile/mobile.routes');
 
@@ -50,6 +51,7 @@ app.use('/api/ecommerce-produtividade',ecommerceProdRoutes);
 app.use('/api/rh',rhRoutes);
 app.use('/api/produtos-gz',produtosGzRoutes);
 app.use('/api/cartazes',cartazesRoutes);
+app.use('/api/scanntech',scanntechRoutes);
 app.use('/api/mobile', mobileRoutes);
 app.use('/',atividadesRoutes);
 app.use('/',osRoutes);

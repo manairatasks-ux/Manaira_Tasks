@@ -208,6 +208,7 @@ function configurarMenuPorPerfil() {
   const pitstop = temAcessoModulo('pitstop');
   const manairaRotas = temAcessoModulo('manaira_rotas');
   const ecommerceProd = temAcessoModulo('ecommerce_produtividade');
+  const scanntech = temAcessoModulo('scanntech');
   const pontosExtras = temAcessoModulo('pontos_extras');
   const produtosGz = temAcessoModulo('consulta_produtos');
   const cartazes = temAcessoModulo('cartazes');
@@ -230,6 +231,7 @@ function configurarMenuPorPerfil() {
   $('cardPitstop')?.classList.toggle('hidden', !pitstop);
   $('cardManairaRotas')?.classList.toggle('hidden', !manairaRotas);
   $('cardEcommerceProd')?.classList.toggle('hidden', !ecommerceProd);
+  $('cardScanntech')?.classList.toggle('hidden', !scanntech);
   $('cardPontosExtras')?.classList.toggle('hidden', !pontosExtras);
   $('cardProdutosGz')?.classList.toggle('hidden', !produtosGz);
   $('cardCartazes')?.classList.toggle('hidden', !cartazes);
@@ -310,11 +312,12 @@ function setModule(module) {
   $('pitstopMenu')?.classList.toggle('hidden', module !== 'pitstop');
   $('manairaRotasMenu')?.classList.toggle('hidden', module !== 'manaira-rotas');
   $('ecommerceProdMenu')?.classList.toggle('hidden', module !== 'ecommerce-produtividade');
+  $('scanntechMenu')?.classList.toggle('hidden', module !== 'scanntech');
   $('pontosExtrasMenu')?.classList.toggle('hidden', module !== 'pontos-extras');
   $('produtosGzMenu')?.classList.toggle('hidden', module !== 'produtos-gz');
   $('cartazesMenu')?.classList.toggle('hidden', module !== 'cartazes');
   $('btnHome')?.classList.toggle('active', module === 'home');
-  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', 'pedidos-galpao': 'Pedidos ao Galpão', rh: 'Módulo Recursos Humanos', recebimento: 'Recebimento e CPD', orcamentos: 'Orçamentos', pitstop: 'Pit Stop', 'manaira-rotas': 'Manaíra Rotas', 'ecommerce-produtividade': 'Produtividade E-commerce', 'pontos-extras': 'Pontos Extras', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes' };
+  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', 'pedidos-galpao': 'Pedidos ao Galpão', rh: 'Módulo Recursos Humanos', recebimento: 'Recebimento e CPD', orcamentos: 'Orçamentos', pitstop: 'Pit Stop', 'manaira-rotas': 'Manaíra Rotas', 'ecommerce-produtividade': 'Produtividade E-commerce', scanntech: 'Scanntech', 'pontos-extras': 'Pontos Extras', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes' };
   if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Manaíra Board';
 }
 
@@ -335,6 +338,7 @@ function setView(view) {
   const isPitstop = view === 'pitstop';
   const isManairaRotas = view === 'manaira-rotas';
   const isEcommerceProd = view === 'ecommerce-produtividade';
+  const isScanntech = view === 'scanntech';
   const isPontosExtras = view === 'pontos-extras';
   const isProdutosGz = view === 'produtos-gz';
   const isCartazes = view === 'cartazes';
@@ -353,6 +357,7 @@ function setView(view) {
   $('pitstopPanel')?.classList.toggle('hidden', !isPitstop);
   $('manairaRotasPanel')?.classList.toggle('hidden', !isManairaRotas);
   $('ecommerceProdPanel')?.classList.toggle('hidden', !isEcommerceProd);
+  $('scanntechPanel')?.classList.toggle('hidden', !isScanntech);
   $('pontosExtrasPanel')?.classList.toggle('hidden', !isPontosExtras);
   $('produtosGzPanel')?.classList.toggle('hidden', !isProdutosGz);
   $('cartazesPanel')?.classList.toggle('hidden', !isCartazes);
@@ -6438,3 +6443,6 @@ $('cardManairaRotas')?.addEventListener('click',()=>window.abrirManairaRotas());
 document.querySelectorAll('[data-rotas-tab]').forEach(b=>b.addEventListener('click',()=>window.navegarManairaRotas(b.dataset.rotasTab)));
 
 $('cardEcommerceProd')?.addEventListener('click',()=>window.abrirProdEcommerce());
+
+$('cardScanntech')?.addEventListener('click',()=>window.abrirScanntech());
+document.querySelectorAll('[data-st-tab]').forEach(b=>b.addEventListener('click',()=>window.navegarScanntech(b.dataset.stTab)));

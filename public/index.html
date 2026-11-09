@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/css/pontos-extras.css" />
   <link rel="stylesheet" href="/css/manaira-rotas.css" />
   <link rel="stylesheet" href="/css/ecommerce-produtividade.css" />
+  <link rel="stylesheet" href="/css/scanntech.css" />
 </head>
 
 <body>
@@ -119,6 +120,7 @@
         <button class="nav-main" data-ep-tab="comparativos">▤ Comparativos</button>
         <button class="nav-main" data-ep-tab="tv">▣ Painel TV</button>
       </div>
+      <div id="scanntechMenu" class="module-menu hidden"><div class="module-menu-title">SCANNTECH</div><button class="nav-main" data-st-tab="dashboard">▦ Dashboard</button><button class="nav-main" data-st-tab="nova">＋ Nova promoção</button><button class="nav-main" data-st-tab="campanhas">▤ Campanhas</button><button class="nav-main" data-st-tab="relatorios">▤ Relatórios de placas</button></div>
       <div id="pitstopMenu" class="module-menu hidden"><div class="module-menu-title">PIT STOP</div><button class="nav-main" id="btnPitstop">▤ Abastecimentos e relatórios</button></div>
       <div id="rhMenu" class="module-menu hidden">
         <div class="module-menu-title">RECURSOS HUMANOS</div>
@@ -209,6 +211,7 @@
 <button class="module-card" id="cardPontosExtras" type="button"><span class="module-icon">📍</span><span class="module-card-copy"><strong>Pontos Extras</strong><small>Mapa comercial, fornecedores, contratos e pagamentos.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardManairaRotas" type="button"><span class="module-icon">🛵</span><span class="module-card-copy"><strong>Manaíra Rotas</strong><small>Mapa de entregas, CEPs em lote, rotas e GPS.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardEcommerceProd" type="button"><span class="module-icon">📊</span><span class="module-card-copy"><strong>Produtividade E-commerce</strong><small>Indicadores VIP, equipe, comparativos e importações.</small></span><span class="module-arrow">→</span></button>
+<button class="module-card" id="cardScanntech" type="button"><span class="module-icon">🏷️</span><span class="module-card-copy"><strong>Scanntech</strong><small>Promoções, consulta ao GZ, margem e relatórios de placas.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardPitstop" type="button"><span class="module-icon">🥤</span><span class="module-card-copy"><strong>Pit Stop</strong><small>Registro de produtos com fotos, histórico e relatórios PDF.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardAdmin" type="button">
             <span class="module-icon">⚙</span><span class="module-card-copy"><strong>Administração</strong><small>Usuários, hierarquia, setores, proprietários e permissões.</small></span><span class="module-arrow">→</span>
@@ -232,6 +235,7 @@
       <section id="pontosExtrasPanel" class="dashboard hidden"></section>
       <section id="manairaRotasPanel" class="dashboard hidden"></section>
       <section id="ecommerceProdPanel" class="dashboard hidden"></section>
+      <section id="scanntechPanel" class="dashboard hidden"></section>
       <section id="pitstopPanel" class="dashboard hidden"></section>
       <section id="recebimentoPanel" class="dashboard hidden"></section>
       <section id="produtosGzPanel" class="dashboard hidden"></section>
@@ -261,6 +265,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="/js/manaira-rotas.js"></script>
   <script src="/js/ecommerce-produtividade.js"></script>
+  <script src="/js/scanntech.js"></script>
 </body>
 
 </html>
