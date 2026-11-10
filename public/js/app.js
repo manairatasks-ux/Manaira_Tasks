@@ -5852,7 +5852,7 @@ function cartazControlesProduto(p) {
 function entrarCartazes(view = 'rapido') {
   if (!exigirModulo('cartazes', 'Cartazes')) return;
   cartazNormalizarFila();
-  state.cartazesView = ['rapido', 'fila', 'impressao', 'etiquetas'].includes(view) ? view : 'rapido';
+  state.cartazesView = ['rapido', 'fila', 'impressao'].includes(view) ? view : 'rapido';
   setModule('cartazes');
   setView('cartazes');
   $('setorTitulo').textContent = 'Cartazes';
@@ -5864,7 +5864,6 @@ function entrarCartazes(view = 'rapido') {
 function renderCartazes() {
   const panel = $('cartazesPanel');
   if (!panel) return;
-  if (state.cartazesView === 'etiquetas') return window.renderEtiquetasZebra?.();
   if (state.cartazesView === 'fila') return renderCartazesFila();
   if (state.cartazesView === 'impressao') return renderCartazesImpressao();
   const p = state.cartazProduto;
@@ -6412,7 +6411,6 @@ $('btnProdutosGzLote')?.addEventListener('click', entrarProdutosGzLote);
 $('btnCartazesRapido')?.addEventListener('click', () => entrarCartazes('rapido'));
 $('btnCartazesFila')?.addEventListener('click', () => entrarCartazes('fila'));
 $('btnCartazesImpressao')?.addEventListener('click', () => entrarCartazes('impressao'));
-$('btnCartazesZebra')?.addEventListener('click', () => entrarCartazes('etiquetas'));
 $('btnAlmoxDashboard')?.addEventListener('click', () => abrirAlmoxarifado('dashboard'));
 $('btnDashboard').onclick = abrirDashboard;
 $('btnOS').onclick = abrirOS;
