@@ -40,3 +40,10 @@ ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS precos_antigos JSONB NOT NULL 
 ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS descontos_scanntech JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS multiplos_precos_autorizados BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE st_itens ADD COLUMN IF NOT EXISTS preco_antigo_item NUMERIC(14,2);
+
+-- V74.12: modalidade da promoção por quantidade (sem conversão das campanhas existentes).
+ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS tipo_promocao VARCHAR(20) NOT NULL DEFAULT 'normal';
+ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS quantidade_leve INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS preco_total_antigo NUMERIC(14,2);
+ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS preco_total_novo NUMERIC(14,2);
+ALTER TABLE st_campanhas ADD COLUMN IF NOT EXISTS reembolso_total NUMERIC(14,2);
