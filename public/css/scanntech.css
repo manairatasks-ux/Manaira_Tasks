@@ -34,3 +34,45 @@
 .st-leve-resumo,.st-leve-banner{background:#eaf6ee;border:1px solid #bee3ce;border-radius:9px;color:#176443;padding:12px;font-size:12px;line-height:1.5;margin:9px 0 15px}
 @media(max-width:850px){.st-leve-campos .st-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.st-leve-campos .st-fields{grid-template-columns:1fr}}
+
+/* V74.13 — agenda diária informativa de entrada das placas */
+.st-agenda-summary{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;background:#f1f7fc;border:1px solid #d3e3f1;padding:12px 14px;border-radius:10px;margin:14px 0}
+.st-agenda-summary strong{font-size:18px;color:#124e7e}.st-agenda-summary span{font-size:12px;color:#647b91}
+.st-agenda-day{border:1px solid #d7e4ef;border-radius:10px;overflow:hidden;margin:11px 0;background:#fff}
+.st-agenda-day-head{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:11px 13px;background:#eff5fa;color:#143f63}
+.st-agenda-day-head strong{font-size:15px}.st-agenda-day-head b{background:#ddebf8;color:#0b548b;border-radius:16px;padding:5px 10px;font-size:12px;white-space:nowrap}
+.st-agenda-today{font-size:10px;border-radius:12px;background:#d8f1e4;color:#116b3d;font-weight:700;padding:3px 7px;margin-left:8px}
+.st-agenda-day-body{padding:0 12px}.st-agenda-day-body .st-row:first-child{border-top:0}
+.st-agenda-note{font-size:11px!important;line-height:1.5;color:#718298!important}
+
+/* V74.14 — Relação de placas, pronta para conferência e impressão A4 horizontal. */
+.st-report-print-area{color:#163047;background:#fff;margin-top:19px;font-family:'Segoe UI',Arial,sans-serif}
+.st-report-top{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 20px;background:#eff5fa;border:1px solid #cbdbe7;border-radius:10px;margin-bottom:10px}
+.st-report-eyebrow{font-size:10px;letter-spacing:1.2px;color:#51708c;font-weight:800;margin-bottom:6px}
+.st-report-top h2{font-size:20px;color:#102f4d;margin:0 0 6px}
+.st-report-top p{margin:0;font-size:12px;color:#5a7186}
+.st-report-total{text-align:right;white-space:nowrap;min-width:100px}
+.st-report-total b{display:block;font-size:30px;line-height:1.1;color:#114b7c}
+.st-report-total span{font-size:11px;color:#54708a}
+.st-report-note{font-size:11px;color:#60788e;padding:4px 0 12px}
+.st-report-date{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#153c60;color:white;padding:9px 11px;border-radius:5px 5px 0 0;margin-top:18px;font-size:12px}
+.st-report-date span{font-size:11px;color:#d4e5f1}
+.st-report-day{margin-bottom:12px}
+.st-report-table{table-layout:fixed;border-collapse:collapse;width:100%;min-width:730px;font-size:11px}
+.st-report-table th,.st-report-table td{border:1px solid #c9d6df;padding:7px 6px;text-align:left;vertical-align:middle}
+.st-report-table thead th{background:#e2edf5;color:#183e60;font-weight:800;font-size:10px}
+.st-report-table th:nth-child(1){width:12%}.st-report-table th:nth-child(2){width:15%}.st-report-table th:nth-child(3){width:37%}.st-report-table th:nth-child(4){width:9%}.st-report-table th:nth-child(5){width:9%}.st-report-table th:nth-child(6){width:9%}.st-report-table th:nth-child(7){width:9%}
+.st-report-vendor td{background:#f0f4f7!important;color:#1c4462;padding:7px 9px!important;font-weight:700}
+.st-report-vendor td span{float:right;font-size:10px;font-weight:500;color:#617d91}
+.st-report-ean{font-family:ui-monospace,'Consolas',monospace;white-space:nowrap;font-variant-numeric:tabular-nums}
+.st-report-description{font-weight:600;overflow-wrap:anywhere}
+.st-report-description small{display:block;font-size:10px;font-weight:400;color:#466a84;margin-top:3px;line-height:1.25}
+.st-report-price{font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right!important}
+.st-report-promo{font-weight:800;color:#116341}
+.st-report-product:nth-of-type(even) td{background:#fafcfe}
+.st-report-footer{text-align:right;color:#73879a;font-size:10px;padding:6px 0 2px}
+@media print{.st-report-top{-webkit-print-color-adjust:exact;print-color-adjust:exact}.st-report-date{-webkit-print-color-adjust:exact;print-color-adjust:exact}.st-report-day{break-before:auto}.st-report-table{min-width:0!important}.st-report-vendor{break-after:avoid}.st-report-product{break-inside:avoid}}
+/* Cores discretas inspiradas no antigo relatório operacional: fornecedor, início e fim. */
+.st-report-vendor td{background:#fff6ce!important;color:#493f1c}
+.st-report-product td:nth-child(4){background:#eaf4e8}
+.st-report-product td:nth-child(5){background:#ffebdf}
