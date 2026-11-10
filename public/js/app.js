@@ -209,6 +209,7 @@ function configurarMenuPorPerfil() {
   const manairaRotas = temAcessoModulo('manaira_rotas');
   const ecommerceProd = temAcessoModulo('ecommerce_produtividade');
   const scanntech = temAcessoModulo('scanntech');
+  const transferenciasAvaria=temAcessoModulo('transferencias_avaria');
   const pontosExtras = temAcessoModulo('pontos_extras');
   const produtosGz = temAcessoModulo('consulta_produtos');
   const cartazes = temAcessoModulo('cartazes');
@@ -232,6 +233,7 @@ function configurarMenuPorPerfil() {
   $('cardManairaRotas')?.classList.toggle('hidden', !manairaRotas);
   $('cardEcommerceProd')?.classList.toggle('hidden', !ecommerceProd);
   $('cardScanntech')?.classList.toggle('hidden', !scanntech);
+  $('cardTransferenciasAvaria')?.classList.toggle('hidden', !transferenciasAvaria);
   $('cardPontosExtras')?.classList.toggle('hidden', !pontosExtras);
   $('cardProdutosGz')?.classList.toggle('hidden', !produtosGz);
   $('cardCartazes')?.classList.toggle('hidden', !cartazes);
@@ -313,11 +315,12 @@ function setModule(module) {
   $('manairaRotasMenu')?.classList.toggle('hidden', module !== 'manaira-rotas');
   $('ecommerceProdMenu')?.classList.toggle('hidden', module !== 'ecommerce-produtividade');
   $('scanntechMenu')?.classList.toggle('hidden', module !== 'scanntech');
+  $('transferenciasAvariaMenu')?.classList.toggle('hidden', module !== 'transferencias-avaria');
   $('pontosExtrasMenu')?.classList.toggle('hidden', module !== 'pontos-extras');
   $('produtosGzMenu')?.classList.toggle('hidden', module !== 'produtos-gz');
   $('cartazesMenu')?.classList.toggle('hidden', module !== 'cartazes');
   $('btnHome')?.classList.toggle('active', module === 'home');
-  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', 'pedidos-galpao': 'Pedidos ao Galpão', rh: 'Módulo Recursos Humanos', recebimento: 'Recebimento e CPD', orcamentos: 'Orçamentos', pitstop: 'Pit Stop', 'manaira-rotas': 'Manaíra Rotas', 'ecommerce-produtividade': 'Produtividade E-commerce', scanntech: 'Scanntech', 'pontos-extras': 'Pontos Extras', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes' };
+  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', 'pedidos-galpao': 'Pedidos ao Galpão', rh: 'Módulo Recursos Humanos', recebimento: 'Recebimento e CPD', orcamentos: 'Orçamentos', pitstop: 'Pit Stop', 'manaira-rotas': 'Manaíra Rotas', 'ecommerce-produtividade': 'Produtividade E-commerce', scanntech: 'Scanntech', 'transferencias-avaria':'Prevenção e Avaria', 'pontos-extras': 'Pontos Extras', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes' };
   if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Manaíra Board';
 }
 
@@ -339,6 +342,7 @@ function setView(view) {
   const isManairaRotas = view === 'manaira-rotas';
   const isEcommerceProd = view === 'ecommerce-produtividade';
   const isScanntech = view === 'scanntech';
+  const isTransferenciasAvaria=view==='transferencias-avaria';
   const isPontosExtras = view === 'pontos-extras';
   const isProdutosGz = view === 'produtos-gz';
   const isCartazes = view === 'cartazes';
@@ -358,6 +362,7 @@ function setView(view) {
   $('manairaRotasPanel')?.classList.toggle('hidden', !isManairaRotas);
   $('ecommerceProdPanel')?.classList.toggle('hidden', !isEcommerceProd);
   $('scanntechPanel')?.classList.toggle('hidden', !isScanntech);
+  $('transferenciasAvariaPanel')?.classList.toggle('hidden', !isTransferenciasAvaria);
   $('pontosExtrasPanel')?.classList.toggle('hidden', !isPontosExtras);
   $('produtosGzPanel')?.classList.toggle('hidden', !isProdutosGz);
   $('cartazesPanel')?.classList.toggle('hidden', !isCartazes);
@@ -6446,3 +6451,5 @@ $('cardEcommerceProd')?.addEventListener('click',()=>window.abrirProdEcommerce()
 
 $('cardScanntech')?.addEventListener('click',()=>window.abrirScanntech());
 document.querySelectorAll('[data-st-tab]').forEach(b=>b.addEventListener('click',()=>window.navegarScanntech(b.dataset.stTab)));
+
+$('cardTransferenciasAvaria')?.addEventListener('click',()=>window.abrirTransferenciasAvaria());

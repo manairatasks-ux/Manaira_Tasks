@@ -95,6 +95,9 @@ async function initDb() {
   // V74: Gestão Scanntech.
   await query(fs.readFileSync(path.join(__dirname, 'modules', 'scanntech', 'schema.sql'), 'utf8'));
 
+  // V74.15: transferência rastreada entre Prevenção e Avaria.
+  await query(fs.readFileSync(path.join(__dirname,'modules','transferencias-avaria','schema.sql'),'utf8'));
+
   // V15: catálogo de módulos e migração segura dos acessos existentes.
   await query(`
     INSERT INTO modulos (codigo, nome, descricao, ordem, ativo) VALUES
@@ -113,7 +116,8 @@ async function initDb() {
       ('pontos_extras', 'Pontos Extras', 'Mapa, fornecedores, contratos, pacotes e financeiro.', 120, TRUE),
       ('manaira_rotas', 'Manaíra Rotas', 'Roteirização do e-commerce, GPS e entregas.', 130, TRUE),
       ('ecommerce_produtividade', 'Produtividade E-commerce', 'Indicadores dos separadores por relatórios VIP.', 140, TRUE),
-      ('scanntech', 'Scanntech', 'Análise de promoções, margem e controle de placas.', 150, TRUE)
+      ('scanntech', 'Scanntech', 'Análise de promoções, margem e controle de placas.', 150, TRUE),
+      ('transferencias_avaria', 'Transferências Prevenção e Avaria', 'Envio, conferência com PIN e divergências.', 160, TRUE)
     ON CONFLICT (codigo) DO UPDATE SET
       nome = EXCLUDED.nome,
       descricao = EXCLUDED.descricao,
