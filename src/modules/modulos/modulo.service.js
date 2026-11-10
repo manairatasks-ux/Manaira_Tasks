@@ -1,7 +1,8 @@
 const model = require('./modulo.model');
 const { nivelPerfil, isPrincipal } = require('../../shared/profile.service');
 
-const CODIGOS_VALIDOS = new Set(['atividades', 'os', 'administracao', 'almoxarifado', 'galpao', 'pedidos_galpao', 'rh', 'consulta_produtos', 'cartazes', 'recebimento_cpd', 'orcamentos', 'pitstop', 'pontos_extras', 'manaira_rotas', 'ecommerce_produtividade', 'scanntech']);
+// O catálogo ativo no banco é a fonte única de verdade para os códigos permitidos.
+// Evita que módulos novos apareçam no formulário, mas sejam descartados ao salvar.
 
 function fail(message, status = 400) { const e = new Error(message); e.status = status; throw e; }
 function principalUser(user) { return String(user?.perfil || '').toLowerCase() === 'administrador_principal' || user?.administrador_principal === true; }
@@ -22,7 +23,11 @@ async function updateUserModules(targetId, codigos, current) {
   if (alvo.administrador_principal || alvo.perfil === 'administrador_principal') fail('Os módulos do Administrador Principal são permanentes.', 403);
   if (nivelPerfil(alvo.perfil) >= nivelPerfil(current.perfil)) fail('Você só pode alterar acessos de usuários de nível inferior ao seu.', 403);
 
-  const normalizados = [...new Set((Array.isArray(codigos) ? codigos : []).map(v => String(v).toLowerCase()).filter(v => CODIGOS_VALIDOS.has(v)))];
+  if (!Array.isArray(codigos)) fail('Informe a lista de módulos a salvar.', 400);
+  const normalizados = [...new Set(codigos.map(v => String(v).trim().toLowerCase()))];
+  const validos = new Set((await model.listActive()).map(m => m.codigo));
+  const desconhecidos = normalizados.filter(c => !validos.has(c));
+  if (desconhecidos.length) fail(`Módulo não reconhecido: ${desconhecidos.join(', ')}. Atualize a página e tente novamente.`, 400);
 
   // O módulo de OS e a Administração mantêm a hierarquia operacional existente da plataforma.
   if (nivelPerfil(alvo.perfil) < 2 && normalizados.some(c => c === 'os' || c === 'administracao')) {

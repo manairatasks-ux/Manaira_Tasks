@@ -7,3 +7,15 @@ CREATE INDEX IF NOT EXISTS ta_eventos_remessa_idx ON ta_eventos(remessa_id,id);
 
 -- V74.16: permitir produtos sem EAN e códigos internos (vários avulsos na mesma remessa).
 ALTER TABLE ta_itens ALTER COLUMN codigo DROP NOT NULL;
+
+-- V74.17: recebimento com conferência parcial e retomada.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='ta_remessas'::regclass AND conname='ta_remessas_status_check') THEN
+    ALTER TABLE ta_remessas DROP CONSTRAINT ta_remessas_status_check;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='ta_remessas'::regclass AND conname='ta_remessas_status_check') THEN
+    ALTER TABLE ta_remessas ADD CONSTRAINT ta_remessas_status_check CHECK(status IN ('rascunho','enviada','em_conferencia','conferida','divergente','resolvida','cancelada'));
+  END IF;
+END $$;
+ALTER TABLE ta_remessas ADD COLUMN IF NOT EXISTS conferencia_iniciada_por INTEGER REFERENCES usuarios(id);
+ALTER TABLE ta_remessas ADD COLUMN IF NOT EXISTS conferencia_iniciada_em TIMESTAMPTZ;

@@ -2,3 +2,6 @@
 
 /* V74.16: leitura e lançamento móvel */
 .ta-scanbar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:16px 0 8px}.ta-scanbar input{flex:2;min-width:210px}.ta-scanbar button{white-space:nowrap}.ta-scanmessage{font-size:13px;color:#654a91;min-height:20px}.ta-camera{margin:10px 0;padding:12px;background:#f7f4fa;border-radius:12px}.ta-camera video{display:block;max-width:100%;width:min(100%,420px);max-height:280px;object-fit:cover;border-radius:8px;margin-bottom:10px}.ta-camera.hidden{display:none!important}.ta-shell .hidden{display:none!important}@media(max-width:720px){.ta-scanbar input,.ta-scanbar button{flex:1 1 100%;width:100%}}
+
+/* V74.17 — recebimento com retomada e progresso */
+.ta-em_conferencia{background:#e8efff;color:#27509b}.ta-receive-progress{padding:12px 14px;background:#f3eefb;border-radius:10px;font-weight:700;color:#533686;margin:12px 0}.ta-check.ta-pending{border-left:3px solid #d8b36d;padding-left:10px}.ta-check .ta-negative{font-size:13px}
