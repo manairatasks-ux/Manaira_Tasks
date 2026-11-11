@@ -19,3 +19,34 @@ DO $$ BEGIN
 END $$;
 ALTER TABLE ta_remessas ADD COLUMN IF NOT EXISTS conferencia_iniciada_por INTEGER REFERENCES usuarios(id);
 ALTER TABLE ta_remessas ADD COLUMN IF NOT EXISTS conferencia_iniciada_em TIMESTAMPTZ;
+
+-- V74.25: evidencia fotografica e classificacao individual dos itens.
+ALTER TABLE ta_itens ADD COLUMN IF NOT EXISTS setor_origem TEXT;
+ALTER TABLE ta_itens ADD COLUMN IF NOT EXISTS motivo_avaria TEXT;
+ALTER TABLE ta_itens ADD COLUMN IF NOT EXISTS motivo_outros TEXT;
+ALTER TABLE ta_itens ADD COLUMN IF NOT EXISTS foto_id BIGINT;
+CREATE TABLE IF NOT EXISTS ta_fotos (
+ id BIGSERIAL PRIMARY KEY, remessa_id BIGINT NOT NULL REFERENCES ta_remessas(id) ON DELETE CASCADE,
+ usuario_id INTEGER NOT NULL REFERENCES usuarios(id), public_id TEXT NOT NULL UNIQUE, formato TEXT NOT NULL,
+ criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+DO $$ BEGIN
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='ta_itens_foto_fk' AND conrelid='ta_itens'::regclass) THEN
+  ALTER TABLE ta_itens ADD CONSTRAINT ta_itens_foto_fk FOREIGN KEY (foto_id) REFERENCES ta_fotos(id);
+ END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS ta_fotos_remessa_idx ON ta_fotos(remessa_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ta_itens_foto_unica_idx ON ta_itens(foto_id) WHERE foto_id IS NOT NULL;
+
+-- V74.26: cadastro de fornecedores e vinculacao pelo codigo INTERNO do GZ.
+CREATE TABLE IF NOT EXISTS ta_fornecedores (
+ codigo TEXT PRIMARY KEY, nome TEXT NOT NULL, ativo BOOLEAN NOT NULL DEFAULT TRUE,
+ atualizado_por INTEGER REFERENCES usuarios(id), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS ta_fornecedor_produtos (
+ codigo_produto TEXT PRIMARY KEY, codigo_fornecedor TEXT NOT NULL REFERENCES ta_fornecedores(codigo),
+ atualizado_por INTEGER REFERENCES usuarios(id), atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ta_fornecedor_produtos_fornecedor_idx ON ta_fornecedor_produtos(codigo_fornecedor);
+ALTER TABLE ta_itens ADD COLUMN IF NOT EXISTS codigo_interno TEXT;
+CREATE INDEX IF NOT EXISTS ta_itens_interno_idx ON ta_itens(codigo_interno);

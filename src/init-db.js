@@ -97,6 +97,28 @@ async function initDb() {
 
   // V74.15: transferência rastreada entre Prevenção e Avaria.
   await query(fs.readFileSync(path.join(__dirname,'modules','transferencias-avaria','schema.sql'),'utf8'));
+  // Cadastro inicial V74.26: não sobrescrever associações editadas pelos usuários.
+  // Em bancos já preenchidos, importações futuras devem ser feitas pela interface administrativa.
+  const qtdTA = await query('SELECT COUNT(*)::int AS n FROM ta_fornecedor_produtos');
+  if (qtdTA.rows[0].n === 0) {
+    const rawTA = fs.readFileSync(path.join(__dirname,'modules','transferencias-avaria','fornecedores-iniciais.tsv'),'utf8');
+    const linesTA = rawTA.split(/\r?\n/).filter(Boolean).map(l => l.split('\t'));
+    const supplierTA = new Map(linesTA.map(([codigo,nome]) => [codigo,nome]));
+    for (const part of Array.from(supplierTA.entries()).reduce((acc,entry,i) => {
+      if(i%300===0)acc.push([]);acc[acc.length-1].push(entry);return acc;
+    },[])) {
+      await query(`INSERT INTO ta_fornecedores(codigo,nome) SELECT * FROM UNNEST($1::text[],$2::text[])
+        ON CONFLICT(codigo) DO NOTHING`,[part.map(x=>x[0]),part.map(x=>x[1])]);
+    }
+    for(let start=0;start<linesTA.length;start+=800) {
+      const part=linesTA.slice(start,start+800);
+      await query(`INSERT INTO ta_fornecedor_produtos(codigo_produto,codigo_fornecedor)
+        SELECT * FROM UNNEST($1::text[],$2::text[])
+        ON CONFLICT(codigo_produto) DO NOTHING`,[part.map(x=>x[2]),part.map(x=>x[0])]);
+    }
+    console.log(`[TA] Fornecedores iniciais: ${supplierTA.size} fornecedores; ${linesTA.length} códigos de produto.`);
+  }
+
 
   // V15: catálogo de módulos e migração segura dos acessos existentes.
   await query(`
