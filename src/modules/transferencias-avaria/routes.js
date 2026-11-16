@@ -29,18 +29,26 @@ function cloud(){if(!process.env.CLOUDINARY_CLOUD_NAME||!process.env.CLOUDINARY_
 function sendPhoto(buffer){cloud();return new Promise((resolve,reject)=>{const stream=cloudinary.uploader.upload_stream({folder:'manaira/prevencao-avaria',type:'authenticated',resource_type:'image',public_id:crypto.randomUUID(),overwrite:false},(err,result)=>err?reject(err):resolve(result));stream.end(buffer)})}
 function photoLink(f){if(!f||!f.public_id)return null;cloud();return cloudinary.utils.private_download_url(f.public_id,f.formato||'jpg',{resource_type:'image',type:'authenticated',expires_at:Math.floor(Date.now()/1000)+300,attachment:false})}
 router.post('/remessas/:id/foto',(req,res,next)=>fotoUpload(req,res,err=>{if(err)return next(err);safe(async(req,res)=>{await gate(req,'prevencao');if(!req.file)fail('Selecione uma foto JPG, PNG ou WEBP de até 8 MB.');const r=(await query('SELECT * FROM ta_remessas WHERE id=$1',[req.params.id])).rows[0];if(!r)fail('Remessa não encontrada.',404);if(r.status!=='rascunho')fail('Fotos só podem ser adicionadas antes do envio.',409);if(Number(r.criado_por)!==Number(req.user.id)&&!manager(req))fail('Somente o criador pode alterar o rascunho.',403);const foto=await sendPhoto(req.file.buffer);try{const result=await query('INSERT INTO ta_fotos(remessa_id,usuario_id,public_id,formato) VALUES($1,$2,$3,$4) RETURNING id',[r.id,req.user.id,foto.public_id,foto.format]);res.status(201).json({id:result.rows[0].id,url:photoLink({public_id:foto.public_id,formato:foto.format})})}catch(e){await cloudinary.uploader.destroy(foto.public_id,{resource_type:'image',type:'authenticated'}).catch(()=>{});throw e}})(req,res,next)}));
-// Consulta de EAN no mesmo serviço GZ utilizado pelo Pit Stop.
+// Consulta ao GZ: códigos curtos (ex.: balança de 4 dígitos) são códigos internos.
+// EANs de 8 a 14 dígitos continuam utilizando a consulta por código de barras.
 router.get('/produto/:ean',safe(async(req,res)=>{
-  const ean=clean(req.params.ean,20);
-  if(!/^\d{8,14}$/.test(ean))fail('Informe EAN de 8 a 14 dígitos.');
-  const consulta=await gz.consultarProduto({codigoBarras:ean});
+  const codigo=clean(req.params.ean,20);
+  if(!/^\d{1,14}$/.test(codigo))fail('Informe um código numérico de 1 a 14 dígitos.');
+  const codigoCurto=codigo.length<8;
+  const consulta=await gz.consultarProduto(codigoCurto?{codigoInterno:codigo}:{codigoBarras:codigo});
   const lista=consulta.produtos||[];
-  const item=lista.find(x=>String(x.codigoEan||x.codigoBarras||x.codigo_barras||x.ean||x.codigobarras||'')===ean)||lista[0];
+  const internoProduto=x=>String(x.codigo??x.codigoProduto??x.codigoInterno??'').trim();
+  const barrasProduto=x=>String(x.codigoEan||x.codigoBarras||x.codigo_barras||x.ean||x.codigobarras||'').trim();
+  // Não associa códigos internos curtos ao primeiro produto da resposta sem conferir o código.
+  const equivalenteInterno=v=>/^\d+$/.test(v)&&v.replace(/^0+(?=\d)/,'')===codigo.replace(/^0+(?=\d)/,'');
+  const item=codigoCurto
+    ?lista.find(x=>equivalenteInterno(internoProduto(x)))
+    :(lista.find(x=>barrasProduto(x)===codigo)||lista[0]);
   if(!item)fail('Produto não encontrado no GZ. Você pode cadastrá-lo avulso.',404);
   const descricao=clean(item.descricao||item.descpdv||item.descricaoProduto||item.nome||item.nomeProduto||item.produto,240);
   if(!descricao)fail('Produto sem descrição retornada pelo GZ.',502);
-  const interno=clean(item.codigo??item.codigoProduto??item.codigoInterno??'',80);
-  res.set('Cache-Control','no-store');res.json({codigo:ean,codigo_interno:interno,descricao,unidade:'UN'});
+  const interno=clean(internoProduto(item)|| (codigoCurto?codigo:''),80);
+  res.set('Cache-Control','no-store');res.json({codigo,codigo_interno:interno,descricao,unidade:'UN'});
 }));
 router.get('/bootstrap',safe(async(req,res)=>{const [me,users,remessas]=await Promise.all([profile(req),manager(req)?query('SELECT u.id,u.nome,p.setor FROM usuarios u LEFT JOIN ta_perfis p ON p.usuario_id=u.id WHERE u.ativo=TRUE ORDER BY u.nome'):Promise.resolve({rows:[]}),query(`SELECT r.*,u.nome AS criado_nome,s.nome AS enviado_nome,t.nome AS recebido_nome,(SELECT COUNT(*)::int FROM ta_itens i WHERE i.remessa_id=r.id) AS total_itens,(SELECT COUNT(*)::int FROM ta_itens i WHERE i.remessa_id=r.id AND i.quantidade_recebida IS NOT NULL) AS itens_conferidos,(SELECT COUNT(*)::int FROM ta_itens i WHERE i.remessa_id=r.id AND i.quantidade_recebida IS NOT NULL AND i.quantidade_enviada<>i.quantidade_recebida) AS divergencias FROM ta_remessas r LEFT JOIN usuarios u ON u.id=r.criado_por LEFT JOIN usuarios s ON s.id=r.enviado_por LEFT JOIN usuarios t ON t.id=r.recebido_por ORDER BY r.id DESC LIMIT 250`)]);res.set('Cache-Control','no-store');res.json({perfil:me?{setor:me.setor,pin_configurado:!!me.pin_hash}:null,gerente:manager(req),usuarios:users.rows,remessas:remessas.rows})}));
 router.put('/usuarios/:id',safe(async(req,res)=>{if(!manager(req))fail('Somente a gerência pode definir os setores.',403);const id=Number(req.params.id),setor=clean(req.body.setor,20);if(!Number.isInteger(id)||id<=0)fail('Usuário inválido.');if(!['prevencao','avaria','ambos','nenhum'].includes(setor))fail('Setor inválido.');if(setor==='nenhum'){await query('DELETE FROM ta_perfis WHERE usuario_id=$1',[id]);return res.json({ok:true})}const r=await query('INSERT INTO ta_perfis(usuario_id,setor) SELECT id,$2 FROM usuarios WHERE id=$1 AND ativo=TRUE ON CONFLICT(usuario_id) DO UPDATE SET setor=EXCLUDED.setor,atualizado_em=NOW() RETURNING usuario_id',[id,setor]);if(!r.rowCount)fail('Usuário não encontrado.',404);res.json({ok:true})}));
