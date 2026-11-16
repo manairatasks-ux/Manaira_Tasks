@@ -10,12 +10,14 @@
   // Mecânica de quantidade: preços principais do portal são totais do conjunto.
   const leve=normalized.match(/(?:^|\n)\s*#*\s*LEVE\s+(\d{1,3})\b[^\n]*/i);
   const levando=normalized.match(/Levando\s+(\d{1,3})\s+unidades?/i);
-  const group=leve||levando;
+  // Uma oferta de 1 unidade e uma promocao normal, mesmo quando o portal diz 'Levando 1 unidade'.
+  // 'Leve N' ou 'Levando N' so indicam conjunto quando N >= 2.
+  const group=[leve,levando].find(match=>match&&Number(match[1])>=2)||null;
   const unitHeadline=leve&&leve[0].match(/POR\s*R\$\s*([\d.,]+)\s*CADA/i);
   const totalText=normalized.match(/Paga\s+um\s+total\s+de\s*(?:R\$\s*)?([\d.,]+)/i);
   if(group){result.tipo='leve_pague';result.quantidade=Number(group[1]);if(result.quantidade<2||result.quantidade>100)result.avisos.push('Confira a quantidade de unidades da oferta.');}
   if(leve)result.titulo=leve[0].replace(/^\s*#*\s*/,'').trim();
-  const heading=normalized.match(/(?:^|\n)\s*#*\s*R\$\s*\d[\d.,]*\s+([^\n]+)/i);if(heading&&!result.titulo)result.titulo=heading[1].trim().replace(/^#+\s*/,'');
+  const heading=normalized.match(/(?:^|\n)\s*#*\s*(?:POR\s+)?R\$\s*\d[\d.,]*\s+([^\n]+)/i);if(heading&&!result.titulo)result.titulo=heading[1].trim().replace(/^#+\s*/,'');
   const code=normalized.match(/C[oó]digo\s*:\s*#?\s*(\d{4,12})/i);if(code)result.codigo=code[1];
   const author=normalized.match(/Autor\s*:\s*([^\n]+)/i);if(author)result.marca=author[1].split(/\b(?:Pre[çc]o|Reembolso|Desconto|Limite|Aceitar|Rejeitar)\b/i)[0].trim().replace(/\*+/g,'');
   result.precosAntigos=findAmounts(normalized,['Pre[çc]o\\s+antigo','Pre[çc]o\\s+de']);
