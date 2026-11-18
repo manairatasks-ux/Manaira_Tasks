@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="/css/ecommerce-produtividade.css" />
   <link rel="stylesheet" href="/css/scanntech.css" />
   <link rel="stylesheet" href="/css/transferencias-avaria.css" />
+  <link rel="stylesheet" href="/css/solicitacoes-boletos.css" />
 </head>
 
 <body>
@@ -123,6 +124,8 @@
       </div>
       <div id="scanntechMenu" class="module-menu hidden"><div class="module-menu-title">SCANNTECH</div><button class="nav-main" data-st-tab="dashboard">▦ Dashboard</button><button class="nav-main" data-st-tab="nova">＋ Nova promoção</button><button class="nav-main" data-st-tab="campanhas">▤ Campanhas</button><button class="nav-main" data-st-tab="relatorios">▤ Relatórios de placas</button></div>
       <div id="transferenciasAvariaMenu" class="module-menu hidden"><div class="module-menu-title">PREVENÇÃO / AVARIA</div><button class="nav-main" data-ta-tab="painel">▦ Painel e remessas</button><button class="nav-main" data-ta-tab="prevencao">↗ Prevenção · Enviar</button><button class="nav-main" data-ta-tab="avaria">✓ Avaria · Conferir</button><button class="nav-main" data-ta-tab="relatorios">▤ Relatórios de Avaria</button><button class="nav-main" data-ta-tab="config" id="taConfigNav">⚙ Acessos e PIN</button></div>
+      <div id="onlineBoletosMenu" class="module-menu hidden"><div class="module-menu-title">ONLINE</div><button class="nav-main" data-sb-area="online">▤ Solicitações de boletos</button></div>
+      <div id="financeiroBoletosMenu" class="module-menu hidden"><div class="module-menu-title">FINANCEIRO</div><button class="nav-main" data-sb-area="financeiro">▤ Receber e preparar boletos</button></div>
       <div id="pitstopMenu" class="module-menu hidden"><div class="module-menu-title">PIT STOP</div><button class="nav-main" id="btnPitstop">▤ Abastecimentos e relatórios</button></div>
       <div id="rhMenu" class="module-menu hidden">
         <div class="module-menu-title">RECURSOS HUMANOS</div>
@@ -215,6 +218,8 @@
 <button class="module-card" id="cardEcommerceProd" type="button"><span class="module-icon">📊</span><span class="module-card-copy"><strong>Produtividade E-commerce</strong><small>Indicadores VIP, equipe, comparativos e importações.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardScanntech" type="button"><span class="module-icon">🏷️</span><span class="module-card-copy"><strong>Scanntech</strong><small>Promoções, consulta ao GZ, margem e relatórios de placas.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardTransferenciasAvaria" type="button"><span class="module-icon">📦</span><span class="module-card-copy"><strong>Prevenção e Avaria</strong><small>Envio, conferência, divergências e PIN por responsável.</small></span><span class="module-arrow">→</span></button>
+<button class="module-card" id="cardOnlineBoletos" type="button"><span class="module-icon">🛒</span><span class="module-card-copy"><strong>Online</strong><small>Enviar cupons, acompanhar solicitações e receber boletos.</small></span><span class="module-arrow">→</span></button>
+<button class="module-card" id="cardFinanceiroBoletos" type="button"><span class="module-icon">🏦</span><span class="module-card-copy"><strong>Financeiro</strong><small>Receber solicitações, preparar e anexar boletos.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardPitstop" type="button"><span class="module-icon">🥤</span><span class="module-card-copy"><strong>Pit Stop</strong><small>Registro de produtos com fotos, histórico e relatórios PDF.</small></span><span class="module-arrow">→</span></button>
 <button class="module-card" id="cardAdmin" type="button">
             <span class="module-icon">⚙</span><span class="module-card-copy"><strong>Administração</strong><small>Usuários, hierarquia, setores, proprietários e permissões.</small></span><span class="module-arrow">→</span>
@@ -240,6 +245,7 @@
       <section id="ecommerceProdPanel" class="dashboard hidden"></section>
       <section id="scanntechPanel" class="dashboard hidden"></section>
       <section id="transferenciasAvariaPanel" class="dashboard hidden"></section>
+      <section id="solicitacoesBoletosPanel" class="dashboard hidden"></section>
       <section id="pitstopPanel" class="dashboard hidden"></section>
       <section id="recebimentoPanel" class="dashboard hidden"></section>
       <section id="produtosGzPanel" class="dashboard hidden"></section>
@@ -272,6 +278,7 @@
   <script src="/js/scanntech-parser.js"></script>
   <script src="/js/scanntech.js"></script>
   <script src="/js/transferencias-avaria.js"></script>
+  <script src="/js/solicitacoes-boletos.js"></script>
 </body>
 
 </html>

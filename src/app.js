@@ -21,6 +21,7 @@ const produtosGzRoutes=require('./modules/produtos-gz/produtos-gz.routes');
 const cartazesRoutes=require('./modules/cartazes/cartazes.routes');
 const scanntechRoutes = require('./modules/scanntech/routes');
 const transferenciasAvariaRoutes=require('./modules/transferencias-avaria/routes');
+const solicitacoesBoletosRoutes=require('./modules/solicitacoes-boletos/routes');
 const mobileRoutes =
   require('./modules/mobile/mobile.routes');
 
@@ -55,6 +56,7 @@ app.use('/api/cartazes',cartazesRoutes);
 app.use('/api/scanntech',scanntechRoutes);
 app.use('/api/transferencias-avaria',transferenciasAvariaRoutes);
 app.use('/api/mobile', mobileRoutes);
+app.use('/api/solicitacoes-boletos',solicitacoesBoletosRoutes);
 app.use('/',atividadesRoutes);
 app.use('/',osRoutes);
 app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'..','public','index.html')));

@@ -210,6 +210,8 @@ function configurarMenuPorPerfil() {
   const ecommerceProd = temAcessoModulo('ecommerce_produtividade');
   const scanntech = temAcessoModulo('scanntech');
   const transferenciasAvaria=temAcessoModulo('transferencias_avaria');
+  const onlineBoletos=temAcessoModulo('online_boletos');
+  const financeiroBoletos=temAcessoModulo('financeiro_boletos');
   const pontosExtras = temAcessoModulo('pontos_extras');
   const produtosGz = temAcessoModulo('consulta_produtos');
   const cartazes = temAcessoModulo('cartazes');
@@ -234,6 +236,8 @@ function configurarMenuPorPerfil() {
   $('cardEcommerceProd')?.classList.toggle('hidden', !ecommerceProd);
   $('cardScanntech')?.classList.toggle('hidden', !scanntech);
   $('cardTransferenciasAvaria')?.classList.toggle('hidden', !transferenciasAvaria);
+  $('cardOnlineBoletos')?.classList.toggle('hidden', !onlineBoletos);
+  $('cardFinanceiroBoletos')?.classList.toggle('hidden', !financeiroBoletos);
   $('cardPontosExtras')?.classList.toggle('hidden', !pontosExtras);
   $('cardProdutosGz')?.classList.toggle('hidden', !produtosGz);
   $('cardCartazes')?.classList.toggle('hidden', !cartazes);
@@ -316,11 +320,13 @@ function setModule(module) {
   $('ecommerceProdMenu')?.classList.toggle('hidden', module !== 'ecommerce-produtividade');
   $('scanntechMenu')?.classList.toggle('hidden', module !== 'scanntech');
   $('transferenciasAvariaMenu')?.classList.toggle('hidden', module !== 'transferencias-avaria');
+  $('onlineBoletosMenu')?.classList.toggle('hidden', module !== 'online-boletos');
+  $('financeiroBoletosMenu')?.classList.toggle('hidden', module !== 'financeiro-boletos');
   $('pontosExtrasMenu')?.classList.toggle('hidden', module !== 'pontos-extras');
   $('produtosGzMenu')?.classList.toggle('hidden', module !== 'produtos-gz');
   $('cartazesMenu')?.classList.toggle('hidden', module !== 'cartazes');
   $('btnHome')?.classList.toggle('active', module === 'home');
-  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', 'pedidos-galpao': 'Pedidos ao Galpão', rh: 'Módulo Recursos Humanos', recebimento: 'Recebimento e CPD', orcamentos: 'Orçamentos', pitstop: 'Pit Stop', 'manaira-rotas': 'Manaíra Rotas', 'ecommerce-produtividade': 'Produtividade E-commerce', scanntech: 'Scanntech', 'transferencias-avaria':'Prevenção e Avaria', 'pontos-extras': 'Pontos Extras', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes' };
+  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', 'pedidos-galpao': 'Pedidos ao Galpão', rh: 'Módulo Recursos Humanos', recebimento: 'Recebimento e CPD', orcamentos: 'Orçamentos', pitstop: 'Pit Stop', 'manaira-rotas': 'Manaíra Rotas', 'ecommerce-produtividade': 'Produtividade E-commerce', scanntech: 'Scanntech', 'transferencias-avaria':'Prevenção e Avaria', 'online-boletos':'Online', 'financeiro-boletos':'Financeiro', 'pontos-extras': 'Pontos Extras', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes' };
   if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Manaíra Board';
 }
 
@@ -343,6 +349,7 @@ function setView(view) {
   const isEcommerceProd = view === 'ecommerce-produtividade';
   const isScanntech = view === 'scanntech';
   const isTransferenciasAvaria=view==='transferencias-avaria';
+  const isSolicitacoesBoletos=view==='online-boletos'||view==='financeiro-boletos';
   const isPontosExtras = view === 'pontos-extras';
   const isProdutosGz = view === 'produtos-gz';
   const isCartazes = view === 'cartazes';
@@ -363,6 +370,7 @@ function setView(view) {
   $('ecommerceProdPanel')?.classList.toggle('hidden', !isEcommerceProd);
   $('scanntechPanel')?.classList.toggle('hidden', !isScanntech);
   $('transferenciasAvariaPanel')?.classList.toggle('hidden', !isTransferenciasAvaria);
+  $('solicitacoesBoletosPanel')?.classList.toggle('hidden', !isSolicitacoesBoletos);
   $('pontosExtrasPanel')?.classList.toggle('hidden', !isPontosExtras);
   $('produtosGzPanel')?.classList.toggle('hidden', !isProdutosGz);
   $('cartazesPanel')?.classList.toggle('hidden', !isCartazes);
@@ -6453,3 +6461,9 @@ $('cardScanntech')?.addEventListener('click',()=>window.abrirScanntech());
 document.querySelectorAll('[data-st-tab]').forEach(b=>b.addEventListener('click',()=>window.navegarScanntech(b.dataset.stTab)));
 
 $('cardTransferenciasAvaria')?.addEventListener('click',()=>window.abrirTransferenciasAvaria());
+
+
+// V74.29 — entradas independentes para Online e Financeiro.
+$('cardOnlineBoletos')?.addEventListener('click',()=>window.abrirSolicitacoesBoletos?.('online'));
+$('cardFinanceiroBoletos')?.addEventListener('click',()=>window.abrirSolicitacoesBoletos?.('financeiro'));
+document.querySelectorAll('[data-sb-area]').forEach(b=>b.addEventListener('click',()=>window.abrirSolicitacoesBoletos?.(b.dataset.sbArea)));
