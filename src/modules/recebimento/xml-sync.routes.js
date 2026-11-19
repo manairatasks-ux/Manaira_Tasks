@@ -55,6 +55,19 @@ const receberSync=run(async(req,res)=>{
  }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
 });
 router.use(auth,requireModuleAccess('recebimento_cpd'));
+// V74.30: monitor leve da recepção de XMLs. A Ponte V4.3 mantém o contrato
+// da V4.2: ambas as pastas enviam notas à mesma rota, com unicidade pela chave.
+// Esta consulta usa os XMLs já persistidos; não acessa a rede nem dispara sync.
+router.get('/xml-sync/resumo',run(async(req,res)=>{
+ const r=await query(`SELECT
+  COUNT(*)::int AS total,
+  COUNT(*) FILTER (WHERE xml_original IS NOT NULL)::int AS com_xml_integral,
+  COUNT(*) FILTER (WHERE recebido_nota_id IS NULL)::int AS aguardando_recebimento,
+  MAX(ultimo_sync) AS ultima_sincronizacao
+ FROM receb_xml_pendentes`);
+ res.setHeader('Cache-Control','no-store');
+ res.json({...(r.rows[0]||{}),modo:'origens_unificadas',detalhe:'XMLs da pasta atual e da pasta adicional são unificados pela chave da NF-e.'});
+}));
 router.get('/xml-pendentes',run(async(req,res)=>{
  const busca=text(req.query.busca,80);
  const r=await query(`SELECT chave,numero,serie,fornecedor,cnpj_fornecedor,valor,emissao_texto,autorizada,(xml_original IS NOT NULL) AS tem_danfe,(resumo_pdf IS NOT NULL) AS tem_pdf,primeiro_sync,ultimo_sync,recebido_nota_id
