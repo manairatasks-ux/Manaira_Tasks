@@ -29,6 +29,7 @@ const app=express();
 app.use(cors());
 // Apenas o webhook da Ponte recebe corpo bruto: HMAC precisa dos bytes originais.
 app.post('/api/recebimento/xml-sync',express.raw({type:'application/json',limit:'5mb'}),require('./modules/recebimento/xml-sync.routes').receberSync);
+app.post('/api/recebimento/xml-sync/inventario',express.raw({type:'application/json',limit:'5mb'}),require('./modules/recebimento/xml-sync.routes').receberInventario);
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 app.use(express.static(path.join(__dirname,'..','public')));

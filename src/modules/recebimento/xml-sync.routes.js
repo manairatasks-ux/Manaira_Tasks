@@ -9,6 +9,18 @@ const text=(v,n=200)=>String(v??'').trim().slice(0,n);
 const fail=(res,msg,status=400)=>res.status(status).json({error:msg});
 const run=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
 // Ponte envia apenas metadados de XML, nunca confirma recebimento físico.
+function validarAssinatura(req,res){
+ const secret=process.env.XML_SYNC_SECRET||'';
+ if(secret.length<24){fail(res,'Sincronização XML não configurada.',503);return null}
+ const timestamp=String(req.get('x-xml-timestamp')||'');
+ if(!/^\d{13}$/.test(timestamp)||Math.abs(Date.now()-Number(timestamp))>300000){fail(res,'Data da assinatura inválida.',401);return null}
+ const raw=Buffer.isBuffer(req.body)?req.body.toString('utf8'):'';
+ const provided=String(req.get('x-xml-signature')||'');
+ const expected=crypto.createHmac('sha256',secret).update(timestamp+'.'+raw).digest('hex');
+ if(!/^[a-f0-9]{64}$/.test(provided)||!crypto.timingSafeEqual(Buffer.from(provided),Buffer.from(expected))){fail(res,'Assinatura inválida.',401);return null}
+ try{return JSON.parse(raw)}catch{fail(res,'JSON inválido.');return null}
+}
+
 const receberSync=run(async(req,res)=>{
  const secret=process.env.XML_SYNC_SECRET||'';
  if(secret.length<24)return fail(res,'Sincronização XML não configurada.',503);
@@ -54,6 +66,68 @@ const receberSync=run(async(req,res)=>{
   await client.query('COMMIT');res.json({ok:true,recebidas:results.length});
  }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
 });
+// V74.31: fechado SOMENTE depois do ciclo completo da Ponte V4.4.
+// Assinatura HMAC igual à utilizada na sincronização individual.
+const receberInventario=run(async(req,res)=>{
+ const body=validarAssinatura(req,res);
+ if(!body)return;
+ if(body.completo!==true || !body.pastas || body.pastas.principal!==true || body.pastas.adicional!==true)
+  return fail(res,'Inventário incompleto: leitura integral das duas pastas é obrigatória.');
+ const ciclo=String(body.ciclo_id||'');
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ciclo))return fail(res,'Identificador do ciclo inválido.');
+ const a=body.chaves_principal,b=body.chaves_adicional;
+ if(!Array.isArray(a)||!Array.isArray(b)||a.length>3000||b.length>3000)return fail(res,'Listas de chaves inválidas.');
+ const chaveValida=c=>typeof c==='string'&&/^\d{44}$/.test(c);
+ if(!a.every(chaveValida)||!b.every(chaveValida)||new Set(a).size!==a.length||new Set(b).size!==b.length)
+  return fail(res,'Inventário contém chaves fiscais inválidas ou duplicadas.');
+ const c=await pool.connect();
+ try{
+  await c.query('BEGIN');
+  // Serializa ciclos em várias instâncias do Board.
+  await c.query("SELECT pg_advisory_xact_lock(hashtext('receb-xml-inventario-v7431'))");
+  const novo=await c.query(`INSERT INTO receb_xml_inventarios(ciclo_id,notas_principal,notas_adicional)
+   VALUES($1,$2,$3) ON CONFLICT(ciclo_id) DO NOTHING RETURNING ciclo_id`,[ciclo,a.length,b.length]);
+  if(!novo.rowCount){await c.query('COMMIT');return res.json({ok:true,duplicado:true,lancadas:0})}
+  // As chaves só podem estar disponíveis para contagem depois de terem
+  // aparecido em PELO MENOS UM inventário completo. Dados históricos sem
+  // essa observação jamais entram automaticamente em contagem retroativa.
+  // Uma pausa >30 min entre inventários reinicia a contagem para não
+  // contabilizar períodos sem verificação das pastas.
+  await c.query(`UPDATE receb_xml_pendentes x SET
+   presente_principal=(x.chave=ANY($1::varchar[])),
+   presente_adicional=(x.chave=ANY($2::varchar[])),
+   reapareceu_apos_auto=CASE WHEN (x.chave=ANY($1::varchar[]) OR x.chave=ANY($2::varchar[])) AND x.lancamento_automatico_em IS NOT NULL THEN TRUE ELSE x.reapareceu_apos_auto END,
+   ausente_desde=CASE
+    WHEN (x.chave=ANY($1::varchar[]) OR x.chave=ANY($2::varchar[])) THEN NULL
+    WHEN x.observado_inventario_em IS NULL THEN NULL
+    WHEN x.ultima_conferencia_em IS NULL OR x.ultima_conferencia_em < now()-interval '30 minutes' THEN now()
+    ELSE COALESCE(x.ausente_desde,now()) END,
+   observado_inventario_em=CASE WHEN (x.chave=ANY($1::varchar[]) OR x.chave=ANY($2::varchar[])) THEN now() ELSE x.observado_inventario_em END,
+   ultima_conferencia_em=now()
+   WHERE x.observado_inventario_em IS NOT NULL OR x.chave=ANY($1::varchar[]) OR x.chave=ANY($2::varchar[])`,[a,b]);
+  // Somente nota com recebimento CPD confirmado e sem pendência: ausência
+  // >=12h; manual e já lançadas nunca são sobrepostas.
+  const changed=await c.query(`UPDATE receb_notas n SET
+   status='LANCADA', lancado_em=now(), lancamento_origem='AUTOMATICO',atualizado_em=now()
+   FROM receb_xml_pendentes x
+   WHERE x.recebido_nota_id=n.id AND x.ausente_desde <= now()-interval '12 hours'
+    AND x.presente_principal=FALSE AND x.presente_adicional=FALSE
+    AND x.ultima_conferencia_em >= now()-interval '2 minutes'
+    AND x.lancamento_automatico_em IS NULL
+    AND n.status='RECEBIDA_CPD' AND n.cpd_recebido_em IS NOT NULL
+    AND COALESCE(btrim(n.pendencia),'')=''
+    AND n.lancado_em IS NULL AND n.lancamento_origem IS NULL
+   RETURNING n.id,n.numero`,[]);
+  for(const n of changed.rows){
+   await c.query(`UPDATE receb_xml_pendentes SET lancamento_automatico_em=now() WHERE recebido_nota_id=$1`,[n.id]);
+   await c.query(`INSERT INTO receb_eventos(nota_id,usuario_id,acao,detalhes)
+      VALUES($1,NULL,'LANCAMENTO_AUTOMATICO',$2)`,[n.id,'Classificação automática no Board após 12h de ausência confirmada nas duas pastas; NÃO é lançamento fiscal efetuado no GZ.']);
+  }
+  await c.query('UPDATE receb_xml_inventarios SET lancadas_automaticamente=$2 WHERE ciclo_id=$1',[ciclo,changed.rowCount]);
+  await c.query('COMMIT');
+  return res.json({ok:true,lancadas:changed.rowCount,concluido_em:new Date().toISOString()});
+ }catch(err){await c.query('ROLLBACK');throw err}finally{c.release()}
+});
 router.use(auth,requireModuleAccess('recebimento_cpd'));
 // V74.30: monitor leve da recepção de XMLs. A Ponte V4.3 mantém o contrato
 // da V4.2: ambas as pastas enviam notas à mesma rota, com unicidade pela chave.
@@ -63,16 +137,23 @@ router.get('/xml-sync/resumo',run(async(req,res)=>{
   COUNT(*)::int AS total,
   COUNT(*) FILTER (WHERE xml_original IS NOT NULL)::int AS com_xml_integral,
   COUNT(*) FILTER (WHERE recebido_nota_id IS NULL)::int AS aguardando_recebimento,
-  MAX(ultimo_sync) AS ultima_sincronizacao
+  MAX(ultimo_sync) AS ultima_sincronizacao,
+  COUNT(*) FILTER(WHERE ausente_desde IS NOT NULL AND lancamento_automatico_em IS NULL)::int AS ausencia_monitorada,
+  COUNT(*) FILTER(WHERE lancamento_automatico_em IS NOT NULL)::int AS lancadas_automaticamente
  FROM receb_xml_pendentes`);
  res.setHeader('Cache-Control','no-store');
- res.json({...(r.rows[0]||{}),modo:'origens_unificadas',detalhe:'XMLs da pasta atual e da pasta adicional são unificados pela chave da NF-e.'});
+ const last=await query('SELECT criado_em,notas_principal,notas_adicional,lancadas_automaticamente FROM receb_xml_inventarios ORDER BY criado_em DESC LIMIT 1');
+ res.json({...(r.rows[0]||{}),ultimo_inventario:last.rows[0]||null,modo:'duas_pastas_monitoradas',detalhe:'Ausência requer inventários completos e consecutivos da Ponte V4.4.'});
 }));
 router.get('/xml-pendentes',run(async(req,res)=>{
  const busca=text(req.query.busca,80);
- const r=await query(`SELECT chave,numero,serie,fornecedor,cnpj_fornecedor,valor,emissao_texto,autorizada,(xml_original IS NOT NULL) AS tem_danfe,(resumo_pdf IS NOT NULL) AS tem_pdf,primeiro_sync,ultimo_sync,recebido_nota_id
- FROM receb_xml_pendentes WHERE ($1='' OR fornecedor ILIKE '%'||$1||'%' OR numero ILIKE '%'||$1||'%' OR chave ILIKE '%'||$1||'%')
- ORDER BY ultimo_sync DESC,chave DESC LIMIT 400`,[busca]);res.json(r.rows);
+ const r=await query(`SELECT x.chave,x.numero,x.serie,x.fornecedor,x.cnpj_fornecedor,x.valor,x.emissao_texto,x.autorizada,
+ (x.xml_original IS NOT NULL) AS tem_danfe,(x.resumo_pdf IS NOT NULL) AS tem_pdf,x.primeiro_sync,x.ultimo_sync,x.recebido_nota_id,
+ x.presente_principal,x.presente_adicional,x.ausente_desde,x.lancamento_automatico_em,x.reapareceu_apos_auto,
+ n.status AS status_recebimento,n.lancamento_origem
+ FROM receb_xml_pendentes x LEFT JOIN receb_notas n ON n.id=x.recebido_nota_id
+ WHERE ($1='' OR x.fornecedor ILIKE '%'||$1||'%' OR x.numero ILIKE '%'||$1||'%' OR x.chave ILIKE '%'||$1||'%')
+ ORDER BY x.ultimo_sync DESC,x.chave DESC LIMIT 400`,[busca]);res.json(r.rows);
 }));
 
 // O XML integral preservado é a fonte oficial dos dados fiscais desta visualização.
@@ -122,4 +203,4 @@ router.post('/xml-pendentes/receber',run(async(req,res)=>{
   await client.query('COMMIT');res.json({resultados:result,registradas:result.filter(x=>x.status==='recebida').length});
  }catch(e){await client.query('ROLLBACK');if(e.code==='23505')return fail(res,'Conflito de duplicidade no cadastro. Atualize a lista e tente novamente.',409);throw e}finally{client.release()}
 }));
-module.exports={router,receberSync};
+module.exports={router,receberSync,receberInventario};

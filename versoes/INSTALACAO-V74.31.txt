@@ -1,0 +1,14 @@
+MANAIRA BOARD V74.31 - RECEBIMENTO E CPD - AUTOMATICO 12H
+
+1. Fazer BACKUP do PostgreSQL.
+2. Colocar esta versao no servidor do Board, preservando .env de producao.
+3. Iniciar o Board, que aplica as migracoes aditivas via src/init-db.js.
+4. Depois atualizar a Ponte GZ para V4.4 usando seu .env atual.
+5. Confirmar em Recebimento e CPD > Notas disponiveis (XML) o ultimo inventario completo.
+
+Somente quando um XML previamente visto em inventario completo desaparecer das duas pastas
+por 12 horas de inventarios consecutivos, e a nota estiver recebida/confirmada pelo CPD
+sem pendencia ou lancamento previo, o acompanhamento sera classificado como AUTO.
+
+NAO LANCAMOS NOTAS FISCAIS NO GZ, APENAS STATUS INTERNO DO BOARD.
+Leia versoes/LEIA-ME-V74.31-LANCAMENTO-AUTOMATICO-12H.md.

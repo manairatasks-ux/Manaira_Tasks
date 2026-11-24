@@ -65,7 +65,7 @@ router.get('/notas/painel',asyncRoute(async(req,res)=>{
   if(!quantidade){resultado.grupos[chave]={total:0,pagina:1,paginas:1,itens:[]};return;}
   const itens=await query(`SELECT n.id,n.codigo_fornecedor,n.fornecedor,n.numero,n.serie,n.valor,
     n.origem,n.recebido_em,n.recebido_por,n.status,n.cpd_recebido_em,n.cpd_recebido_por,
-    n.pendencia,n.observacao,u.nome AS recebido_por_nome,c.nome AS cpd_por_nome
+    n.pendencia,n.observacao,n.lancamento_origem,u.nome AS recebido_por_nome,c.nome AS cpd_por_nome
     FROM receb_notas n
     JOIN usuarios u ON u.id=n.recebido_por
     LEFT JOIN usuarios c ON c.id=n.cpd_recebido_por
@@ -156,13 +156,13 @@ router.post('/notas/:id/acao',asyncRoute(async(req,res)=>{
   if(nota.status==='LANCADA' && acao!=='RECEBER_CPD'){await c.query('ROLLBACK');return bad(res,'Nota já lançada.');}
   if(['PENDENCIA','DIVERGENCIA'].includes(acao) && obs.length<5){await c.query('ROLLBACK');return bad(res,'Informe a descrição da pendência.');}
   const status={RECEBER_CPD:'RECEBIDA_CPD',PENDENCIA:'PRODUTOS_CADASTRAR',LANCAR:'LANCADA',DIVERGENCIA:'DIVERGENCIA',RESOLVER:'RECEBIDA_CPD'}[acao];
-  await c.query(`UPDATE receb_notas SET status=$2, cpd_recebido_em=CASE WHEN $3='RECEBER_CPD' THEN now() ELSE cpd_recebido_em END,cpd_recebido_por=CASE WHEN $3='RECEBER_CPD' THEN $4 ELSE cpd_recebido_por END,lancado_em=CASE WHEN $3='LANCAR' THEN now() ELSE lancado_em END,lancado_por=CASE WHEN $3='LANCAR' THEN $4 ELSE lancado_por END,pendencia=CASE WHEN $3 IN ('PENDENCIA','DIVERGENCIA') THEN $5 WHEN $3='RESOLVER' THEN '' ELSE pendencia END,atualizado_em=now() WHERE id=$1`,[id,status,acao,req.user.id,obs]);
+  await c.query(`UPDATE receb_notas SET status=$2, cpd_recebido_em=CASE WHEN $3='RECEBER_CPD' THEN now() ELSE cpd_recebido_em END,cpd_recebido_por=CASE WHEN $3='RECEBER_CPD' THEN $4 ELSE cpd_recebido_por END,lancado_em=CASE WHEN $3='LANCAR' THEN now() ELSE lancado_em END,lancamento_origem=CASE WHEN $3='LANCAR' THEN 'MANUAL' ELSE lancamento_origem END,lancado_por=CASE WHEN $3='LANCAR' THEN $4 ELSE lancado_por END,pendencia=CASE WHEN $3 IN ('PENDENCIA','DIVERGENCIA') THEN $5 WHEN $3='RESOLVER' THEN '' ELSE pendencia END,atualizado_em=now() WHERE id=$1`,[id,status,acao,req.user.id,obs]);
   await c.query('INSERT INTO receb_eventos(nota_id,usuario_id,acao,detalhes) VALUES($1,$2,$3,$4)',[id,req.user.id,acao,obs]);
   await c.query('COMMIT');res.json({ok:true,status});
  }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
 }));
 router.get('/notas/:id/eventos',asyncRoute(async(req,res)=>{
- const r=await query('SELECT e.*,u.nome AS usuario FROM receb_eventos e JOIN usuarios u ON u.id=e.usuario_id WHERE e.nota_id=$1 ORDER BY e.criado_em DESC',[req.params.id]);res.json(r.rows);
+ const r=await query("SELECT e.*,COALESCE(u.nome,'Sistema automático') AS usuario FROM receb_eventos e LEFT JOIN usuarios u ON u.id=e.usuario_id WHERE e.nota_id=$1 ORDER BY e.criado_em DESC",[req.params.id]);res.json(r.rows);
 }));
 router.get('/caminhoes',asyncRoute(async(req,res)=>{
  const dia=validDate(req.query.dia)?req.query.dia:null;
