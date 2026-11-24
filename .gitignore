@@ -3,3 +3,4 @@ node_modules/
 uploads/*
 !uploads/.gitkeep
 limpar-testes-prevencao-avaria.js
+verificar-xmls-recebimento.js
