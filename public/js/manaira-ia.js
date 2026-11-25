@@ -25,13 +25,29 @@
     const button=form?.querySelector('button[type="submit"]'); if(button)button.disabled=true;
     try{
       const reply=await api('/api/manaira-ia/perguntar',{method:'POST',body:JSON.stringify({pergunta:question,periodo:period})});
-      appendMessage('bot',reply.answer,`${reply.engine} · ${reply.periodDays} dias · Fonte: Galpão`);
+      if(reply.jobId){
+        appendMessage('bot','Consultando Qwen no seu computador...','Aguardando agente Ollama');
+        const placeholder=history.length-1;
+        const started=Date.now();
+        while(Date.now()-started<190000){
+          await new Promise(resolve=>setTimeout(resolve,2500));
+          const status=await api('/api/manaira-ia/resposta/'+encodeURIComponent(reply.jobId));
+          if(status.status==='pending')continue;
+          history[placeholder]={role:'bot',content:status.answer,meta:`${status.engine} · ${reply.periodDays} dias · Fonte: Galpão`};
+          renderMessages();
+          break;
+        }
+        if(history[placeholder]?.content==='Consultando Qwen no seu computador...'){
+          history[placeholder]={role:'bot',content:'O agente local não respondeu a tempo. Atualize a consulta ou confira se está em execução.',meta:'Falha de comunicação com Ollama'};
+          renderMessages();
+        }
+      }else appendMessage('bot',reply.answer,`${reply.engine} · ${reply.periodDays} dias · Fonte: Galpão`);
     }catch(e){appendMessage('bot','Não foi possível consultar o Galpão: '+e.message);}
     finally{if(button)button.disabled=false;}
   }
   async function render(){
     if(!canUse())return;
-    setModule('manaira-ia');setView('manaira-ia');history.replaceState(null,'','#manaira-ia');
+    setModule('manaira-ia');setView('manaira-ia');window.history.replaceState(null,'','#manaira-ia');
     out.innerHTML='<div class="mia-loading">Consultando dados do Galpão...</div>';
     try{
       const d=await api('/api/manaira-ia/dashboard?periodo='+period);

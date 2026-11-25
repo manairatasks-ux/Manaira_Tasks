@@ -8,9 +8,10 @@ const pedidosSync=require('./modules/pedidos-galpao/pedidos-galpao.service');
 (async()=>{
   try{
     await initDb();
+    await require('./modules/manaira-ia/routes').initIaJobs();
     await pedidosSync.init();
     pedidosSync.startScheduler();
-    app.listen(port,()=>{ console.log(`Manaíra Board V74.31 rodando na porta ${port}`); });
+    app.listen(port,()=>{ console.log(`Manaíra Board V74.33 rodando na porta ${port}`); });
   }catch(err){
     console.error('Erro ao iniciar a aplicação:',err);
     process.exit(1);

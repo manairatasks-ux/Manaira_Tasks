@@ -4,3 +4,4 @@ uploads/*
 !uploads/.gitkeep
 limpar-testes-prevencao-avaria.js
 verificar-xmls-recebimento.js
+agente-ollama-windows
