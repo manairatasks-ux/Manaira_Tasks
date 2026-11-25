@@ -1,0 +1,46 @@
+/* Manaíra IA V1 — estilos isolados */
+.mia-floating{position:fixed;right:23px;bottom:24px;z-index:700}
+.mia-floating.hidden,.mia-drawer.hidden{display:none!important}
+.mia-floating button{height:55px;width:55px;border-radius:50%;border:0;background:#234d79;color:white;font-size:30px;box-shadow:0 8px 24px #0b2d5266;cursor:pointer}
+.mia-drawer{position:fixed;right:22px;bottom:90px;width:min(400px,calc(100vw - 24px));height:min(550px,calc(100vh - 110px));background:#fff;z-index:800;border-radius:18px;box-shadow:0 14px 60px #071c3b40;display:flex;flex-direction:column;border:1px solid #d8e2ee;overflow:hidden}
+.mia-drawer-head{display:flex;align-items:center;justify-content:space-between;background:#173d63;color:white;padding:15px 18px}
+.mia-drawer-head button{border:0;background:transparent;color:#fff;font-size:24px;cursor:pointer}
+.mia-messages{flex:1;overflow-y:auto;min-height:150px;display:flex;flex-direction:column;gap:12px;padding:15px;background:#f8fbfe}
+.mia-message{max-width:96%;white-space:pre-wrap;overflow-wrap:anywhere;padding:12px 14px;border-radius:13px;line-height:1.45;font-size:14px}
+.mia-message.user{align-self:flex-end;background:#dcecfb;color:#183957}
+.mia-message.bot{align-self:flex-start;background:white;color:#20354a;border:1px solid #e0eaf3}
+.mia-message small{display:block;color:#697d91;font-size:11px;margin-top:8px}
+.mia-chat-form{display:flex;gap:7px;padding:12px;background:white;border-top:1px solid #dfe7ef}
+.mia-chat-form input{flex:1;min-width:0;border:1px solid #ccdbe8;border-radius:9px;padding:11px;font:inherit}
+.mia-chat-form button,.mia-top-actions button{background:#205a88;color:#fff;border:0;border-radius:9px;padding:10px 16px;cursor:pointer;font:inherit}
+.mia-chat-form button:disabled{opacity:.6}
+.mia-page{max-width:1250px;margin:0 auto;padding:22px 24px;color:#1b344e}
+.mia-top{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
+.mia-top h2{font-size:28px;margin:4px 0}
+.mia-top p{color:#6d7d90;margin:4px 0}
+.mia-kicker{letter-spacing:1.5px;font-weight:700;font-size:11px;color:#356389}
+.mia-top-actions{display:flex;gap:8px}
+.mia-top-actions select{border:1px solid #d1deeb;border-radius:9px;padding:10px;background:#fff}
+.mia-meta{font-size:12px;color:#71859b;margin:15px 0}
+.mia-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}
+.mia-stat,.mia-panel{background:#fff;border:1px solid #e0e8f0;border-radius:13px;padding:19px;box-shadow:0 3px 12px #0b294610}
+.mia-stat span{display:block;font-size:13px;color:#63768a}
+.mia-stat strong{display:block;font-size:28px;margin-top:8px}
+.mia-cols{display:grid;grid-template-columns:1.1fr 1fr;gap:14px}
+.mia-panel h3{font-size:18px;margin:3px 0 15px}
+.mia-movement{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.mia-movement>div{border-radius:10px;background:#eef5fa;padding:14px}
+.mia-movement span,.mia-movement small{display:block;color:#546c82;font-size:12px}
+.mia-movement strong{display:block;font-size:24px;margin:7px 0}
+.mia-table-wrap{overflow-x:auto}
+.mia-table-wrap table{width:100%;border-collapse:collapse;font-size:13px}
+.mia-table-wrap th,.mia-table-wrap td{border-bottom:1px solid #e5edf3;text-align:left;padding:10px}
+.mia-advice{padding:13px;margin:9px 0;background:#f3f7fb;border-left:3px solid #4273a3;border-radius:7px}
+.mia-advice p{margin:7px 0;color:#344d64;font-size:13px}
+.mia-advice small,.mia-disclaimer{color:#71849a;font-size:12px}
+.mia-chat-main{margin-top:14px}
+.mia-chat-main>.mia-messages{height:280px}
+.mia-chat-main>p{color:#61748a;font-size:13px}
+.mia-loading{padding:30px}
+@media(max-width:900px){.mia-cards{grid-template-columns:repeat(2,1fr)}.mia-cols{grid-template-columns:1fr}}
+@media(max-width:520px){.mia-cards{grid-template-columns:1fr 1fr}.mia-page{padding:12px}.mia-stat{padding:12px}.mia-stat strong{font-size:22px}.mia-drawer{right:12px;bottom:78px}}

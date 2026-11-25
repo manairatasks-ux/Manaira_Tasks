@@ -227,6 +227,8 @@ function configurarMenuPorPerfil() {
   $('cardAdmin')?.classList.toggle('hidden', !admin);
   $('cardAlmoxarifado')?.classList.toggle('hidden', !almox);
   $('cardGalpao')?.classList.toggle('hidden', !galpao);
+  $('cardManairaIa')?.classList.toggle('hidden', perfil !== 'administrador_principal');
+  $('manairaIaFloating')?.classList.toggle('hidden', perfil !== 'administrador_principal');
   $('cardPedidosGalpao')?.classList.toggle('hidden', !pedidosGalpao);
   $('cardRH')?.classList.toggle('hidden', !rh);
   $('cardRecebimento')?.classList.toggle('hidden', !recebimento);
@@ -311,6 +313,7 @@ function setModule(module) {
   $('adminMenu')?.classList.toggle('hidden', module !== 'admin');
   $('almoxMenu')?.classList.toggle('hidden', module !== 'almoxarifado');
   $('galpaoMenu')?.classList.toggle('hidden', module !== 'galpao');
+  $('manairaIaMenu')?.classList.toggle('hidden', module !== 'manaira-ia');
   $('pedidosGalpaoMenu')?.classList.toggle('hidden', module !== 'pedidos-galpao');
   $('rhMenu')?.classList.toggle('hidden', module !== 'rh');
   $('recebimentoMenu')?.classList.toggle('hidden', module !== 'recebimento');
@@ -326,7 +329,7 @@ function setModule(module) {
   $('produtosGzMenu')?.classList.toggle('hidden', module !== 'produtos-gz');
   $('cartazesMenu')?.classList.toggle('hidden', module !== 'cartazes');
   $('btnHome')?.classList.toggle('active', module === 'home');
-  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', 'pedidos-galpao': 'Pedidos ao Galpão', rh: 'Módulo Recursos Humanos', recebimento: 'Recebimento e CPD', orcamentos: 'Orçamentos', pitstop: 'Pit Stop', 'manaira-rotas': 'Manaíra Rotas', 'ecommerce-produtividade': 'Produtividade E-commerce', scanntech: 'Scanntech', 'transferencias-avaria':'Prevenção e Avaria', 'online-boletos':'Online', 'financeiro-boletos':'Financeiro', 'pontos-extras': 'Pontos Extras', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes' };
+  const labels = { home: 'Central de módulos', atividades: 'Módulo Atividades', os: 'Módulo Ordem de Serviço', admin: 'Administração', almoxarifado: 'Módulo Almoxarifado', galpao: 'Módulo Galpão', 'pedidos-galpao': 'Pedidos ao Galpão', rh: 'Módulo Recursos Humanos', recebimento: 'Recebimento e CPD', orcamentos: 'Orçamentos', pitstop: 'Pit Stop', 'manaira-rotas': 'Manaíra Rotas', 'ecommerce-produtividade': 'Produtividade E-commerce', scanntech: 'Scanntech', 'transferencias-avaria':'Prevenção e Avaria', 'online-boletos':'Online', 'financeiro-boletos':'Financeiro', 'pontos-extras': 'Pontos Extras', 'produtos-gz': 'Consulta de Produtos', cartazes: 'Módulo Cartazes', 'manaira-ia': 'Manaíra IA' };
   if ($('moduleLabel')) $('moduleLabel').textContent = labels[module] || 'Manaíra Board';
 }
 
@@ -340,6 +343,7 @@ function setView(view) {
   const isConfig = view === 'config';
   const isAlmox = view === 'almoxarifado';
   const isGalpao = view === 'galpao';
+  const isManairaIa = view === 'manaira-ia';
   const isPedidosGalpao = view === 'pedidos-galpao';
   const isRH = view === 'rh';
   const isRecebimento = view === 'recebimento';
@@ -361,6 +365,7 @@ function setView(view) {
   $('configPanel')?.classList.toggle('hidden', !isConfig);
   $('almoxPanel')?.classList.toggle('hidden', !isAlmox);
   $('galpaoPanel')?.classList.toggle('hidden', !isGalpao);
+  $('manairaIaPanel')?.classList.toggle('hidden', !isManairaIa);
   $('pedidosGalpaoPanel')?.classList.toggle('hidden', !isPedidosGalpao);
   $('rhPanel')?.classList.toggle('hidden', !isRH);
   $('recebimentoPanel')?.classList.toggle('hidden', !isRecebimento);

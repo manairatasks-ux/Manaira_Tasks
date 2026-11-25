@@ -43,6 +43,7 @@ app.use('/api',moduloRoutes);
 app.use('/api/usuarios',usuarioRoutes);
 app.use('/api/almoxarifado',almoxarifadoRoutes);
 app.use('/api/galpao',galpaoRoutes);
+app.use('/api/manaira-ia',require('./modules/manaira-ia/routes'));
 app.use('/api/pedidos-galpao',pedidosGalpaoRoutes);
 app.use('/api/recebimento',require('./modules/recebimento/xml-sync.routes').router);
 app.use('/api/recebimento',recebimentoRoutes);
