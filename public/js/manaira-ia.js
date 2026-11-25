@@ -2,6 +2,7 @@
 (function(){
   let period=30;
   let history=[];
+  let sending=false;
   const out=document.getElementById('manairaIaPanel');
   const drawer=document.getElementById('miaDrawer');
   const messages=document.getElementById('miaDrawerMessages');
@@ -12,19 +13,34 @@
     if(history.length>30)history=history.slice(-30);
     renderMessages();
   }
+  function renderTable(table){
+    if(!table||!Array.isArray(table.rows)||!table.rows.length)return '';
+    const cols=Array.isArray(table.columns)?table.columns:[];
+    return `<div class="mia-inline-table"><table><thead><tr>${cols.map(c=>`<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${table.rows.map(r=>`<tr>${cols.map(c=>`<td>${esc(r[c.key])}</td>`).join('')}</tr>`).join('')}</tbody></table></div><button class="mia-copy" type="button" data-mia-copy="1">Copiar tabela</button>`;
+  }
   function renderMessages(){
-    const html=history.map(m=>`<div class="mia-message ${m.role}"><div>${esc(m.content)}</div>${m.meta?`<small>${esc(m.meta)}</small>`:''}</div>`).join('');
-    messages.innerHTML=html||'<div class="mia-message bot">Pergunte sobre estoque, entradas, saídas, validades ou tendências do Galpão.</div>';
-    messages.scrollTop=messages.scrollHeight;
-    const main=document.getElementById('miaMainMessages');if(main){main.innerHTML=messages.innerHTML;main.scrollTop=main.scrollHeight;}
+    const html=history.map(m=>`<div class="mia-message ${m.role}"><div>${esc(m.content)}</div>${m.table?renderTable(m.table):''}${m.meta?`<button type="button" class="mia-source" title="Fonte dos dados">ⓘ Fonte</button><small class="mia-source-detail" hidden>${esc(m.meta)}</small>`:''}</div>`).join('');
+    messages.innerHTML=html||'<div class="mia-message bot">Pergunte sobre estoque, entradas, saídas ou validades do Galpão.</div>';
+    const main=document.getElementById('miaMainMessages');if(main)main.innerHTML=messages.innerHTML;
+    [messages,main].filter(Boolean).forEach(el=>{
+      el.querySelectorAll('[data-mia-copy]').forEach((btn,i)=>btn.onclick=()=>{
+        const container=btn.closest('.mia-message');const table=container?.querySelector('table');
+        if(!table)return;const data=[...table.rows].map(row=>[...row.cells].map(cell=>cell.textContent).join('\t')).join('\n');
+        navigator.clipboard.writeText(data).then(()=>{btn.textContent='Copiado!';}).catch(()=>{btn.textContent='Não foi possível copiar';});
+      });
+      el.querySelectorAll('.mia-source').forEach(btn=>btn.onclick=()=>{const detail=btn.nextElementSibling;detail.hidden=!detail.hidden;});
+      el.scrollTop=el.scrollHeight;
+    });
   }
   function canUse(){return state?.usuario?.perfil==='administrador_principal';}
   async function ask(question,form){
-    if(!canUse())return;
+    if(!canUse()||sending)return;
+    const previous=[...history].reverse().find(x=>x.role==='user')?.content||'';
+    sending=true;
     appendMessage('user',question);
     const button=form?.querySelector('button[type="submit"]'); if(button)button.disabled=true;
     try{
-      const reply=await api('/api/manaira-ia/perguntar',{method:'POST',body:JSON.stringify({pergunta:question,periodo:period})});
+      const reply=await api('/api/manaira-ia/perguntar',{method:'POST',body:JSON.stringify({pergunta:question,perguntaAnterior:previous,periodo:period})});
       if(reply.jobId){
         appendMessage('bot','Consultando Qwen no seu computador...','Aguardando agente Ollama');
         const placeholder=history.length-1;
@@ -41,9 +57,9 @@
           history[placeholder]={role:'bot',content:'O agente local não respondeu a tempo. Atualize a consulta ou confira se está em execução.',meta:'Falha de comunicação com Ollama'};
           renderMessages();
         }
-      }else appendMessage('bot',reply.answer,`${reply.engine} · ${reply.periodDays} dias · Fonte: Galpão`);
+      }else {appendMessage('bot',reply.answer,reply.source||`${reply.engine} · Fonte: Galpão`);if(reply.table){history[history.length-1].table=reply.table;renderMessages();}}
     }catch(e){appendMessage('bot','Não foi possível consultar o Galpão: '+e.message);}
-    finally{if(button)button.disabled=false;}
+    finally{sending=false;if(button)button.disabled=false;}
   }
   async function render(){
     if(!canUse())return;

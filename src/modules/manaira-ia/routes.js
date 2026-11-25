@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { auth } = require('../../middlewares/auth.middleware');
 const { get, all, query } = require('../../config/database');
 const crypto = require('crypto');
+const { detailed } = require('./consultas-galpao');
 
 const safeNum = n => Number(n)||0;
 const fmt = n => new Intl.NumberFormat('pt-BR').format(safeNum(n));
@@ -156,8 +157,11 @@ router.get('/resposta/:id',async(req,res)=>{
 });
 router.post('/perguntar',async(req,res)=>{
   const question=String(req.body?.pergunta||'').trim();
+  const previous=String(req.body?.perguntaAnterior||'').slice(0,500);
   if(!question||question.length>500)return res.status(400).json({error:'Informe uma pergunta de até 500 caracteres.'});
   try {
+    const detail=await detailed(question,previous);
+    if(detail)return res.json({...detail,engine:'Consulta direta ao Galpão'});
     const data=await collect(req.body?.periodo);
     const fallback=localAnswer(question,data);
     if(!workerEnabled())return res.json({answer:fallback,engine:'Análise por indicadores · Agente local não configurado',periodDays:data.periodDays,generatedAt:data.generatedAt,sources:data.sources,notes:data.notes});
@@ -165,7 +169,7 @@ router.post('/perguntar',async(req,res)=>{
     if(Number(active?.total||0)>=2)return res.status(429).json({error:'Já existem perguntas aguardando a IA. Aguarde a resposta anterior.'});
     const id=crypto.randomUUID();
     // Contexto é preparado pelo servidor, nunca um SQL ou consulta enviada pelo modelo.
-    const context={periodDays:data.periodDays,generatedAt:data.generatedAt,summary:data.summary,movements:data.movements,topMovements:data.topMovements.slice(0,10),expiration:data.expiration.slice(0,15),recent:data.recent.slice(0,6),trend:data.trend.slice(-40),sources:data.sources,notes:data.notes};
+    const context={previousQuestion:previous,periodDays:data.periodDays,generatedAt:data.generatedAt,summary:data.summary,movements:data.movements,topMovements:data.topMovements.slice(0,10),expiration:data.expiration.slice(0,15),recent:data.recent.slice(0,6),trend:data.trend.slice(-40),sources:data.sources,notes:data.notes};
     await query(`INSERT INTO manaira_ia_jobs (id,user_id,question,context,fallback) VALUES ($1,$2,$3,$4::jsonb,$5)`,[id,req.user.id,question,JSON.stringify(context),fallback]);
     res.status(202).json({jobId:id,status:'pending',periodDays:data.periodDays,generatedAt:data.generatedAt,sources:data.sources,notes:data.notes});
   }catch(e){console.error('[Manaíra IA pergunta]',e.message);res.status(500).json({error:'Não foi possível consultar os dados do Galpão.'});}
