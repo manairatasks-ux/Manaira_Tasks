@@ -49,3 +49,10 @@ ALTER TABLE pe_recebimentos ADD COLUMN IF NOT EXISTS numero_nota TEXT;
 ALTER TABLE pe_recebimentos ADD COLUMN IF NOT EXISTS duplicata TEXT;
 ALTER TABLE pe_recebimentos ADD COLUMN IF NOT EXISTS parcela TEXT;
 ALTER TABLE pe_recebimentos ADD COLUMN IF NOT EXISTS numero_boleto TEXT;
+
+-- V74.38: nova modalidade comercial, com vínculo opcional ao ponto extra.
+ALTER TABLE pe_contratos ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'individual';
+ALTER TABLE pe_contratos ADD COLUMN IF NOT EXISTS descricao TEXT;
+ALTER TABLE pe_contratos ADD COLUMN IF NOT EXISTS numero TEXT;
+ALTER TABLE pe_contratos ALTER COLUMN ponto_id DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_pe_contratos_tipo ON pe_contratos(tipo,inicio,fim);
