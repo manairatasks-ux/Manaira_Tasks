@@ -50,3 +50,15 @@ CREATE TABLE IF NOT EXISTS receb_xml_inventarios (
  lancadas_automaticamente INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS receb_xml_inventarios_criado_idx ON receb_xml_inventarios(criado_em DESC);
+
+-- V74.35: telemetria de acompanhamento. Isolada do estado fiscal e da automação.
+CREATE TABLE IF NOT EXISTS receb_xml_relatorios_parciais (
+ gerado_em TIMESTAMPTZ PRIMARY KEY,
+ recebido_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+ examinados INTEGER NOT NULL CHECK (examinados>=0),
+ sincronizadas INTEGER NOT NULL CHECK (sincronizadas>=0),
+ duplicidades INTEGER NOT NULL CHECK (duplicidades>=0),
+ detalhes JSONB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS receb_xml_relatorios_parciais_recebido_idx
+ ON receb_xml_relatorios_parciais(recebido_em DESC);

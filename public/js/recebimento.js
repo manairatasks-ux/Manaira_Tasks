@@ -119,7 +119,7 @@
   }
   async function xmlDisponiveis(){
     const area=document.getElementById('recBody');
-    area.innerHTML=`<section class="rec-card"><div class="rec-top"><div><h3>Notas disponíveis na rede</h3><p class="rec-muted">São notas encontradas nos XMLs. Elas só entram no Recebimento após confirmação física. Nenhuma foto obrigatória nesta etapa.</p></div><button class="rec-btn secondary" id="xmlAtualizar">Atualizar lista</button></div><div class="rec-grid"><div><label>Buscar fornecedor, nota ou chave</label><input class="rec-filter" id="xmlBusca" placeholder="Ex.: Coca-Cola"></div><div><label>Origem dos documentos recebidos</label><select class="rec-filter" id="xmlOrigem"><option value="PAPEL">Papel</option><option value="MENSAGEM">Mensagem</option></select></div></div><p><button class="rec-btn secondary" id="xmlTodos">Selecionar disponíveis</button> <button class="rec-btn" id="xmlConfirmar">Confirmar recebimento físico das selecionadas</button></p><p class="rec-muted" id="xmlMonitor" role="status">Verificando última sincronização...</p><p class="rec-muted" id="xmlInfo">Carregando...</p><div class="rec-table-wrap"><table class="rec-table"><thead><tr><th></th><th>Fornecedor</th><th>NF / Série</th><th>Emissão</th><th>Valor</th><th>DANFE / XML</th><th>Disponibilidade</th></tr></thead><tbody id="xmlLinhas"></tbody></table></div></section>`;
+    area.innerHTML=`<section class="rec-card"><div class="rec-top"><div><h3>Notas disponíveis na rede</h3><p class="rec-muted">São notas encontradas nos XMLs. Elas só entram no Recebimento após confirmação física. Nenhuma foto obrigatória nesta etapa.</p></div><button class="rec-btn secondary" id="xmlAtualizar">Atualizar lista</button></div><div class="rec-grid"><div><label>Buscar fornecedor, nota ou chave</label><input class="rec-filter" id="xmlBusca" placeholder="Ex.: Coca-Cola"></div><div><label>Origem dos documentos recebidos</label><select class="rec-filter" id="xmlOrigem"><option value="PAPEL">Papel</option><option value="MENSAGEM">Mensagem</option></select></div></div><p><button class="rec-btn secondary" id="xmlTodos">Selecionar disponíveis</button> <button class="rec-btn" id="xmlConfirmar">Confirmar recebimento físico das selecionadas</button></p><p class="rec-muted" id="xmlMonitor" role="status">Verificando última sincronização...</p><div class="rec-inventory-monitor" id="xmlInventarioResumo" aria-live="polite"></div><details class="rec-inventory-history"><summary>Histórico das verificações das pastas</summary><div id="xmlInventarioHistorico" class="rec-muted">Carregando histórico...</div></details><p class="rec-muted" id="xmlInfo">Carregando...</p><div class="rec-table-wrap"><table class="rec-table"><thead><tr><th></th><th>Fornecedor</th><th>NF / Série</th><th>Emissão</th><th>Valor</th><th>DANFE / XML</th><th>Disponibilidade</th></tr></thead><tbody id="xmlLinhas"></tbody></table></div></section>`;
     const carregar=async()=>{
       const dados=await api('/api/recebimento/xml-pendentes?busca='+encodeURIComponent(document.getElementById('xmlBusca').value.trim()));
       const tr=document.getElementById('xmlLinhas');
@@ -132,7 +132,22 @@
         const resumo=await api('/api/recebimento/xml-sync/resumo');
         const ultima=resumo.ultima_sincronizacao?data(resumo.ultima_sincronizacao):'Nenhuma sincronização registrada';
         const monitor=document.getElementById('xmlMonitor');
-        if(monitor)monitor.textContent=`Último XML sincronizado: ${ultima} · ${resumo.total} NF-e única(s) no banco · ${resumo.com_xml_integral} com XML integral. Inventário completo: ${resumo.ultimo_inventario?data(resumo.ultimo_inventario.criado_em):'ainda não recebido'} · ${resumo.ausencia_monitorada||0} sob observação · ${resumo.lancadas_automaticamente||0} lançada(s) automaticamente. Requer Ponte GZ V4.4.`;
+        if(monitor)monitor.textContent=`Último XML sincronizado: ${ultima} · ${resumo.total} NF-e única(s) no banco · ${resumo.com_xml_integral} com XML integral · ${resumo.ausencia_monitorada||0} nota(s) sob observação · ${resumo.lancadas_automaticamente||0} lançada(s) automaticamente.`;
+        const inv=document.getElementById('xmlInventarioResumo');
+        if(inv){
+          const completo=resumo.ultimo_inventario;
+          const parcial=resumo.ultimo_parcial;
+          const parciais=parcial?.detalhes?.fontes||[];
+          inv.innerHTML=`<div><strong>Inventário completo:</strong> ${completo?e(data(completo.criado_em)):'ainda não recebido'} <span class="rec-muted">(confirma ausência nas duas pastas)</span></div>
+            <div><strong>Relatório parcial:</strong> ${parcial?e(data(parcial.gerado_em)):'ainda não recebido'} <span class="rec-muted">(somente acompanhamento; não altera lançamentos)</span></div>
+            ${parcial?`<div class="rec-muted">Última parcial: ${Number(parcial.examinados)||0} XMLs examinados · ${Number(parcial.sincronizadas)||0} sincronizados · ${parciais.map(f=>e(f.id)+': '+e(f.estado)).join(' / ')}</div>`:''}
+            <div class="rec-muted">Janela máxima entre inventários completos: ${Number(resumo.janela_maxima_minutos)||150} minutos. Se ultrapassada, a contagem de ausência é reiniciada por segurança.</div>`;
+        }
+        try{
+          const historico=await api('/api/recebimento/xml-sync/historico?limite=20');
+          const painelHistorico=document.getElementById('xmlInventarioHistorico');
+          if(painelHistorico)painelHistorico.innerHTML=historico.length?`<div class="rec-table-wrap"><table class="rec-table"><thead><tr><th>Verificação</th><th>Data/hora</th><th>Resultado</th></tr></thead><tbody>${historico.map(h=>`<tr><td>${e(h.tipo)}</td><td>${e(data(h.data))}</td><td>${h.tipo==='COMPLETO'?`Duas pastas confirmadas: ${Number(h.notas_principal)||0} + ${Number(h.notas_adicional)||0} chaves · ${Number(h.lancadas_automaticamente)||0} classificações automáticas`:`${Number(h.examinados)||0} examinados · ${Number(h.sincronizadas)||0} sincronizados · ${((h.detalhes?.fontes)||[]).map(f=>e(f.id)+': '+e(f.estado)).join(' / ')}`}</td></tr>`).join('')}</tbody></table></div>`:'Nenhum inventário ou relatório parcial recebido do Board até o momento.';
+        }catch(_){const h=document.getElementById('xmlInventarioHistorico');if(h)h.textContent='Histórico de verificações indisponível.';}
       }catch(_){
         const monitor=document.getElementById('xmlMonitor');
         if(monitor)monitor.textContent='Resumo de sincronização indisponível. A listagem de notas continua funcionando.';

@@ -8,6 +8,11 @@ const {requireModuleAccess}=require('../../middlewares/module-access.middleware'
 const text=(v,n=200)=>String(v??'').trim().slice(0,n);
 const fail=(res,msg,status=400)=>res.status(status).json({error:msg});
 const run=fn=>(req,res,next)=>Promise.resolve(fn(req,res)).catch(next);
+// O inventário completo da Ponte é gerado a cada 120 minutos.
+// Uma margem de 30 minutos absorve pequenas variações do agendador, mas
+// qualquer interrupção maior reinicia a prova de ausência (sem retroagir).
+const INVENTORY_MAX_GAP_MINUTES=150;
+
 // Ponte envia apenas metadados de XML, nunca confirma recebimento físico.
 function validarAssinatura(req,res){
  const secret=process.env.XML_SYNC_SECRET||'';
@@ -66,6 +71,43 @@ const receberSync=run(async(req,res)=>{
   await client.query('COMMIT');res.json({ok:true,recebidas:results.length});
  }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
 });
+// V74.35: relatórios parciais SOMENTE para acompanhamento. Eles nunca
+// alteram presente_*, ausente_desde, lancamento_origem ou status das notas.
+// A Ponte deve enviar um resumo sem listas de chaves fiscais, com o mesmo HMAC.
+const receberParcial=run(async(req,res)=>{
+ const body=validarAssinatura(req,res);
+ if(!body)return;
+ if(body.tipo!=='ACOMPANHAMENTO'||body.alteraLancamentos!==false)
+  return fail(res,'Relatório parcial deve ser apenas de acompanhamento.');
+ const gerado=Date.parse(body.geradoEm||'');
+ if(!Number.isFinite(gerado)||Math.abs(Date.now()-gerado)>15*60*1000)
+  return fail(res,'Data do relatório parcial inválida ou antiga.');
+ const fontes=body.fontes;
+ if(!Array.isArray(fontes)||fontes.length<1||fontes.length>2||
+    fontes.some(x=>!x||!['principal','adicional'].includes(x.id)||
+      !['ok','aguardando','error','partial'].includes(x.estado)||
+      !Number.isInteger(x.encontradas)||x.encontradas<0||x.encontradas>500000||
+      !Number.isInteger(x.examinadas)||x.examinadas<0||x.examinadas>500000||
+      !Array.isArray(x.erros)||x.erros.length>10))
+  return fail(res,'Fontes inválidas no relatório parcial.');
+ if(new Set(fontes.map(x=>x.id)).size!==fontes.length)return fail(res,'Fontes duplicadas.');
+ const contagens=['examinados','sincronizadas','duplicidades'];
+ if(contagens.some(k=>!Number.isInteger(body[k])||body[k]<0||body[k]>500000))
+  return fail(res,'Contagens inválidas no relatório.');
+ if(!Array.isArray(body.erros)||body.erros.length>12)
+  return fail(res,'Erros inválidos no relatório.');
+ const resumo={
+  fontes:fontes.map(x=>({id:x.id,estado:x.estado,encontradas:x.encontradas,examinadas:x.examinadas,erros:x.erros.map(e=>text(e,180))})),
+  erros:body.erros.map(e=>text(e,180)),
+  inventarioCompletoEnviado:body.inventarioCompletoEnviado===true
+ };
+ // Restringe a telemetria: nenhuma chave de acesso, XML, arquivo integral ou segredo.
+ const result=await query(`INSERT INTO receb_xml_relatorios_parciais
+  (gerado_em,examinados,sincronizadas,duplicidades,detalhes)
+  VALUES($1,$2,$3,$4,$5::jsonb) ON CONFLICT (gerado_em) DO NOTHING RETURNING gerado_em`,
+  [new Date(gerado),body.examinados,body.sincronizadas,body.duplicidades,JSON.stringify(resumo)]);
+ return res.json({ok:true,acompanhamento:true,duplicado:!result.rowCount,alteraLancamentos:false});
+});
 // V74.31: fechado SOMENTE depois do ciclo completo da Ponte V4.4.
 // Assinatura HMAC igual à utilizada na sincronização individual.
 const receberInventario=run(async(req,res)=>{
@@ -100,11 +142,11 @@ const receberInventario=run(async(req,res)=>{
    ausente_desde=CASE
     WHEN (x.chave=ANY($1::varchar[]) OR x.chave=ANY($2::varchar[])) THEN NULL
     WHEN x.observado_inventario_em IS NULL THEN NULL
-    WHEN x.ultima_conferencia_em IS NULL OR x.ultima_conferencia_em < now()-interval '30 minutes' THEN now()
+    WHEN x.ultima_conferencia_em IS NULL OR x.ultima_conferencia_em < now()-make_interval(mins => $3::int) THEN now()
     ELSE COALESCE(x.ausente_desde,now()) END,
    observado_inventario_em=CASE WHEN (x.chave=ANY($1::varchar[]) OR x.chave=ANY($2::varchar[])) THEN now() ELSE x.observado_inventario_em END,
    ultima_conferencia_em=now()
-   WHERE x.observado_inventario_em IS NOT NULL OR x.chave=ANY($1::varchar[]) OR x.chave=ANY($2::varchar[])`,[a,b]);
+   WHERE x.observado_inventario_em IS NOT NULL OR x.chave=ANY($1::varchar[]) OR x.chave=ANY($2::varchar[])`,[a,b,INVENTORY_MAX_GAP_MINUTES]);
   // Somente nota com recebimento CPD confirmado e sem pendência: ausência
   // >=12h; manual e já lançadas nunca são sobrepostas.
   const changed=await c.query(`UPDATE receb_notas n SET
@@ -143,7 +185,24 @@ router.get('/xml-sync/resumo',run(async(req,res)=>{
  FROM receb_xml_pendentes`);
  res.setHeader('Cache-Control','no-store');
  const last=await query('SELECT criado_em,notas_principal,notas_adicional,lancadas_automaticamente FROM receb_xml_inventarios ORDER BY criado_em DESC LIMIT 1');
- res.json({...(r.rows[0]||{}),ultimo_inventario:last.rows[0]||null,modo:'duas_pastas_monitoradas',detalhe:'Ausência requer inventários completos e consecutivos da Ponte V4.4.'});
+ const parcial=await query('SELECT gerado_em,examinados,sincronizadas,duplicidades,detalhes FROM receb_xml_relatorios_parciais ORDER BY gerado_em DESC LIMIT 1');
+ res.json({...(r.rows[0]||{}),ultimo_inventario:last.rows[0]||null,ultimo_parcial:parcial.rows[0]||null,
+  janela_maxima_minutos:INVENTORY_MAX_GAP_MINUTES,modo:'duas_pastas_monitoradas',
+  detalhe:'Somente inventários completos consecutivos confirmam ausência. Parciais são informativos e não alteram notas.'});
+}));
+router.get('/xml-sync/historico',run(async(req,res)=>{
+ const limit=Math.min(100,Math.max(1,Number.parseInt(req.query.limite,10)||30));
+ const result=await query(`SELECT 'COMPLETO' AS tipo,criado_em AS data,
+  notas_principal,notas_adicional,lancadas_automaticamente,
+  NULL::integer AS examinados,NULL::integer AS sincronizadas,NULL::jsonb AS detalhes
+  FROM receb_xml_inventarios
+  UNION ALL
+  SELECT 'PARCIAL' AS tipo,gerado_em AS data,
+  NULL::integer,NULL::integer,NULL::integer,
+  examinados,sincronizadas,detalhes
+  FROM receb_xml_relatorios_parciais
+  ORDER BY data DESC LIMIT $1`,[limit]);
+ res.setHeader('Cache-Control','no-store');res.json(result.rows);
 }));
 router.get('/xml-pendentes',run(async(req,res)=>{
  const busca=text(req.query.busca,80);
@@ -203,4 +262,4 @@ router.post('/xml-pendentes/receber',run(async(req,res)=>{
   await client.query('COMMIT');res.json({resultados:result,registradas:result.filter(x=>x.status==='recebida').length});
  }catch(e){await client.query('ROLLBACK');if(e.code==='23505')return fail(res,'Conflito de duplicidade no cadastro. Atualize a lista e tente novamente.',409);throw e}finally{client.release()}
 }));
-module.exports={router,receberSync,receberInventario};
+module.exports={router,receberSync,receberInventario,receberParcial,INVENTORY_MAX_GAP_MINUTES};
