@@ -31,8 +31,8 @@ function input(name,label,value='',type='text',extra=''){return `<div class="pe-
 function select(name,label,opts,value=''){return `<div class="pe-field"><label>${label}</label><select name="${name}" id="pe_${name}">${opts.map(o=>`<option value="${esc(o[0])}" ${String(o[0])===String(value)?'selected':''}>${esc(o[1])}</option>`).join('')}</select></div>`}
 const fornecedorSelect=(v)=>select('fornecedor_id','Fornecedor',fornecedores.map(f=>[f.id,f.nome]),v);
 const pontoSelect=v=>select('ponto_id','Ponto',pontos.map(p=>[p.id,p.codigo+' — '+p.localizacao]),v);
-const formaSelect=v=>select('forma_pagamento','Forma de pagamento',[['Boleto','Boleto'],['Bonificação','Bonificação'],['Desconto em boleto','Desconto em boleto']],v||'Boleto');
-function modal(h,html,submit){const div=document.createElement('div');div.className='pe-dialog';div.id='peDialog';div.innerHTML=`<div class="pe-modal" role="dialog" aria-modal="true"><div class="pe-modal-head"><h3>${h}</h3><button class="pe-btn alt" id="peClose">Fechar ✕</button></div><form id="peForm"><div class="pe-fields">${html}</div><div class="pe-actions" style="margin-top:18px"><button class="pe-btn" type="submit">Salvar</button><button type="button" class="pe-btn alt" id="peCancel">Cancelar</button></div></form></div>`;document.body.append(div);const close=()=>div.remove();div.querySelector('#peClose').onclick=close;div.querySelector('#peCancel').onclick=close;div.addEventListener('click',e=>{if(e.target===div)close()});div.querySelector('#peForm').onsubmit=async e=>{e.preventDefault();const btn=div.querySelector('[type=submit]');btn.disabled=true;try{const data=Object.fromEntries(new FormData(e.target));await submit(data,div);close();await refresh();render();toast('Operação salva com sucesso.')}catch(err){alert(err.message)}finally{btn.disabled=false}};return div}
+const formaSelect=v=>select('forma_pagamento','Forma de pagamento',[['Boleto','Boleto'],['Bonificação','Bonificação'],['Desconto em boleto','Desconto em boleto'],['Depósito bancário','Depósito bancário']],v||'Boleto');
+function modal(h,html,submit){const div=document.createElement('div');div.className='pe-dialog';div.id='peDialog';div.innerHTML=`<div class="pe-modal" role="dialog" aria-modal="true"><div class="pe-modal-head"><h3>${h}</h3><button class="pe-btn alt" id="peClose">Fechar ✕</button></div><form id="peForm"><div class="pe-fields">${html}</div><div class="pe-actions" style="margin-top:18px"><button class="pe-btn" type="submit">Salvar</button><button type="button" class="pe-btn alt" id="peCancel">Cancelar</button></div></form></div>`;document.body.append(div);const close=()=>div.remove();div.querySelector('#peClose').onclick=close;div.querySelector('#peCancel').onclick=close;/* Clique fora do modal não fecha: protege dados ainda não salvos. */div.querySelector('#peForm').onsubmit=async e=>{e.preventDefault();const btn=div.querySelector('[type=submit]');btn.disabled=true;try{const data=Object.fromEntries(new FormData(e.target));await submit(data,div);close();await refresh();render();toast('Operação salva com sucesso.')}catch(err){alert(err.message)}finally{btn.disabled=false}};return div}
 function tabela(headers,rows){return `<div class="pe-table-wrap"><table class="pe-table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')||`<tr><td colspan="${headers.length}">Nenhum registro cadastrado.</td></tr>`}</tbody></table></div>`}
 function mapResults(list){return list.map(p=>`<div class="pe-listitem found-result" data-point="${p.id}"><strong>${esc(p.codigo)} · ${esc(p.tipo)}</strong><span>${esc(p.localizacao)} · ${p.ocupado?'Ocupado':'Disponível'}</span></div>`).join('')||'<p class="pe-help">Nenhum ponto encontrado.</p>'}
 function pointCoords(event){const img=$('peMapaImg');if(!img||!img.complete||!img.naturalWidth)return null;const rect=img.getBoundingClientRect();const x=(event.clientX-rect.left)/rect.width,y=(event.clientY-rect.top)/rect.height;return x>=0&&x<=1&&y>=0&&y<=1?{x:Number(x.toFixed(6)),y:Number(y.toFixed(6))}:null}
@@ -177,6 +177,7 @@ function referenciaRecebimento(r){
  if(r.modalidade==='Bonificação'&&r.numero_nota)return 'Nota de bonificação: '+r.numero_nota;
  if(r.modalidade==='Desconto em boleto')return [r.duplicata?'Duplicata: '+r.duplicata:'',r.parcela?'Parcela: '+r.parcela:''].filter(Boolean).join(' · ');
  if(r.modalidade==='Boleto'&&r.numero_boleto)return 'Boleto: '+r.numero_boleto;
+ if(r.modalidade==='Depósito bancário')return 'Depósito bancário';
  return '';
 }
 
@@ -185,7 +186,7 @@ function editarRecebimento(r){
  const html=`<div class="pe-span pe-cardnote"><strong>Recebimento #${esc(r.id)}</strong><p>${esc(c?.fornecedor_nome||'')} · ${esc(r.competencia)}</p></div>`+
  input('data','Data',String(r.data).slice(0,10),'date')+
  input('valor','Valor recebido',r.valor,'number','step="0.01" min="0.01"')+
- select('modalidade','Modalidade',[['Boleto','Boleto'],['Bonificação','Bonificação'],['Desconto em boleto','Desconto em boleto']],r.modalidade)+
+ select('modalidade','Modalidade',[['Boleto','Boleto'],['Bonificação','Bonificação'],['Desconto em boleto','Desconto em boleto'],['Depósito bancário','Depósito bancário']],r.modalidade)+
  camposDocumentoRecebimento(r)+
  `<div class="pe-field pe-span"><label>Observação</label><textarea name="observacao">${esc(r.observacao||'')}</textarea></div>`+
  `<div class="pe-field pe-span"><label>Motivo da alteração</label><textarea name="motivo" required></textarea></div>`;
@@ -200,7 +201,7 @@ function receber(c){
  const restante=Number(c.valor)-Number(c.pago);
  const html=`<div class="pe-span pe-cardnote"><strong>${esc(c.fornecedor_nome)} — ${esc(c.referencia)}</strong><p>Competência: ${esc(c.competencia)} · Saldo: ${money(restante)}</p></div>`+
  input('data','Data do pagamento',iso(),'date')+input('valor','Valor recebido',restante,'number',`min="0.01" max="${restante}" step="0.01"`)+
- select('modalidade','Forma do recebimento',[['Boleto','Boleto'],['Bonificação','Bonificação'],['Desconto em boleto','Desconto em boleto']])+
+ select('modalidade','Forma do recebimento',[['Boleto','Boleto'],['Bonificação','Bonificação'],['Desconto em boleto','Desconto em boleto'],['Depósito bancário','Depósito bancário']])+
  camposDocumentoRecebimento()+
  `<div class="pe-field pe-span"><label>Comprovante (PDF ou foto, opcional)</label><input type="file" name="comprovante" accept="application/pdf,image/png,image/jpeg,image/webp"><small>Para bonificação, anexe a nota fiscal quando disponível.</small></div>`+
  `<div class="pe-field pe-span"><label>Observação</label><textarea name="observacao"></textarea></div>`;

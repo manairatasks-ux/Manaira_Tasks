@@ -212,7 +212,7 @@ router.delete('/cobrancas/:id',wrap(async(req,res)=>{
 function referenciasPagamento(b){
  const modalidade=str(b.modalidade,80);
  const nota=str(b.numero_nota,120),dup=str(b.duplicata,120),parcela=str(b.parcela,50),boleto=str(b.numero_boleto,120);
- if(!['Boleto','Bonificação','Desconto em boleto'].includes(modalidade))bad('Modalidade inválida.');
+ if(!['Boleto','Bonificação','Desconto em boleto','Depósito bancário'].includes(modalidade))bad('Modalidade inválida.');
  if(modalidade==='Bonificação')return {nota,dup:'',parcela:'',boleto:''};
  if(modalidade==='Desconto em boleto')return {nota:'',dup,parcela,boleto:''};
  return {nota:'',dup:'',parcela:'',boleto};
