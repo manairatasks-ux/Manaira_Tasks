@@ -62,3 +62,9 @@ CREATE TABLE IF NOT EXISTS receb_xml_relatorios_parciais (
 );
 CREATE INDEX IF NOT EXISTS receb_xml_relatorios_parciais_recebido_idx
  ON receb_xml_relatorios_parciais(recebido_em DESC);
+
+-- V74.36: classificação fiscal preventiva; nunca promove documentos especiais
+-- a recebimento físico ou a lançamento automático.
+ALTER TABLE receb_xml_pendentes ADD COLUMN IF NOT EXISTS tipo_operacao VARCHAR(32) NOT NULL DEFAULT 'SEM_XML';
+ALTER TABLE receb_xml_pendentes ADD COLUMN IF NOT EXISTS tratamento_especial BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE receb_xml_pendentes ADD COLUMN IF NOT EXISTS motivo_especial VARCHAR(300) NOT NULL DEFAULT '';

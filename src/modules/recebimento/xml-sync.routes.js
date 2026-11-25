@@ -40,35 +40,47 @@ const receberSync=run(async(req,res)=>{
  if(!Array.isArray(notes)||notes.length>100)return fail(res,'Máximo de 100 notas por envio.');
  const dest=String(process.env.XML_DEST_CNPJ||'').replace(/\D/g,'');
  if(!/^\d{14}$/.test(dest))return fail(res,'Configure XML_DEST_CNPJ.',503);
- const results=[];
+ const results=[], rejeitadas=[];
  for(const n of notes){
-  const chave=text(n.chave,44),cnpj=text(n.cnpj_destinatario,14),cnpjEmit=text(n.cnpj_fornecedor,14);
-  if(!/^\d{44}$/.test(chave)||cnpj!==dest||!/^\d{14}$/.test(cnpjEmit)||!String(n.numero||'').trim()||!Number.isFinite(Number(n.valor))||Number(n.valor)<=0)continue;
+  const chave=text(n?.chave,44),cnpj=text(n?.cnpj_destinatario,14),cnpjEmit=text(n?.cnpj_fornecedor,14);
+  const rejeitar=(motivo)=>rejeitadas.push({chave:/^\d{44}$/.test(chave)?chave:null,motivo});
+  if(!/^\d{44}$/.test(chave)||cnpj!==dest||!/^\d{14}$/.test(cnpjEmit)||!String(n?.numero||'').trim()||!Number.isFinite(Number(n?.valor))||Number(n.valor)<=0){rejeitar('Metadados fiscais incompletos ou CNPJ destinatário divergente.');continue}
   const resumo=n.resumo_pdf&&typeof n.resumo_pdf==='object'&&!Array.isArray(n.resumo_pdf)?n.resumo_pdf:null;
-  // Limita o payload detalhado para impedir que documentos anormais sobrecarreguem o banco.
   const detalhes=resumo&&JSON.stringify(resumo).length<180000?JSON.stringify(resumo):null;
-  let xmlOriginal=null;
+  let xmlOriginal=null,tratamentoEspecial=false,tipoOperacao='NORMAL',motivoEspecial='';
   if(typeof n.xml_original==='string'){
-   if(Buffer.byteLength(n.xml_original,'utf8')>3*1024*1024)return fail(res,'XML completo excede 3 MB.',413);
+   if(Buffer.byteLength(n.xml_original,'utf8')>3*1024*1024){rejeitar('XML integral excede 3 MB.');continue}
    try{
-    const parsed=parseNfe(n.xml_original), inf=parsed.inf;
+    const parsed=parseNfe(n.xml_original),inf=parsed.inf;
     if(parsed.chave!==chave||String(inf.ide.nNF)!==String(n.numero)||String(inf.ide.serie)!==String(n.serie)||
       String(inf.emit.CNPJ)!==cnpjEmit||String(inf.dest.CNPJ)!==cnpj||
-      Math.abs(Number(inf.total.ICMSTot.vNF)-Number(n.valor))>.011) return fail(res,'XML integral não corresponde ao resumo da nota '+chave+'.');
+      Math.abs(Number(inf.total.ICMSTot.vNF)-Number(n.valor))>.011) {rejeitar('XML integral diverge do resumo fiscal.');continue}
     xmlOriginal=n.xml_original;
-   }catch(err){return fail(res,'XML integral inválido: '+err.message)}
+    const finalidade=String(inf.ide.finNFe||'1'),natureza=text(inf.ide.natOp,160);
+    tipoOperacao=finalidade==='4'?'DEVOLUCAO':finalidade==='3'?'AJUSTE':finalidade==='2'?'COMPLEMENTAR':'NORMAL';
+    if(tipoOperacao==='NORMAL'&&/devolu[cç][aã]o|retorno|remessa|bonifica[cç][aã]o/i.test(natureza))tipoOperacao='OPERACAO_ESPECIAL';
+    tratamentoEspecial=tipoOperacao!=='NORMAL';
+    motivoEspecial=tratamentoEspecial?`Finalidade ${finalidade}; natureza: ${natureza}`:'';
+   }catch(err){rejeitar('XML integral inválido ou modelo não suportado: '+err.message);continue}
+  }else{
+   // Preserva compatibilidade com a Ponte antiga: notas sem XML integral
+   // continuam disponíveis; apenas marcadores explícitos de exceção bloqueiam automação.
+   const aviso=text(n.tipo_operacao||n.tipo_nota||n.classificacao||'',80).toUpperCase();
+   const excecao=/DEVOL|AJUST|COMPLEMENT|BONIFIC|REMESSA|RETORNO|ESPECIAL|ERRO|DIVERG/.test(aviso);
+   tipoOperacao=excecao?'A_CONFERIR_ESPECIAL':'SEM_XML';tratamentoEspecial=excecao;
+   motivoEspecial=excecao?'Ponte sinalizou possível operação especial; exige conferência do XML integral.':'';
   }
-  results.push([chave,text(n.numero,40),text(n.serie,15),text(n.fornecedor,160),cnpjEmit,cnpj,Number(n.valor),text(n.emissao,40),text(n.protocolo,50),Boolean(n.autorizada),detalhes,xmlOriginal]);
+  results.push([chave,text(n.numero,40),text(n.serie,15),text(n.fornecedor,160),cnpjEmit,cnpj,Number(n.valor),text(n.emissao,40),text(n.protocolo,50),Boolean(n.autorizada),detalhes,xmlOriginal,tipoOperacao,tratamentoEspecial,motivoEspecial]);
  }
  const client=await pool.connect();
  try{
   await client.query('BEGIN');
   for(const d of results){
-   await client.query(`INSERT INTO receb_xml_pendentes(chave,numero,serie,fornecedor,cnpj_fornecedor,cnpj_destinatario,valor,emissao_texto,protocolo,autorizada,resumo_pdf,xml_original,ultimo_sync)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,now())
-    ON CONFLICT (chave) DO UPDATE SET numero=EXCLUDED.numero,serie=EXCLUDED.serie,fornecedor=EXCLUDED.fornecedor,valor=EXCLUDED.valor,protocolo=EXCLUDED.protocolo,autorizada=EXCLUDED.autorizada,resumo_pdf=COALESCE(EXCLUDED.resumo_pdf,receb_xml_pendentes.resumo_pdf),xml_original=COALESCE(EXCLUDED.xml_original,receb_xml_pendentes.xml_original),ultimo_sync=now()`,d);
+   await client.query(`INSERT INTO receb_xml_pendentes(chave,numero,serie,fornecedor,cnpj_fornecedor,cnpj_destinatario,valor,emissao_texto,protocolo,autorizada,resumo_pdf,xml_original,tipo_operacao,tratamento_especial,motivo_especial,ultimo_sync)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,now())
+    ON CONFLICT (chave) DO UPDATE SET numero=EXCLUDED.numero,serie=EXCLUDED.serie,fornecedor=EXCLUDED.fornecedor,valor=EXCLUDED.valor,protocolo=EXCLUDED.protocolo,autorizada=EXCLUDED.autorizada,resumo_pdf=COALESCE(EXCLUDED.resumo_pdf,receb_xml_pendentes.resumo_pdf),xml_original=COALESCE(EXCLUDED.xml_original,receb_xml_pendentes.xml_original),tipo_operacao=CASE WHEN EXCLUDED.xml_original IS NOT NULL THEN EXCLUDED.tipo_operacao WHEN receb_xml_pendentes.xml_original IS NOT NULL THEN receb_xml_pendentes.tipo_operacao ELSE EXCLUDED.tipo_operacao END,tratamento_especial=CASE WHEN EXCLUDED.xml_original IS NOT NULL THEN EXCLUDED.tratamento_especial WHEN receb_xml_pendentes.xml_original IS NOT NULL THEN receb_xml_pendentes.tratamento_especial ELSE EXCLUDED.tratamento_especial END,motivo_especial=CASE WHEN EXCLUDED.xml_original IS NOT NULL THEN EXCLUDED.motivo_especial WHEN receb_xml_pendentes.xml_original IS NOT NULL THEN receb_xml_pendentes.motivo_especial ELSE EXCLUDED.motivo_especial END,ultimo_sync=now()`,d);
   }
-  await client.query('COMMIT');res.json({ok:true,recebidas:results.length});
+  await client.query('COMMIT');res.json({ok:true,recebidas:results.length,rejeitadas:rejeitadas.length,erros:rejeitadas.slice(0,100)});
  }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
 });
 // V74.35: relatórios parciais SOMENTE para acompanhamento. Eles nunca
@@ -156,6 +168,7 @@ const receberInventario=run(async(req,res)=>{
     AND x.presente_principal=FALSE AND x.presente_adicional=FALSE
     AND x.ultima_conferencia_em >= now()-interval '2 minutes'
     AND x.lancamento_automatico_em IS NULL
+    AND x.tratamento_especial=FALSE
     AND n.status='RECEBIDA_CPD' AND n.cpd_recebido_em IS NOT NULL
     AND COALESCE(btrim(n.pendencia),'')=''
     AND n.lancado_em IS NULL AND n.lancamento_origem IS NULL
@@ -209,6 +222,7 @@ router.get('/xml-pendentes',run(async(req,res)=>{
  const r=await query(`SELECT x.chave,x.numero,x.serie,x.fornecedor,x.cnpj_fornecedor,x.valor,x.emissao_texto,x.autorizada,
  (x.xml_original IS NOT NULL) AS tem_danfe,(x.resumo_pdf IS NOT NULL) AS tem_pdf,x.primeiro_sync,x.ultimo_sync,x.recebido_nota_id,
  x.presente_principal,x.presente_adicional,x.ausente_desde,x.lancamento_automatico_em,x.reapareceu_apos_auto,
+ x.tipo_operacao,x.tratamento_especial,x.motivo_especial,
  n.status AS status_recebimento,n.lancamento_origem
  FROM receb_xml_pendentes x LEFT JOIN receb_notas n ON n.id=x.recebido_nota_id
  WHERE ($1='' OR x.fornecedor ILIKE '%'||$1||'%' OR x.numero ILIKE '%'||$1||'%' OR x.chave ILIKE '%'||$1||'%')
@@ -250,6 +264,7 @@ router.post('/xml-pendentes/receber',run(async(req,res)=>{
    const n=r.rows[0];
    if(n.recebido_nota_id){result.push({chave,status:'ja_recebida',id:n.recebido_nota_id});continue}
    if(!n.autorizada){result.push({chave,status:'conferir_autorizacao'});continue}
+   if(n.tratamento_especial){result.push({chave,status:'conferir_tipo_operacao',tipo_operacao:n.tipo_operacao});continue}
    // Não inventamos duplicatas: o CPD poderá conferir os vencimentos a partir do documento fiscal.
    const dup=await client.query(`SELECT id FROM receb_notas WHERE numero=$1 AND serie=$2 AND (codigo_fornecedor=$3 OR lower(btrim(fornecedor))=lower(btrim($4))) LIMIT 1`,[n.numero,n.serie,n.cnpj_fornecedor,n.fornecedor]);
    if(dup.rowCount){result.push({chave,status:'possivel_duplicata',id:dup.rows[0].id});continue}
