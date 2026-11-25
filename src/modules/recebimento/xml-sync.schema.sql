@@ -68,3 +68,16 @@ CREATE INDEX IF NOT EXISTS receb_xml_relatorios_parciais_recebido_idx
 ALTER TABLE receb_xml_pendentes ADD COLUMN IF NOT EXISTS tipo_operacao VARCHAR(32) NOT NULL DEFAULT 'SEM_XML';
 ALTER TABLE receb_xml_pendentes ADD COLUMN IF NOT EXISTS tratamento_especial BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE receb_xml_pendentes ADD COLUMN IF NOT EXISTS motivo_especial VARCHAR(300) NOT NULL DEFAULT '';
+
+-- V74.37: eventos separados, sem alterar recebimento físico ou lançamento fiscal.
+CREATE TABLE IF NOT EXISTS receb_xml_ocorrencias_especiais (
+ id BIGSERIAL PRIMARY KEY,
+ tipo VARCHAR(32) NOT NULL CHECK(tipo IN ('CANCELAMENTO_NFE','NFE_AVULSA_CPF')),
+ chave VARCHAR(44) NOT NULL,
+ protocolo VARCHAR(60) NOT NULL DEFAULT '',
+ documento JSONB NOT NULL,
+ recebido_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+ atualizado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+ UNIQUE(tipo,chave,protocolo)
+);
+CREATE INDEX IF NOT EXISTS receb_xml_ocorrencias_especiais_chave_idx ON receb_xml_ocorrencias_especiais(chave);

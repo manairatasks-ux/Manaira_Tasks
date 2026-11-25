@@ -31,6 +31,7 @@ app.use(cors());
 app.post('/api/recebimento/xml-sync',express.raw({type:'application/json',limit:'5mb'}),require('./modules/recebimento/xml-sync.routes').receberSync);
 app.post('/api/recebimento/xml-sync/inventario',express.raw({type:'application/json',limit:'5mb'}),require('./modules/recebimento/xml-sync.routes').receberInventario);
 app.post('/api/recebimento/xml-sync/parcial',express.raw({type:'application/json',limit:'128kb'}),require('./modules/recebimento/xml-sync.routes').receberParcial);
+app.post('/api/recebimento/xml-sync/ocorrencias',express.raw({type:'application/json',limit:'256kb'}),require('./modules/recebimento/xml-sync.routes').receberOcorrencias);
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 app.use(express.static(path.join(__dirname,'..','public')));

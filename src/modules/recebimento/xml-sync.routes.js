@@ -76,12 +76,51 @@ const receberSync=run(async(req,res)=>{
  try{
   await client.query('BEGIN');
   for(const d of results){
+   const cancelamento=await client.query("SELECT 1 FROM receb_xml_ocorrencias_especiais WHERE chave=$1 AND tipo='CANCELAMENTO_NFE' LIMIT 1",[d[0]]);
+   if(cancelamento.rowCount){d[12]='CANCELAMENTO_NFE';d[13]=true;d[14]='Evento de cancelamento confirmado: requer conferência fiscal';}
    await client.query(`INSERT INTO receb_xml_pendentes(chave,numero,serie,fornecedor,cnpj_fornecedor,cnpj_destinatario,valor,emissao_texto,protocolo,autorizada,resumo_pdf,xml_original,tipo_operacao,tratamento_especial,motivo_especial,ultimo_sync)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13,$14,$15,now())
     ON CONFLICT (chave) DO UPDATE SET numero=EXCLUDED.numero,serie=EXCLUDED.serie,fornecedor=EXCLUDED.fornecedor,valor=EXCLUDED.valor,protocolo=EXCLUDED.protocolo,autorizada=EXCLUDED.autorizada,resumo_pdf=COALESCE(EXCLUDED.resumo_pdf,receb_xml_pendentes.resumo_pdf),xml_original=COALESCE(EXCLUDED.xml_original,receb_xml_pendentes.xml_original),tipo_operacao=CASE WHEN EXCLUDED.xml_original IS NOT NULL THEN EXCLUDED.tipo_operacao WHEN receb_xml_pendentes.xml_original IS NOT NULL THEN receb_xml_pendentes.tipo_operacao ELSE EXCLUDED.tipo_operacao END,tratamento_especial=CASE WHEN EXCLUDED.xml_original IS NOT NULL THEN EXCLUDED.tratamento_especial WHEN receb_xml_pendentes.xml_original IS NOT NULL THEN receb_xml_pendentes.tratamento_especial ELSE EXCLUDED.tratamento_especial END,motivo_especial=CASE WHEN EXCLUDED.xml_original IS NOT NULL THEN EXCLUDED.motivo_especial WHEN receb_xml_pendentes.xml_original IS NOT NULL THEN receb_xml_pendentes.motivo_especial ELSE EXCLUDED.motivo_especial END,ultimo_sync=now()`,d);
   }
   await client.query('COMMIT');res.json({ok:true,recebidas:results.length,rejeitadas:rejeitadas.length,erros:rejeitadas.slice(0,100)});
  }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
+});
+// V74.37: ocorrências fiscais são registradas em tabela separada e autenticadas
+// com a mesma assinatura HMAC; nunca representam baixa no GZ ou recebimento físico.
+const receberOcorrencias=run(async(req,res)=>{
+ const body=validarAssinatura(req,res);
+ if(!body)return;
+ if(body.origem!=='PONTE_GZ_V5'||body.alteraLancamentos!==false||!Array.isArray(body.documentos)||body.documentos.length<1||body.documentos.length>100)
+  return fail(res,'Lote de ocorrências inválido.');
+ const docs=[];
+ for(const d of body.documentos){
+  if(!d||typeof d!=='object'||Array.isArray(d)||!/^[0-9]{44}$/.test(String(d.chave||''))||d.alteraLancamentos!==false)
+   return fail(res,'Documento especial inválido.');
+  const tipo=String(d.tipo||''),protocolo=text(d.protocolo,60);
+  if(tipo==='CANCELAMENTO_NFE'){
+   if(d.evento!=='110111'||!['135','155'].includes(String(d.cStat))||!protocolo)
+    return fail(res,'Cancelamento sem confirmação de protocolo.');
+  }else if(tipo==='NFE_AVULSA_CPF'){
+   if(!/^\d{11}$/.test(String(d.cpf_fornecedor||''))||!/^\d{14}$/.test(String(d.cnpj_destinatario||''))||String(d.cnpj_destinatario)!==String(process.env.XML_DEST_CNPJ||'').replace(/\D/g,'')||!Number.isFinite(Number(d.valor))||Number(d.valor)<=0)
+    return fail(res,'NF-e avulsa com dados inválidos.');
+  }else return fail(res,'Tipo de ocorrência não suportado.');
+  docs.push({tipo,chave:String(d.chave),protocolo,documento:d});
+ }
+ const client=await pool.connect();
+ try{
+  await client.query('BEGIN');
+  for(const d of docs){
+   await client.query(`INSERT INTO receb_xml_ocorrencias_especiais(tipo,chave,protocolo,documento)
+    VALUES($1,$2,$3,$4::jsonb)
+    ON CONFLICT(tipo,chave,protocolo) DO UPDATE SET documento=EXCLUDED.documento,atualizado_em=now()`,[d.tipo,d.chave,d.protocolo,JSON.stringify(d.documento)]);
+   // Atesta apenas necessidade de conferência; não altera status de recebimento.
+   if(d.tipo==='CANCELAMENTO_NFE')await client.query(`UPDATE receb_xml_pendentes SET tratamento_especial=TRUE,
+     tipo_operacao='CANCELAMENTO_NFE',motivo_especial='Evento de cancelamento confirmado: requer conferência fiscal'
+     WHERE chave=$1`,[d.chave]);
+  }
+  await client.query('COMMIT');
+  return res.json({ok:true,confirmadas:docs.length,alteraLancamentos:false});
+ }catch(err){await client.query('ROLLBACK');throw err}finally{client.release()}
 });
 // V74.35: relatórios parciais SOMENTE para acompanhamento. Eles nunca
 // alteram presente_*, ausente_desde, lancamento_origem ou status das notas.
@@ -277,4 +316,4 @@ router.post('/xml-pendentes/receber',run(async(req,res)=>{
   await client.query('COMMIT');res.json({resultados:result,registradas:result.filter(x=>x.status==='recebida').length});
  }catch(e){await client.query('ROLLBACK');if(e.code==='23505')return fail(res,'Conflito de duplicidade no cadastro. Atualize a lista e tente novamente.',409);throw e}finally{client.release()}
 }));
-module.exports={router,receberSync,receberInventario,receberParcial,INVENTORY_MAX_GAP_MINUTES};
+module.exports={router,receberSync,receberInventario,receberParcial,receberOcorrencias,INVENTORY_MAX_GAP_MINUTES};
