@@ -124,8 +124,7 @@
       <div class="xml-tabs" role="tablist" aria-label="Situação das notas fiscais"><button type="button" class="rec-btn secondary" data-xml-aba="pendentes">Pendentes</button><button type="button" class="rec-btn secondary" data-xml-aba="observacao">Sob observação</button><button type="button" class="rec-btn secondary" data-xml-aba="todas">Todas as notas</button></div>
       <div class="rec-grid"><div><label for="xmlBusca">Buscar fornecedor, nota ou chave</label><input class="rec-filter" id="xmlBusca" placeholder="Ex.: Coca-Cola" value="${e(xmlFiltro.busca)}"></div><div id="xmlMesBox" ${xmlFiltro.aba==='todas'?'':'hidden'}><label for="xmlMes">Mês de emissão</label><input class="rec-filter" id="xmlMes" type="month" value="${e(xmlFiltro.mes)}"></div><div id="xmlOrigemBox" ${xmlFiltro.aba==='pendentes'?'':'hidden'}><label>Origem dos documentos recebidos</label><select class="rec-filter" id="xmlOrigem"><option value="PAPEL">Papel</option><option value="MENSAGEM">Mensagem</option></select></div></div>
       <p id="xmlAcoes" ${xmlFiltro.aba==='pendentes'?'':'hidden'}><button class="rec-btn secondary" id="xmlTodos">Selecionar disponíveis</button> <button class="rec-btn" id="xmlConfirmar">Confirmar recebimento físico das selecionadas</button></p>
-      <p class="rec-muted" id="xmlMonitor" role="status">Verificando última sincronização...</p><div class="rec-inventory-monitor" id="xmlInventarioResumo" aria-live="polite"></div><details class="rec-inventory-history"><summary>Histórico das verificações das pastas</summary><div id="xmlInventarioHistorico" class="rec-muted">Carregando histórico...</div></details>
-      <p class="rec-muted" id="xmlInfo">Carregando...</p><p class="rec-muted xml-safety">A presença em pasta corresponde ao último inventário completo aceito. A classificação de lançamento no Board não comprova lançamento fiscal no GZ.</p>
+      <p class="rec-muted" id="xmlInfo" role="status">Carregando notas...</p>
       <div class="rec-table-wrap"><table class="rec-table"><thead><tr><th></th><th>Fornecedor</th><th>NF / Série</th><th>Emissão</th><th>Valor</th><th>DANFE / XML</th><th>Situação</th></tr></thead><tbody id="xmlLinhas"></tbody></table></div>
       <div class="xml-pagination"><button type="button" class="rec-btn secondary" id="xmlAnterior">Anterior</button><span id="xmlPaginaTexto"></span><button type="button" class="rec-btn secondary" id="xmlProximo">Próxima</button></div></section>`;
     const atualizarAbas=()=>{
@@ -148,31 +147,6 @@
       document.getElementById('xmlPaginaTexto').textContent=`Página ${resultado.pagina} de ${resultado.paginas}`;
       document.getElementById('xmlAnterior').disabled=resultado.pagina<=1;
       document.getElementById('xmlProximo').disabled=resultado.pagina>=resultado.paginas;
-      // Resumo real do PostgreSQL, sem presumir que ambas as pastas estão online.
-      try{
-        const resumo=await api('/api/recebimento/xml-sync/resumo');
-        const ultima=resumo.ultima_sincronizacao?data(resumo.ultima_sincronizacao):'Nenhuma sincronização registrada';
-        const monitor=document.getElementById('xmlMonitor');
-        if(monitor)monitor.textContent=`Último XML sincronizado: ${ultima} · ${resumo.total} NF-e única(s) no banco · ${resumo.com_xml_integral} com XML integral · ${resumo.ausencia_monitorada||0} nota(s) sob observação · ${resumo.lancadas_automaticamente||0} lançada(s) automaticamente.`;
-        const inv=document.getElementById('xmlInventarioResumo');
-        if(inv){
-          const completo=resumo.ultimo_inventario;
-          const parcial=resumo.ultimo_parcial;
-          const parciais=parcial?.detalhes?.fontes||[];
-          inv.innerHTML=`<div><strong>Inventário completo:</strong> ${completo?e(data(completo.criado_em)):'ainda não recebido'} <span class="rec-muted">(confirma ausência nas duas pastas)</span></div>
-            <div><strong>Relatório parcial:</strong> ${parcial?e(data(parcial.gerado_em)):'ainda não recebido'} <span class="rec-muted">(somente acompanhamento; não altera lançamentos)</span></div>
-            ${parcial?`<div class="rec-muted">Última parcial: ${Number(parcial.examinados)||0} XMLs examinados · ${Number(parcial.sincronizadas)||0} sincronizados · ${parciais.map(f=>e(f.id)+': '+e(f.estado)).join(' / ')}</div>`:''}
-            <div class="rec-muted">Janela máxima entre inventários completos: ${Number(resumo.janela_maxima_minutos)||150} minutos. Se ultrapassada, a contagem de ausência é reiniciada por segurança.</div>`;
-        }
-        try{
-          const historico=await api('/api/recebimento/xml-sync/historico?limite=20');
-          const painelHistorico=document.getElementById('xmlInventarioHistorico');
-          if(painelHistorico)painelHistorico.innerHTML=historico.length?`<div class="rec-table-wrap"><table class="rec-table"><thead><tr><th>Verificação</th><th>Data/hora</th><th>Resultado</th></tr></thead><tbody>${historico.map(h=>`<tr><td>${e(h.tipo)}</td><td>${e(data(h.data))}</td><td>${h.tipo==='COMPLETO'?`Duas pastas confirmadas: ${Number(h.notas_principal)||0} + ${Number(h.notas_adicional)||0} chaves · ${Number(h.lancadas_automaticamente)||0} classificações automáticas`:`${Number(h.examinados)||0} examinados · ${Number(h.sincronizadas)||0} sincronizados · ${((h.detalhes?.fontes)||[]).map(f=>e(f.id)+': '+e(f.estado)).join(' / ')}`}</td></tr>`).join('')}</tbody></table></div>`:'Nenhum inventário ou relatório parcial recebido do Board até o momento.';
-        }catch(_){const h=document.getElementById('xmlInventarioHistorico');if(h)h.textContent='Histórico de verificações indisponível.';}
-      }catch(_){
-        const monitor=document.getElementById('xmlMonitor');
-        if(monitor)monitor.textContent='Resumo de sincronização indisponível. A listagem de notas continua funcionando.';
-      }
 
     };
     document.querySelectorAll('[data-xml-aba]').forEach(btn=>btn.onclick=()=>{xmlFiltro.aba=btn.dataset.xmlAba;xmlFiltro.pagina=1;atualizarAbas();carregar().catch(err=>aviso(err.message,true))});
@@ -194,6 +168,37 @@
     };
     await carregar();
   }
+
+  // V74.41: dados técnicos fora do fluxo operacional. Esta área só é montada
+  // após validação do perfil administrativo pelo endpoint de CPD/PIN.
+  async function carregarDiagnosticoXml(){
+    const area=document.getElementById('recDiagnosticoConteudo');
+    if(!area)return;
+    area.innerHTML='<p class="rec-muted" role="status">Consultando sincronização e inventários...</p>';
+    try{
+      const [resumo,historico]=await Promise.all([
+        api('/api/recebimento/xml-sync/resumo'),
+        api('/api/recebimento/xml-sync/historico?limite=20')
+      ]);
+      if(!area.isConnected)return;
+      const ultima=resumo.ultima_sincronizacao?data(resumo.ultima_sincronizacao):'Nenhuma sincronização registrada';
+      const completo=resumo.ultimo_inventario;
+      const parcial=resumo.ultimo_parcial;
+      const fontes=Array.isArray(parcial?.detalhes?.fontes)?parcial.detalhes.fontes:[];
+      const registros=Array.isArray(historico)?historico:[];
+      area.innerHTML=`<p class="rec-muted"><strong>Último XML sincronizado:</strong> ${e(ultima)} · ${Number(resumo.total)||0} NF-e única(s) no banco · ${Number(resumo.com_xml_integral)||0} com XML integral · ${Number(resumo.ausencia_monitorada)||0} sob observação · ${Number(resumo.lancadas_automaticamente)||0} classificada(s) automaticamente no Board.</p>
+        <div class="rec-inventory-monitor">
+          <div><strong>Inventário completo:</strong> ${completo?e(data(completo.criado_em)):'ainda não recebido'} (verificação das duas pastas)</div>
+          <div><strong>Relatório parcial:</strong> ${parcial?e(data(parcial.gerado_em)):'ainda não recebido'} (acompanhamento, sem lançamento)</div>
+          ${parcial?`<div>Último parcial: ${Number(parcial.examinados)||0} examinados · ${Number(parcial.sincronizadas)||0} sincronizados · ${fontes.map(f=>e(f.id)+': '+e(f.estado)).join(' / ')}</div>`:''}
+          <div>Janela máxima entre inventários completos: ${Number(resumo.janela_maxima_minutos)||150} minutos. Se ultrapassada, a contagem de ausência é reiniciada por segurança.</div>
+        </div>
+        <h4>Histórico das verificações das pastas</h4>
+        ${registros.length?`<div class="rec-table-wrap"><table class="rec-table"><thead><tr><th>Verificação</th><th>Data/hora</th><th>Resultado</th></tr></thead><tbody>${registros.map(h=>`<tr><td>${e(h.tipo)}</td><td>${e(data(h.data))}</td><td>${h.tipo==='COMPLETO'?`Duas pastas confirmadas: ${Number(h.notas_principal)||0} + ${Number(h.notas_adicional)||0} chaves · ${Number(h.lancadas_automaticamente)||0} classificações automáticas`:`${Number(h.examinados)||0} examinados · ${Number(h.sincronizadas)||0} sincronizados · ${(Array.isArray(h.detalhes?.fontes)?h.detalhes.fontes:[]).map(f=>e(f.id)+': '+e(f.estado)).join(' / ')}`}</td></tr>`).join('')}</tbody></table></div>`:'<p class="rec-muted">Nenhum inventário ou relatório parcial registrado.</p>'}
+        <p class="rec-muted xml-safety">A presença em pasta corresponde ao último inventário completo aceito. A classificação de lançamento no Board não comprova lançamento fiscal no GZ.</p>`;
+    }catch(err){if(area.isConnected)area.innerHTML=`<p class="rec-notice" role="alert">Não foi possível consultar o diagnóstico: ${e(err.message)}</p>`;}
+  }
+
   async function notas(){
     const hojeLocal=hoje();
     if(painelFiltro.modo==='hoje'){painelFiltro.inicio=hojeLocal;painelFiltro.fim=hojeLocal;}
@@ -329,6 +334,6 @@
     document.getElementById('recNova').onsubmit=async event=>{event.preventDefault();const f=event.currentTarget,d=Object.fromEntries(new FormData(f).entries());d.duplicatas=[...document.querySelectorAll('.rec-dup')].map(row=>({numero:row.querySelector('.dup-num').value,vencimento:row.querySelector('.dup-data').value,valor:row.querySelector('.dup-valor').value}));try{const n=await api('/api/recebimento/notas',{method:'POST',body:JSON.stringify(d)});notaAtual=n.id;tab='notas';await render();aviso('Nota cadastrada. Abra-a para anexar fotos/PDF.')}catch(err){aviso(err.message,true)}};
   }
   async function caminhoes(){const dia=hoje();document.getElementById('recBody').innerHTML=`<div class="rec-card"><h3>Registro diário de caminhões</h3><p class="rec-muted">Cada caminhão deve ser registrado uma única vez, mesmo trazendo várias notas.</p><form id="recCam"><div class="rec-grid"><div><label>Data</label><input type="date" name="dia" value="${dia}" required></div><div><label>Setor</label><select name="categoria"><option>MERCEARIA</option><option>HORTIFRUTI</option><option>FRIOS</option></select></div>${campo('Quantidade','quantidade','number','1','min="1" max="100"')}${campo('Observação','observacao')}</div><p><button class="rec-btn" type="submit">Registrar caminhão(ões)</button></p></form><div id="recCamLista"></div></div>`;const carregar=async()=>{const dia=document.querySelector('#recCam [name=dia]').value;const dados=await api(`/api/recebimento/caminhoes?dia=${dia}`);document.getElementById('recCamLista').innerHTML=`<h4>Registros de ${e(dia)} · ${dados.reduce((s,x)=>s+Number(x.quantidade),0)} caminhão(ões)</h4><div class="rec-table-wrap"><table class="rec-table"><thead><tr><th>Setor</th><th>Qtde.</th><th>Usuário</th><th>Hora</th><th>Obs.</th></tr></thead><tbody>${dados.map(x=>`<tr><td>${e(x.categoria)}</td><td>${x.quantidade}</td><td>${e(x.registrado_por_nome)}</td><td>${data(x.criado_em)}</td><td>${e(x.observacao)}</td></tr>`).join('')}</tbody></table></div>`};document.querySelector('#recCam [name=dia]').onchange=carregar;document.getElementById('recCam').onsubmit=async ev=>{ev.preventDefault();try{await api('/api/recebimento/caminhoes',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(ev.currentTarget)))});await carregar();aviso('Caminhão(ões) registrado(s).')}catch(err){aviso(err.message,true)}};await carregar()}
-  async function cpd(){const perfil=await api('/api/recebimento/cpd/perfil');let html=`<div class="rec-card"><h3>Permissão CPD</h3><p class="rec-muted">${perfil.autorizado?'Seu usuário está habilitado para confirmar notas mediante PIN.':'Seu usuário não possui autorização para confirmar notas.'}</p><p>O PIN não substitui o login. Cada ação fica associada ao usuário autenticado.</p></div>`;if(perfil.administrador){const users=await api('/api/recebimento/usuarios');html+=`<form class="rec-card" id="recConfigPin"><h3>Configurar responsável autorizado (administrador)</h3><div class="rec-grid"><div><label>Usuário</label><select name="usuario_id">${users.map(u=>`<option value="${u.id}">${e(u.nome)} (${e(u.email)})</option>`).join('')}</select></div><div><label>PIN numérico (6–10 dígitos)</label><input name="pin" type="password" minlength="6" maxlength="10" pattern="[0-9]{6,10}" autocomplete="new-password" required></div></div><p><button class="rec-btn" type="submit">Salvar autorização</button></p></form>`}document.getElementById('recBody').innerHTML=html;if(perfil.administrador)document.getElementById('recConfigPin').onsubmit=async ev=>{ev.preventDefault();try{await api('/api/recebimento/cpd/configurar',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(ev.currentTarget)))});aviso('PIN e permissão configurados.')}catch(err){aviso(err.message,true)}};
+  async function cpd(){const perfil=await api('/api/recebimento/cpd/perfil');let html=`<div class="rec-card"><h3>Permissão CPD</h3><p class="rec-muted">${perfil.autorizado?'Seu usuário está habilitado para confirmar notas mediante PIN.':'Seu usuário não possui autorização para confirmar notas.'}</p><p>O PIN não substitui o login. Cada ação fica associada ao usuário autenticado.</p></div>`;if(perfil.administrador){const users=await api('/api/recebimento/usuarios');html+=`<form class="rec-card" id="recConfigPin"><h3>Configurar responsável autorizado (administrador)</h3><div class="rec-grid"><div><label>Usuário</label><select name="usuario_id">${users.map(u=>`<option value="${u.id}">${e(u.nome)} (${e(u.email)})</option>`).join('')}</select></div><div><label>PIN numérico (6–10 dígitos)</label><input name="pin" type="password" minlength="6" maxlength="10" pattern="[0-9]{6,10}" autocomplete="new-password" required></div></div><p><button class="rec-btn" type="submit">Salvar autorização</button></p></form>`}if(perfil.administrador)html+=`<section class="rec-card"><div class="rec-top"><div><h3>Diagnóstico de sincronização XML</h3><p class="rec-muted">Inventários, relatórios parciais e histórico técnico da Ponte GZ. Área administrativa.</p></div><button type="button" class="rec-btn secondary" id="recAbrirDiagnostico" aria-expanded="false">Abrir diagnóstico</button></div><div id="recDiagnosticoConteudo" hidden></div></section>`;document.getElementById('recBody').innerHTML=html;if(perfil.administrador){const botao=document.getElementById('recAbrirDiagnostico'),conteudo=document.getElementById('recDiagnosticoConteudo');botao.onclick=async()=>{const abrir=conteudo.hidden;conteudo.hidden=!abrir;botao.setAttribute('aria-expanded',String(abrir));botao.textContent=abrir?'Fechar diagnóstico':'Abrir diagnóstico';if(abrir)await carregarDiagnosticoXml();};}if(perfil.administrador)document.getElementById('recConfigPin').onsubmit=async ev=>{ev.preventDefault();try{await api('/api/recebimento/cpd/configurar',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(ev.currentTarget)))});aviso('PIN e permissão configurados.')}catch(err){aviso(err.message,true)}};
   }
 })();

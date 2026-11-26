@@ -114,3 +114,16 @@ body.rec-modal-open{overflow:hidden}
 #recebimentoPanel .xml-pagination{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:14px}
 #recebimentoPanel .xml-safety{border-left:3px solid #e3a83e;padding:8px 12px;background:#fff9ea}
 #recebimentoPanel [hidden]{display:none!important}
+
+/* V74.41 — visual operacional enxuto no celular; diagnósticos no CPD/PIN administrativo */
+@media(max-width:650px){
+  #recebimentoPanel .rec-card{padding:12px;margin:8px 0}
+  #recebimentoPanel .xml-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+  #recebimentoPanel .xml-tabs button{padding:9px 4px;font-size:11px;line-height:1.25;white-space:normal}
+  #recebimentoPanel #xmlAcoes{display:grid;gap:8px}
+  #recebimentoPanel #xmlAcoes button{width:100%;white-space:normal}
+  #recebimentoPanel .rec-top{align-items:flex-start}
+  #recebimentoPanel .rec-table-wrap{max-width:100%;-webkit-overflow-scrolling:touch}
+  #recebimentoPanel .xml-pagination{justify-content:space-between;gap:5px}
+  #recebimentoPanel .xml-pagination button{padding:9px 10px}
+}
