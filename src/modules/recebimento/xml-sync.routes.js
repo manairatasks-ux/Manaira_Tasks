@@ -256,6 +256,53 @@ router.get('/xml-sync/historico',run(async(req,res)=>{
   ORDER BY data DESC LIMIT $1`,[limit]);
  res.setHeader('Cache-Control','no-store');res.json(result.rows);
 }));
+// V74.40 — Consulta paginada e classificada, sem alterar a prova de inventário.
+// "Pendentes" = presente no ÚLTIMO inventário completo aceito, ainda não
+// classificada como lançada no Board. Não equivale à confirmação de lançamento no GZ.
+const OBS_XML=`(x.tratamento_especial=TRUE OR x.autorizada=FALSE
+ OR x.reapareceu_apos_auto=TRUE OR COALESCE(n.status IN ('DIVERGENCIA','PRODUTOS_CADASTRAR'),FALSE))`;
+router.get('/xml-pendentes/consulta',run(async(req,res)=>{
+ const aba=['pendentes','observacao','todas'].includes(String(req.query.aba))?String(req.query.aba):'pendentes';
+ const busca=text(req.query.busca,80);
+ const mes=String(req.query.mes||'');
+ if(aba==='todas' && mes && !/^\d{4}-(0[1-9]|1[0-2])$/.test(mes))return fail(res,'Mês inválido.');
+ const pagina=Math.min(100000,Math.max(1,Number.parseInt(req.query.pagina,10)||1));
+ const limite=50;
+ const filtros=[`($1='' OR x.fornecedor ILIKE '%'||$1||'%' OR x.numero ILIKE '%'||$1||'%' OR x.chave ILIKE '%'||$1||'%')`];
+ const params=[busca];
+ if(aba==='pendentes'){
+  filtros.push(`(x.presente_principal=TRUE OR x.presente_adicional=TRUE)`);
+  filtros.push(`NOT ${OBS_XML}`);
+  filtros.push(`COALESCE(n.status,'') <> 'LANCADA' AND x.lancamento_automatico_em IS NULL`);
+ }else if(aba==='observacao'){
+  filtros.push(OBS_XML);
+ }else if(mes){
+  params.push(mes);
+  // A data de emissão armazenada pela Ponte é ISO-8601 (AAAA-MM-DD...).
+  filtros.push(`LEFT(x.emissao_texto,7)=$${params.length}`);
+ }
+ const where=filtros.join(' AND ');
+ const base=`FROM receb_xml_pendentes x LEFT JOIN receb_notas n ON n.id=x.recebido_nota_id WHERE ${where}`;
+ const total=await query(`SELECT COUNT(*)::int AS total ${base}`,params);
+ const count=total.rows[0]?.total||0;
+ const paginas=Math.max(1,Math.ceil(count/limite));
+ const paginaReal=Math.min(pagina,paginas);
+ const args=[...params,limite,(paginaReal-1)*limite];
+ const r=await query(`SELECT x.chave,x.numero,x.serie,x.fornecedor,x.cnpj_fornecedor,x.valor,x.emissao_texto,x.autorizada,
+ (x.xml_original IS NOT NULL) AS tem_danfe,x.primeiro_sync,x.ultimo_sync,x.recebido_nota_id,
+ x.presente_principal,x.presente_adicional,x.ausente_desde,x.lancamento_automatico_em,x.reapareceu_apos_auto,
+ x.tipo_operacao,x.tratamento_especial,x.motivo_especial,n.status AS status_recebimento,n.lancamento_origem,
+ CASE WHEN x.reapareceu_apos_auto THEN 'Reapareceu após classificação automática no Board'
+ WHEN x.tratamento_especial THEN COALESCE(NULLIF(x.motivo_especial,''),'Documento fiscal especial')
+ WHEN x.autorizada=FALSE THEN 'Autorização fiscal não confirmada'
+ WHEN n.status='DIVERGENCIA' THEN 'Divergência no recebimento'
+ WHEN n.status='PRODUTOS_CADASTRAR' THEN 'Produtos pendentes de cadastro'
+ ELSE '' END AS motivo_observacao
+ ${base} ORDER BY x.ultimo_sync DESC,x.chave DESC LIMIT $${args.length-1} OFFSET $${args.length}`,args);
+ res.setHeader('Cache-Control','no-store');
+ res.json({aba,mes:aba==='todas'?mes:null,total:count,pagina:paginaReal,paginas,limite,itens:r.rows,
+  aviso:'A presença corresponde ao último inventário completo aceito; classificação LANCADA no Board não comprova lançamento fiscal no GZ.'});
+}));
 router.get('/xml-pendentes',run(async(req,res)=>{
  const busca=text(req.query.busca,80);
  const r=await query(`SELECT x.chave,x.numero,x.serie,x.fornecedor,x.cnpj_fornecedor,x.valor,x.emissao_texto,x.autorizada,

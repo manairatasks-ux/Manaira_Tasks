@@ -107,3 +107,10 @@ body.rec-modal-open{overflow:hidden}
 .rec-inventory-history{margin:.55rem 0 1rem;padding:.65rem .9rem;border:1px solid #dce6f0;border-radius:10px;font-size:.84rem}
 .rec-inventory-history summary{cursor:pointer;font-weight:650;color:#254b72}
 .rec-inventory-history[open] #xmlInventarioHistorico{margin-top:.8rem}
+
+/* V74.40 — abas de XML e paginação */
+#recebimentoPanel .xml-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+#recebimentoPanel .xml-tabs button{min-height:40px}
+#recebimentoPanel .xml-pagination{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:14px}
+#recebimentoPanel .xml-safety{border-left:3px solid #e3a83e;padding:8px 12px;background:#fff9ea}
+#recebimentoPanel [hidden]{display:none!important}

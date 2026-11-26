@@ -1,6 +1,7 @@
 /* Plataforma Manaíra V67: Recebimento → CPD */
 (() => {
   let tab='notas',notaAtual=null, retornoFoco=null;
+  const xmlFiltro={aba:'pendentes',mes:(()=>{const partes=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Fortaleza',year:'numeric',month:'2-digit'}).formatToParts(new Date());return partes.find(x=>x.type==='year').value+'-'+partes.find(x=>x.type==='month').value})(),pagina:1,busca:''};
   const painelFiltro={modo:'hoje',inicio:null,fim:null,busca:'',paginas:{recebidas:1,cpd:1,pendencias:1,lancadas:1}};
   const el=()=>document.getElementById('recebimentoPanel');
   const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -119,14 +120,34 @@
   }
   async function xmlDisponiveis(){
     const area=document.getElementById('recBody');
-    area.innerHTML=`<section class="rec-card"><div class="rec-top"><div><h3>Notas disponíveis na rede</h3><p class="rec-muted">São notas encontradas nos XMLs. Elas só entram no Recebimento após confirmação física. Nenhuma foto obrigatória nesta etapa.</p></div><button class="rec-btn secondary" id="xmlAtualizar">Atualizar lista</button></div><div class="rec-grid"><div><label>Buscar fornecedor, nota ou chave</label><input class="rec-filter" id="xmlBusca" placeholder="Ex.: Coca-Cola"></div><div><label>Origem dos documentos recebidos</label><select class="rec-filter" id="xmlOrigem"><option value="PAPEL">Papel</option><option value="MENSAGEM">Mensagem</option></select></div></div><p><button class="rec-btn secondary" id="xmlTodos">Selecionar disponíveis</button> <button class="rec-btn" id="xmlConfirmar">Confirmar recebimento físico das selecionadas</button></p><p class="rec-muted" id="xmlMonitor" role="status">Verificando última sincronização...</p><div class="rec-inventory-monitor" id="xmlInventarioResumo" aria-live="polite"></div><details class="rec-inventory-history"><summary>Histórico das verificações das pastas</summary><div id="xmlInventarioHistorico" class="rec-muted">Carregando histórico...</div></details><p class="rec-muted" id="xmlInfo">Carregando...</p><div class="rec-table-wrap"><table class="rec-table"><thead><tr><th></th><th>Fornecedor</th><th>NF / Série</th><th>Emissão</th><th>Valor</th><th>DANFE / XML</th><th>Disponibilidade</th></tr></thead><tbody id="xmlLinhas"></tbody></table></div></section>`;
+    area.innerHTML=`<section class="rec-card"><div class="rec-top"><div><h3>Notas disponíveis na rede</h3><p class="rec-muted">Pendentes segundo o último inventário completo; notas com problemas ficam em Sob observação. Todas as notas permite consultar o histórico.</p></div><button class="rec-btn secondary" id="xmlAtualizar">Atualizar lista</button></div>
+      <div class="xml-tabs" role="tablist" aria-label="Situação das notas fiscais"><button type="button" class="rec-btn secondary" data-xml-aba="pendentes">Pendentes</button><button type="button" class="rec-btn secondary" data-xml-aba="observacao">Sob observação</button><button type="button" class="rec-btn secondary" data-xml-aba="todas">Todas as notas</button></div>
+      <div class="rec-grid"><div><label for="xmlBusca">Buscar fornecedor, nota ou chave</label><input class="rec-filter" id="xmlBusca" placeholder="Ex.: Coca-Cola" value="${e(xmlFiltro.busca)}"></div><div id="xmlMesBox" ${xmlFiltro.aba==='todas'?'':'hidden'}><label for="xmlMes">Mês de emissão</label><input class="rec-filter" id="xmlMes" type="month" value="${e(xmlFiltro.mes)}"></div><div id="xmlOrigemBox" ${xmlFiltro.aba==='pendentes'?'':'hidden'}><label>Origem dos documentos recebidos</label><select class="rec-filter" id="xmlOrigem"><option value="PAPEL">Papel</option><option value="MENSAGEM">Mensagem</option></select></div></div>
+      <p id="xmlAcoes" ${xmlFiltro.aba==='pendentes'?'':'hidden'}><button class="rec-btn secondary" id="xmlTodos">Selecionar disponíveis</button> <button class="rec-btn" id="xmlConfirmar">Confirmar recebimento físico das selecionadas</button></p>
+      <p class="rec-muted" id="xmlMonitor" role="status">Verificando última sincronização...</p><div class="rec-inventory-monitor" id="xmlInventarioResumo" aria-live="polite"></div><details class="rec-inventory-history"><summary>Histórico das verificações das pastas</summary><div id="xmlInventarioHistorico" class="rec-muted">Carregando histórico...</div></details>
+      <p class="rec-muted" id="xmlInfo">Carregando...</p><p class="rec-muted xml-safety">A presença em pasta corresponde ao último inventário completo aceito. A classificação de lançamento no Board não comprova lançamento fiscal no GZ.</p>
+      <div class="rec-table-wrap"><table class="rec-table"><thead><tr><th></th><th>Fornecedor</th><th>NF / Série</th><th>Emissão</th><th>Valor</th><th>DANFE / XML</th><th>Situação</th></tr></thead><tbody id="xmlLinhas"></tbody></table></div>
+      <div class="xml-pagination"><button type="button" class="rec-btn secondary" id="xmlAnterior">Anterior</button><span id="xmlPaginaTexto"></span><button type="button" class="rec-btn secondary" id="xmlProximo">Próxima</button></div></section>`;
+    const atualizarAbas=()=>{
+      document.querySelectorAll('[data-xml-aba]').forEach(btn=>{const ativa=btn.dataset.xmlAba===xmlFiltro.aba;btn.classList.toggle('secondary',!ativa);btn.setAttribute('aria-selected',String(ativa))});
+      document.getElementById('xmlMesBox').hidden=xmlFiltro.aba!=='todas';
+      document.getElementById('xmlOrigemBox').hidden=xmlFiltro.aba!=='pendentes';
+      document.getElementById('xmlAcoes').hidden=xmlFiltro.aba!=='pendentes';
+    };
     const carregar=async()=>{
-      const dados=await api('/api/recebimento/xml-pendentes?busca='+encodeURIComponent(document.getElementById('xmlBusca').value.trim()));
+      const qs=new URLSearchParams({aba:xmlFiltro.aba,busca:xmlFiltro.busca,pagina:String(xmlFiltro.pagina)});
+      if(xmlFiltro.aba==='todas')qs.set('mes',xmlFiltro.mes);
+      const resultado=await api('/api/recebimento/xml-pendentes/consulta?'+qs.toString());
+      xmlFiltro.pagina=resultado.pagina;
+      const dados=resultado.itens;
       const tr=document.getElementById('xmlLinhas');
-      tr.innerHTML=dados.map(n=>`<tr><td><input type="checkbox" class="xmlEscolha" value="${e(n.chave)}" ${n.recebido_nota_id||!n.autorizada||n.tratamento_especial?'disabled':''} aria-label="Selecionar nota ${e(n.numero)}"></td><td>${e(n.fornecedor)}<small class="rec-muted" style="display:block">${e(n.cnpj_fornecedor)}</small></td><td>${e(n.numero)} / ${e(n.serie)}<small class="rec-muted" style="display:block">${e(n.chave)}</small></td><td>${e(n.emissao_texto?String(n.emissao_texto).slice(0,10).split('-').reverse().join('/'):'—')}</td><td>${moeda(n.valor)}</td><td>${n.tem_danfe?`<button type="button" class="rec-btn secondary xmlAbrirPdf" data-chave="${e(n.chave)}">Visualizar DANFE</button> <button type="button" class="rec-btn secondary xmlBaixarXml" data-chave="${e(n.chave)}">Baixar XML</button>`:'<span class="rec-muted" title="O XML integral ainda não está armazenado. A Ponte GZ precisa reenviar este arquivo com XML_SEND_FULL_XML=true.">XML integral indisponível</span>'}</td><td>${n.tratamento_especial?'Conferência especial: '+e(n.tipo_operacao||'A_CONFERIR')+(n.motivo_especial?' — '+e(n.motivo_especial):''):n.reapareceu_apos_auto?'Reapareceu após lançamento automático — conferir':n.lancamento_origem==='AUTOMATICO'?'Lançada automaticamente':n.lancamento_origem==='MANUAL'?'Lançada manualmente':n.ausente_desde?'Ausente nas duas pastas desde '+data(n.ausente_desde):n.presente_principal&&n.presente_adicional?'Nas duas pastas':n.presente_principal?'Aguardando tratamento':n.presente_adicional?'Aguardando lançamento':n.recebido_nota_id?'Já recebida':!n.autorizada?'Verificar autorização':'Aguardando inventário completo'}</td></tr>`).join('')||'<tr><td colspan="7">Nenhuma NF-e sincronizada encontrada. Confira a Ponte GZ, o caminho da rede e a data da última sincronização.</td></tr>';
+      tr.innerHTML=dados.map(n=>`<tr><td>${xmlFiltro.aba==='pendentes'?`<input type="checkbox" class="xmlEscolha" value="${e(n.chave)}" ${n.recebido_nota_id||!n.autorizada||n.tratamento_especial?'disabled':''} aria-label="Selecionar nota ${e(n.numero)}">`:''}</td><td>${e(n.fornecedor)}<small class="rec-muted" style="display:block">${e(n.cnpj_fornecedor)}</small></td><td>${e(n.numero)} / ${e(n.serie)}<small class="rec-muted" style="display:block">${e(n.chave)}</small></td><td>${e(n.emissao_texto?String(n.emissao_texto).slice(0,10).split('-').reverse().join('/'):'—')}</td><td>${moeda(n.valor)}</td><td>${n.tem_danfe?`<button type="button" class="rec-btn secondary xmlAbrirPdf" data-chave="${e(n.chave)}">Visualizar DANFE</button> <button type="button" class="rec-btn secondary xmlBaixarXml" data-chave="${e(n.chave)}">Baixar XML</button>`:'<span class="rec-muted">XML integral indisponível</span>'}</td><td>${n.motivo_observacao?`<strong>${e(n.motivo_observacao)}</strong>`:n.lancamento_origem==='AUTOMATICO'?'Classificada automaticamente no Board (não confirma GZ)':n.lancamento_origem==='MANUAL'||n.status_recebimento==='LANCADA'?'Lançada no Board':n.presente_principal&&n.presente_adicional?'Presente nas duas pastas':n.presente_principal?'Presente na pasta principal':n.presente_adicional?'Presente na pasta adicional':n.ausente_desde?'Ausente desde '+data(n.ausente_desde):'Sem presença confirmada no inventário'}</td></tr>`).join('')||'<tr><td colspan="7">Nenhuma nota encontrada para este filtro.</td></tr>';
       tr.querySelectorAll('.xmlAbrirPdf').forEach(btn=>btn.onclick=()=>abrirDocumentoFiscal(btn.dataset.chave,'pdf',btn));
       tr.querySelectorAll('.xmlBaixarXml').forEach(btn=>btn.onclick=()=>abrirDocumentoFiscal(btn.dataset.chave,'xml',btn));
-      document.getElementById('xmlInfo').textContent=`${dados.length} nota(s) encontradas. XMLs não confirmam chegada física nem lançamento no GZ.`;
+      document.getElementById('xmlInfo').textContent=`${resultado.total} nota(s) nesta categoria. Exibindo ${dados.length} nesta página.`;
+      document.getElementById('xmlPaginaTexto').textContent=`Página ${resultado.pagina} de ${resultado.paginas}`;
+      document.getElementById('xmlAnterior').disabled=resultado.pagina<=1;
+      document.getElementById('xmlProximo').disabled=resultado.pagina>=resultado.paginas;
       // Resumo real do PostgreSQL, sem presumir que ambas as pastas estão online.
       try{
         const resumo=await api('/api/recebimento/xml-sync/resumo');
@@ -154,8 +175,14 @@
       }
 
     };
+    document.querySelectorAll('[data-xml-aba]').forEach(btn=>btn.onclick=()=>{xmlFiltro.aba=btn.dataset.xmlAba;xmlFiltro.pagina=1;atualizarAbas();carregar().catch(err=>aviso(err.message,true))});
+    document.getElementById('xmlMes').onchange=ev=>{xmlFiltro.mes=ev.target.value;xmlFiltro.pagina=1;carregar().catch(err=>aviso(err.message,true))};
+    document.getElementById('xmlAnterior').onclick=()=>{xmlFiltro.pagina=Math.max(1,xmlFiltro.pagina-1);carregar().catch(err=>aviso(err.message,true))};
+    document.getElementById('xmlProximo').onclick=()=>{xmlFiltro.pagina++;carregar().catch(err=>aviso(err.message,true))};
     document.getElementById('xmlAtualizar').onclick=()=>carregar().catch(err=>aviso(err.message,true));
-    document.getElementById('xmlBusca').onchange=()=>carregar().catch(err=>aviso(err.message,true));
+    document.getElementById('xmlBusca').onchange=ev=>{xmlFiltro.busca=ev.target.value.trim();xmlFiltro.pagina=1;carregar().catch(err=>aviso(err.message,true))};
+    document.getElementById('xmlBusca').onkeydown=ev=>{if(ev.key==='Enter'){ev.preventDefault();ev.target.blur()}};
+    atualizarAbas();
     document.getElementById('xmlTodos').onclick=()=>document.querySelectorAll('.xmlEscolha:not(:disabled)').forEach(x=>x.checked=true);
     document.getElementById('xmlConfirmar').onclick=async()=>{
       const chaves=[...document.querySelectorAll('.xmlEscolha:checked')].map(x=>x.value);
